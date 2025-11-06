@@ -190,33 +190,33 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Default handlers
 	switch {
-	case r.Method == "POST" && r.URL.Path == "/oauth2/token":
+	case r.Method == http.MethodPost && r.URL.Path == "/oauth2/token":
 		ms.handleAuth(w, r)
-	case r.Method == "GET" && r.URL.Path == "/instances":
+	case r.Method == http.MethodGet && r.URL.Path == "/instances":
 		ms.handleGetInstances(w, r)
-	case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/instances/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/instances/"):
 		ms.handleGetInstance(w, r)
-	case r.Method == "POST" && r.URL.Path == "/instances":
+	case r.Method == http.MethodPost && r.URL.Path == "/instances":
 		ms.handleCreateInstance(w, r)
-	case r.Method == "POST" && r.URL.Path == "/instances/action":
+	case r.Method == http.MethodPost && r.URL.Path == "/instances/action":
 		ms.handleInstanceAction(w, r)
-	case r.Method == "GET" && r.URL.Path == "/balance":
+	case r.Method == http.MethodGet && r.URL.Path == "/balance":
 		ms.handleGetBalance(w, r)
-	case r.Method == "GET" && r.URL.Path == "/sshkeys":
+	case r.Method == http.MethodGet && r.URL.Path == "/sshkeys":
 		ms.handleGetSSHKeys(w, r)
-	case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/sshkeys/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/sshkeys/"):
 		ms.handleGetSSHKey(w, r)
-	case r.Method == "POST" && r.URL.Path == "/sshkeys":
+	case r.Method == http.MethodPost && r.URL.Path == "/sshkeys":
 		ms.handleCreateSSHKey(w, r)
-	case r.Method == "GET" && r.URL.Path == "/locations":
+	case r.Method == http.MethodGet && r.URL.Path == "/locations":
 		ms.handleGetLocations(w, r)
-	case r.Method == "GET" && r.URL.Path == "/scripts":
+	case r.Method == http.MethodGet && r.URL.Path == "/scripts":
 		ms.handleGetScripts(w, r)
-	case r.Method == "GET" && strings.HasPrefix(r.URL.Path, "/scripts/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/scripts/"):
 		ms.handleGetScript(w, r)
-	case r.Method == "POST" && r.URL.Path == "/scripts":
+	case r.Method == http.MethodPost && r.URL.Path == "/scripts":
 		ms.handleCreateScript(w, r)
-	case r.Method == "DELETE" && strings.HasPrefix(r.URL.Path, "/scripts/"):
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/scripts/"):
 		ms.handleDeleteScript(w, r)
 	default:
 		http.NotFound(w, r)
@@ -274,7 +274,7 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
-func (ms *MockServer) handleGetInstances(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	instances := []Instance{
@@ -407,7 +407,7 @@ func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
-func (ms *MockServer) handleGetBalance(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleGetBalance(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	balance := Balance{
@@ -418,7 +418,7 @@ func (ms *MockServer) handleGetBalance(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(balance)
 }
 
-func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	keys := []SSHKey{
@@ -434,7 +434,7 @@ func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(keys)
 }
 
-func (ms *MockServer) handleGetLocations(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	locations := []Location{
@@ -525,7 +525,7 @@ func (ms *MockServer) handleCreateSSHKey(w http.ResponseWriter, r *http.Request)
 	w.Write([]byte(keyID))
 }
 
-func (ms *MockServer) handleGetScripts(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleGetScripts(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	scripts := []StartupScript{

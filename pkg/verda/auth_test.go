@@ -49,7 +49,7 @@ func TestAuthService_Authenticate(t *testing.T) {
 
 	t.Run("authentication error", func(t *testing.T) {
 		// Set up mock server to return error for authentication
-		mockServer.SetHandler("POST", "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
 			testutil.ErrorResponse(w, http.StatusUnauthorized, "Invalid credentials")
 		})
 
@@ -114,7 +114,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 		}
 
 		// Set up mock server to fail refresh but succeed authentication
-		mockServer.SetHandler("POST", "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
 			if err := r.ParseForm(); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				return

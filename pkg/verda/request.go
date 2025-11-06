@@ -21,7 +21,35 @@ type Response struct {
 func getRequest[T any](ctx context.Context, client *Client, url string) (T, *Response, error) {
 	var respBody T
 
-	req, err := client.NewRequest(ctx, "GET", url, nil)
+	req, err := client.NewRequest(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return respBody, nil, err
+	}
+
+	resp, err := client.Do(req, &respBody)
+	if err != nil {
+		return respBody, resp, err
+	}
+
+	return respBody, resp, nil
+}
+
+// requestWithBody performs an HTTP request with a body (POST, PUT, etc.) and returns the response
+// T represents the expected response body type that will be unmarshaled from JSON
+func requestWithBody[T any](ctx context.Context, client *Client, method, url string, reqBody any) (T, *Response, error) {
+	var respBody T
+
+	var reqBodyReader io.Reader
+	if reqBody != nil {
+		reqBodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return respBody, nil, err
+		}
+
+		reqBodyReader = bytes.NewReader(reqBodyBytes)
+	}
+
+	req, err := client.NewRequest(ctx, method, url, reqBodyReader)
 	if err != nil {
 		return respBody, nil, err
 	}
@@ -37,29 +65,7 @@ func getRequest[T any](ctx context.Context, client *Client, url string) (T, *Res
 // postRequest performs a POST request and returns the response body, HTTP response, and error
 // T represents the expected response body type that will be unmarshaled from JSON
 func postRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
-	var respBody T
-
-	var reqBodyReader io.Reader
-	if reqBody != nil {
-		reqBodyBytes, err := json.Marshal(reqBody)
-		if err != nil {
-			return respBody, nil, err
-		}
-
-		reqBodyReader = bytes.NewReader(reqBodyBytes)
-	}
-
-	req, err := client.NewRequest(ctx, "POST", url, reqBodyReader)
-	if err != nil {
-		return respBody, nil, err
-	}
-
-	resp, err := client.Do(req, &respBody)
-	if err != nil {
-		return respBody, resp, err
-	}
-
-	return respBody, resp, nil
+	return requestWithBody[T](ctx, client, http.MethodPost, url, reqBody)
 }
 
 // putRequest performs a PUT request and returns the response body, HTTP response, and error
@@ -68,29 +74,7 @@ func postRequest[T any](ctx context.Context, client *Client, url string, reqBody
 //
 //nolint:unused // Provided for complete HTTP method coverage
 func putRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
-	var respBody T
-
-	var reqBodyReader io.Reader
-	if reqBody != nil {
-		reqBodyBytes, err := json.Marshal(reqBody)
-		if err != nil {
-			return respBody, nil, err
-		}
-
-		reqBodyReader = bytes.NewReader(reqBodyBytes)
-	}
-
-	req, err := client.NewRequest(ctx, "PUT", url, reqBodyReader)
-	if err != nil {
-		return respBody, nil, err
-	}
-
-	resp, err := client.Do(req, &respBody)
-	if err != nil {
-		return respBody, resp, err
-	}
-
-	return respBody, resp, nil
+	return requestWithBody[T](ctx, client, http.MethodPut, url, reqBody)
 }
 
 // deleteRequest performs a DELETE request and returns the response body, HTTP response, and error
@@ -101,7 +85,7 @@ func putRequest[T any](ctx context.Context, client *Client, url string, reqBody 
 func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *Response, error) {
 	var respBody T
 
-	req, err := client.NewRequest(ctx, "DELETE", url, nil)
+	req, err := client.NewRequest(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return respBody, nil, err
 	}
@@ -116,7 +100,7 @@ func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *
 
 // deleteRequestNoResult performs a DELETE request without expecting a response body
 func deleteRequestNoResult(ctx context.Context, client *Client, url string) (*Response, error) {
-	req, err := client.NewRequest(ctx, "DELETE", url, nil)
+	req, err := client.NewRequest(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return nil, err
 	}

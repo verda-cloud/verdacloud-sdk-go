@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -59,7 +60,7 @@ func (s *VolumeService) Create(ctx context.Context, req VolumeCreateRequest) (st
 // createWithPlainTextResponse handles the case where the API returns plain text instead of JSON
 func (s *VolumeService) createWithPlainTextResponse(ctx context.Context, req VolumeCreateRequest) (string, error) {
 	// Use the old method as a fallback for plain text responses
-	resp, err := s.client.makeRequest("POST", "/volumes", req)
+	resp, err := s.client.makeRequest(ctx, http.MethodPost, "/volumes", req)
 	if err != nil {
 		return "", err
 	}

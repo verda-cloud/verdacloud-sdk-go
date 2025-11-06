@@ -1,6 +1,7 @@
 package verda
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -130,7 +131,7 @@ func TestClientMakeRequest(t *testing.T) {
 
 	// Test successful request
 	t.Run("successful request", func(t *testing.T) {
-		resp, err := client.makeRequest("GET", "/balance", nil)
+		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/balance", nil)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -144,7 +145,7 @@ func TestClientMakeRequest(t *testing.T) {
 	// Test request with body
 	t.Run("request with body", func(t *testing.T) {
 		requestBody := map[string]string{"test": "data"}
-		resp, err := client.makeRequest("POST", "/instances", requestBody)
+		resp, err := client.makeRequest(context.Background(), http.MethodPost, "/instances", requestBody)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -163,7 +164,7 @@ func TestClientHandleResponse(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	t.Run("successful response parsing", func(t *testing.T) {
-		resp, err := client.makeRequest("GET", "/balance", nil)
+		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/balance", nil)
 		if err != nil {
 			t.Fatalf("unexpected error making request: %v", err)
 		}
@@ -184,11 +185,11 @@ func TestClientHandleResponse(t *testing.T) {
 
 	t.Run("error response", func(t *testing.T) {
 		// Set up a custom handler that returns an error
-		mockServer.SetHandler("GET", "/error-test", func(w http.ResponseWriter, r *http.Request) {
+		mockServer.SetHandler(http.MethodGet, "/error-test", func(w http.ResponseWriter, r *http.Request) {
 			testutil.ErrorResponse(w, http.StatusBadRequest, "Test error message")
 		})
 
-		resp, err := client.makeRequest("GET", "/error-test", nil)
+		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/error-test", nil)
 		if err != nil {
 			t.Fatalf("unexpected error making request: %v", err)
 		}

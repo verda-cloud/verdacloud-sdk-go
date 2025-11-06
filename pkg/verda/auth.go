@@ -76,7 +76,7 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 		return nil, fmt.Errorf("failed to marshal token request: %w", err)
 	}
 
-	req, err := http.NewRequest("POST", s.client.BaseURL+"/oauth2/token", bytes.NewReader(payload))
+	req, err := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}
@@ -113,7 +113,7 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 					form.Set("refresh_token", body.RefreshToken)
 				}
 
-				req2, err2 := http.NewRequest("POST", s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
+				req2, err2 := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
 				if err2 != nil {
 					return nil, fmt.Errorf("failed to create token request (form): %w", err2)
 				}

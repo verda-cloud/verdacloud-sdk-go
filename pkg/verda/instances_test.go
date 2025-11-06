@@ -224,7 +224,7 @@ func TestInstanceService_IsAvailable(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock to return availability
-	mockServer.SetHandler("GET", "/instance-availability/1V100.6V", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/instance-availability/1V100.6V", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`true`))
@@ -262,7 +262,7 @@ func TestInstanceService_GetAvailabilities(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock to return availabilities
-	mockServer.SetHandler("GET", "/instance-availability", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/instance-availability", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`[

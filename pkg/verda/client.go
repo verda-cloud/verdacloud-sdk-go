@@ -261,6 +261,7 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 // buildRequestChain builds the request middleware chain
 func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) RequestHandler {
 	// Default handler that does nothing
+	//nolint:revive // ctx unused in default no-op handler
 	handler := func(ctx *RequestContext) error {
 		return nil
 	}
@@ -276,6 +277,7 @@ func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) Reques
 // buildResponseChain builds the response middleware chain
 func (c *Client) buildResponseChain(responseMiddleware []ResponseMiddleware) ResponseHandler {
 	// Default handler that does nothing
+	//nolint:revive // ctx unused in default no-op handler
 	handler := func(ctx *ResponseContext) error {
 		return nil
 	}
@@ -288,8 +290,10 @@ func (c *Client) buildResponseChain(responseMiddleware []ResponseMiddleware) Res
 	return handler
 }
 
-// generic request alternative request
-func (c *Client) makeRequest(method, path string, body any) (*http.Response, error) {
+// makeRequest creates and executes an HTTP request with the given context
+// This is a legacy method used by some endpoints that return plain text responses.
+// New code should use NewRequest() and Do() instead for better middleware support.
+func (c *Client) makeRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
 	url := c.BaseURL + path
 
 	var reqBody io.Reader
@@ -301,7 +305,7 @@ func (c *Client) makeRequest(method, path string, body any) (*http.Response, err
 		reqBody = bytes.NewBuffer(jsonBody)
 	}
 
-	req, err := http.NewRequest(method, url, reqBody)
+	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

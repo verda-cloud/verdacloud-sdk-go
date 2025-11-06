@@ -77,7 +77,7 @@ func TestSSHKeyService_GetByID(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for specific SSH key
-	mockServer.SetHandler("GET", "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
 		key := testutil.SSHKey{
 			ID:          "key_123",
 			Name:        "Specific Test Key",
@@ -116,7 +116,7 @@ func TestSSHKeyService_Create(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for SSH key creation
-	mockServer.SetHandler("POST", "/sshkeys", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodPost, "/sshkeys", func(w http.ResponseWriter, r *http.Request) {
 		var req CreateSSHKeyRequest
 		json.NewDecoder(r.Body).Decode(&req)
 
@@ -165,7 +165,7 @@ func TestSSHKeyService_Delete(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for SSH key deletion
-	mockServer.SetHandler("DELETE", "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodDelete, "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
@@ -223,7 +223,7 @@ func TestVolumeService_Get(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for volumes
-	mockServer.SetHandler("GET", "/volumes", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/volumes", func(w http.ResponseWriter, r *http.Request) {
 		volumes := []testutil.Volume{
 			{
 				ID:     "vol_123",
@@ -266,7 +266,7 @@ func TestVolumeService_GetByID(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for specific volume
-	mockServer.SetHandler("GET", "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
 		volume := testutil.Volume{
 			ID:     "vol_123",
 			Name:   "Specific Volume",
@@ -307,7 +307,7 @@ func TestStartupScriptService_Get(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for startup scripts
-	mockServer.SetHandler("GET", "/scripts", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/scripts", func(w http.ResponseWriter, r *http.Request) {
 		scripts := []testutil.StartupScript{
 			{
 				ID:     "script_123",
@@ -348,7 +348,7 @@ func TestStartupScriptService_Create(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for startup script creation (returns plain text ID)
-	mockServer.SetHandler("POST", "/scripts", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodPost, "/scripts", func(w http.ResponseWriter, r *http.Request) {
 		var req CreateStartupScriptRequest
 		json.NewDecoder(r.Body).Decode(&req)
 
@@ -359,7 +359,7 @@ func TestStartupScriptService_Create(t *testing.T) {
 	})
 
 	// Set up mock response for GetByID (returns array)
-	mockServer.SetHandler("GET", "/scripts/script_new_123", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/scripts/script_new_123", func(w http.ResponseWriter, r *http.Request) {
 		scripts := []testutil.StartupScript{
 			{
 				ID:     "script_new_123",
@@ -405,7 +405,7 @@ func TestContainerService_Get(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for containers
-	mockServer.SetHandler("GET", "/containers", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodGet, "/containers", func(w http.ResponseWriter, r *http.Request) {
 		containers := []testutil.Container{
 			{
 				ID:     "container_123",
@@ -447,7 +447,7 @@ func TestContainerService_Create(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for container creation
-	mockServer.SetHandler("POST", "/containers", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodPost, "/containers", func(w http.ResponseWriter, r *http.Request) {
 		var req CreateContainerRequest
 		json.NewDecoder(r.Body).Decode(&req)
 

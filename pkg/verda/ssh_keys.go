@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 )
 
@@ -51,7 +52,7 @@ func (s *SSHKeyService) Create(ctx context.Context, req CreateSSHKeyRequest) (*S
 
 // createWithPlainTextResponse handles the case where the API returns plain text instead of JSON
 func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req CreateSSHKeyRequest) (*SSHKey, error) {
-	resp, err := s.client.makeRequest("POST", "/sshkeys", req)
+	resp, err := s.client.makeRequest(ctx, http.MethodPost, "/sshkeys", req)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +63,10 @@ func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req Cre
 	// Check for error status codes first
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Re-read the body for error handling
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read error response: %w", err)
+		}
 		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 

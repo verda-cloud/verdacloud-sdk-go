@@ -17,7 +17,7 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 	// Create a test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
-		case "GET":
+		case http.MethodGet:
 			if r.URL.Path == "/users" {
 				users := []TestUser{
 					{ID: 1, Name: "John Doe"},
@@ -30,19 +30,19 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(user)
 			}
-		case "POST":
+		case http.MethodPost:
 			if r.URL.Path == "/users" {
 				user := TestUser{ID: 3, Name: "New User"}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(user)
 			}
-		case "PUT":
+		case http.MethodPut:
 			if r.URL.Path == "/users/1" {
 				user := TestUser{ID: 1, Name: "Updated User"}
 				w.Header().Set("Content-Type", "application/json")
 				json.NewEncoder(w).Encode(user)
 			}
-		case "DELETE":
+		case http.MethodDelete:
 			if r.URL.Path == "/users/1" {
 				w.WriteHeader(http.StatusNoContent)
 			}

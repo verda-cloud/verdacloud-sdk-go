@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 )
@@ -73,7 +74,7 @@ func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest)
 // createWithPlainTextResponse handles the case where the API returns plain text instead of JSON
 func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req CreateInstanceRequest) (*Instance, error) {
 	// Use the old method as a fallback for plain text responses
-	resp, err := s.client.makeRequest("POST", "/instances", req)
+	resp, err := s.client.makeRequest(ctx, http.MethodPost, "/instances", req)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +85,10 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 	// Check for error status codes first
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		// Read and parse the error response
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read error response: %w", err)
+		}
 		s.client.Logger.Debug("Instance creation failed with status %d: %s", resp.StatusCode, string(body))
 
 		// Parse the error manually since we already read the body
@@ -146,11 +150,13 @@ func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, 
 
 	// The API returns a JSON string "true" or "false", not a boolean
 	// We need to handle this manually
-	resp, err := s.client.makeRequest("GET", path, nil)
+	resp, err := s.client.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -227,11 +233,13 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	path := fmt.Sprintf("/instance-availability/%s", instanceType)
 
 	// The API returns a JSON string "true" or "false", not a boolean
-	resp, err := s.client.makeRequest("GET", path, nil)
+	resp, err := s.client.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

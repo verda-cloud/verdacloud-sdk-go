@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"strings"
 )
 
@@ -58,11 +59,13 @@ func (s *StartupScriptService) Create(ctx context.Context, req CreateStartupScri
 
 // createWithPlainTextResponse handles the case where the API returns plain text ID instead of JSON
 func (s *StartupScriptService) createWithPlainTextResponse(ctx context.Context, req CreateStartupScriptRequest) (*StartupScript, error) {
-	resp, err := s.client.makeRequest("POST", "/scripts", req)
+	resp, err := s.client.makeRequest(ctx, http.MethodPost, "/scripts", req)
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Read the response body
 	body, err := io.ReadAll(resp.Body)
