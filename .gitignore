@@ -1,0 +1,71 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts (all test binaries and build outputs go in build/)
+build/
+dist/
+bin/
+
+# Legacy artifacts (if accidentally created in root)
+integration.test
+coverage.out
+coverage.html
+
+# Temporary files
+*.tmp
+*.log
+
+# AI Coder
+.cursor/
+
+# AI-generated temporary documentation
+*_ANALYSIS.md
+*_SUMMARY.md
+*_PROPOSAL.md
+*_FIX.md
+*_DESIGN.md
+*_DIAGRAM.md
+*_PLAN.md
+*_MECHANISM.md
+*_GUIDE.md
+*_REFERENCE.md
+*_APPROACH.md
+*_IMPROVEMENTS.md
+RACE_*.md
+PAUSE_*.md
+CHANGES_APPLIED.md
+DEVELOPMENT.md
+INSTALL_APPROACH.md
+QUICK_REFERENCE.md
+SETUP_SUMMARY.md
+MIGRATION_GUIDE.md

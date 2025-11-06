@@ -1,0 +1,50 @@
+# .dockerignore - exclude files from Docker build context
+
+# Build artifacts
+build/
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation (not needed in build)
+*.md
+!README.md
+docs/
+
+# CI/CD configs (not needed in container)
+.github/
+.pre-commit-config.yaml
+
+# Test coverage
+coverage.html
+coverage.out
+
+# Docker files themselves
+Dockerfile
+.dockerignore
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+

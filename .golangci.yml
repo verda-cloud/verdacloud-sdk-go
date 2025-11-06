@@ -1,0 +1,60 @@
+version: "2"
+run:
+  go: "1.21"
+  modules-download-mode: readonly
+  tests: false
+linters:
+  enable:
+    - dupl
+    - goconst
+    - gocyclo
+    - gosec
+    - misspell
+    - revive
+    - unconvert
+  settings:
+    dupl:
+      threshold: 100
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocyclo:
+      min-complexity: 15
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - dupl
+          - errcheck
+          - goconst
+          - gocyclo
+          - gosec
+        path: _test\.go
+      - linters:
+          - errcheck
+          - gosec
+        path: test_helpers\.go
+      - linters:
+          - errcheck
+          - gosec
+        path: testutil/
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

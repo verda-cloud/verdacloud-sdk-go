@@ -1,0 +1,67 @@
+# golangci-lint configuration
+# https://golangci-lint.run/usage/configuration/
+# Compatible with golangci-lint 2.x
+
+run:
+  timeout: 5m
+  tests: false  # Don't lint test files by default
+  modules-download-mode: readonly
+  go: '1.21'
+
+linters:
+  enable:
+    - gofmt          # Checks whether code was gofmt-ed
+    - goimports      # Check import statements are formatted well
+    - govet          # Reports suspicious constructs
+    - errcheck       # Check for unchecked errors
+    - staticcheck    # Go static analysis
+    - unused         # Check for unused constants, variables, functions and types
+    - gosimple       # Specializes in simplifying code
+    - ineffassign    # Detects when assignments to existing variables are not used
+    - typecheck      # Like the front-end of a Go compiler, parses and type-checks Go code
+    - misspell       # Finds commonly misspelled English words
+    - unconvert      # Remove unnecessary type conversions
+    - dupl           # Tool for code clone detection
+    - goconst        # Finds repeated strings that could be replaced by a constant
+    - gocyclo        # Computes and checks the cyclomatic complexity of functions
+    - gosec          # Inspects source code for security problems
+    - revive         # Fast, configurable, extensible, flexible, and beautiful linter for Go
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  dupl:
+    threshold: 100
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  # Exclude some linters from running on tests files.
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+        - goconst
+    - path: test_helpers\.go
+      linters:
+        - errcheck
+        - gosec
+    - path: testutil/
+      linters:
+        - errcheck
+        - gosec
+
+output:
+  sort-results: true
+
