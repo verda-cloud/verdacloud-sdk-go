@@ -40,9 +40,9 @@ setup: install-tools setup-hooks ## Complete development environment setup (tool
 install-tools: ## Install required development tools (golangci-lint) and check for pre-commit
 	@echo "→ Checking development tools..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "  Installing golangci-lint v2.6.1..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.6.1; \
-		echo "  ✓ golangci-lint v2.6.1 installed successfully"; \
+		echo "  Installing golangci-lint v1.62.2..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2; \
+		echo "  ✓ golangci-lint v1.62.2 installed successfully"; \
 	else \
 		echo "  ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	fi
@@ -97,6 +97,32 @@ lint: ## Run golangci-lint on all Go code (static analysis, security checks)
 	@golangci-lint run ./...
 	@echo "✓ Linting complete!"
 
+security: ## Run security checks (gosec via golangci-lint + govulncheck)
+	@echo "→ Running security checks..."
+	@echo "  1. Running gosec (via golangci-lint)..."
+	@golangci-lint run --disable-all --enable gosec ./...
+	@echo "  2. Running govulncheck..."
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "    Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	@govulncheck ./...
+	@echo "✓ Security checks complete!"
+
+gosec: ## Run gosec security scanner (respects .golangci.yml exclusions)
+	@echo "→ Running gosec via golangci-lint..."
+	@golangci-lint run --disable-all --enable gosec ./...
+	@echo "✓ gosec complete!"
+
+govulncheck: ## Run Go vulnerability checker
+	@echo "→ Running govulncheck..."
+	@if ! command -v govulncheck >/dev/null 2>&1; then \
+		echo "  Installing govulncheck..."; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+	fi
+	@govulncheck ./...
+	@echo "✓ govulncheck complete!"
+
 fmt: ## Format all Go code using gofmt and goimports
 	@echo "→ Formatting Go code..."
 	@gofmt -w -s .
@@ -109,6 +135,9 @@ fmt: ## Format all Go code using gofmt and goimports
 
 check: fmt lint test-unit ## Run all quality checks (format, lint, test) - CI/CD ready
 	@echo "✓ All checks passed!"
+
+check-security: check security ## Run all checks including security scans
+	@echo "✓ All checks including security passed!"
 
 # ============================================================================
 # Building
@@ -355,6 +384,10 @@ docker-shell: docker-ensure-running ## Open interactive shell in persistent cont
 	@echo "→ Opening shell in container..."
 	@docker exec -it -w /workspace $(DOCKER_CONTAINER) /bin/bash
 
+docker-security: docker-ensure-running ## Run security checks in persistent container (auto-starts if needed)
+	@echo "→ Running security checks in container..."
+	@docker exec -w /workspace $(DOCKER_CONTAINER) make security
+
 docker-status: ## Show status of dev container
 	@CONTAINER_RUNNING=$$(docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
 	if [ -n "$$CONTAINER_RUNNING" ]; then \
@@ -396,8 +429,9 @@ docker-help: ## Show Docker-specific help
 	@echo '  make docker-shell        # Open bash in container'
 	@echo ''
 
-.PHONY: setup install-tools setup-hooks lint fmt check build test test-unit test-integration
-.PHONY: coverage clean clean-all mod-tidy update-deps pre-commit-run pre-commit-update ci ci-local
+.PHONY: setup install-tools setup-hooks lint fmt check check-security security gosec govulncheck
+.PHONY: build test test-unit test-integration coverage clean clean-all mod-tidy update-deps
+.PHONY: pre-commit-run pre-commit-update ci ci-local
 .PHONY: docker-build docker-start docker-stop docker-restart docker-lint docker-test
 .PHONY: docker-test-integration docker-coverage docker-ci docker-fmt docker-shell
-.PHONY: docker-status docker-clean docker-help
+.PHONY: docker-status docker-clean docker-help docker-security

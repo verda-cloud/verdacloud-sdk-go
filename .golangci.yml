@@ -1,7 +1,7 @@
 version: "2"
 
 run:
-  go: "1.21"
+  go: "1.23"
   concurrency: 4
   timeout: 5m
   tests: false
@@ -76,13 +76,11 @@ linters:
           - gosec
         path: test_helpers\.go
       
-      # Test utilities - relax all style rules
+      # Test utilities - relax style rules but keep security checks
       - linters:
           - dupl
-          - errcheck
           - goconst
           - gocyclo
-          - gosec
           - revive
           - unused
         path: testutil/

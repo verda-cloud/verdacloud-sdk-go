@@ -2,6 +2,7 @@ package testutil
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -239,7 +240,7 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := json.NewDecoder(r.Body).Decode(&tokenReq); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_json"})
+			writeJSON(w, map[string]string{"error": "invalid_json"})
 			return
 		}
 		grantType = tokenReq.GrantType
@@ -258,7 +259,7 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 
 	if grantType == "" || clientID == "" || clientSecret == "" {
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": "invalid_request"})
+		writeJSON(w, map[string]string{"error": "invalid_request"})
 		return
 	}
 
@@ -271,7 +272,7 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		"scope":         "read write",
 	}
 
-	json.NewEncoder(w).Encode(response)
+	writeJSON(w, response)
 }
 
 func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request) {
@@ -301,7 +302,7 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 		},
 	}
 
-	json.NewEncoder(w).Encode(instances)
+	writeJSON(w, instances)
 }
 
 func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) {
@@ -338,7 +339,7 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		Pricing:      "FIXED_PRICE",
 	}
 
-	json.NewEncoder(w).Encode(instance)
+	writeJSON(w, instance)
 }
 
 func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Request) {
@@ -390,7 +391,7 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(instance)
+	writeJSON(w, instance)
 }
 
 func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Request) {
@@ -404,7 +405,7 @@ func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Reques
 
 	// Mock successful action
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	writeJSON(w, map[string]string{"status": "success"})
 }
 
 func (ms *MockServer) handleGetBalance(w http.ResponseWriter, _ *http.Request) {
@@ -415,7 +416,7 @@ func (ms *MockServer) handleGetBalance(w http.ResponseWriter, _ *http.Request) {
 		Currency: "USD",
 	}
 
-	json.NewEncoder(w).Encode(balance)
+	writeJSON(w, balance)
 }
 
 func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, _ *http.Request) {
@@ -431,7 +432,7 @@ func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(keys)
+	writeJSON(w, keys)
 }
 
 func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request) {
@@ -447,7 +448,7 @@ func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request)
 		},
 	}
 
-	json.NewEncoder(w).Encode(locations)
+	writeJSON(w, locations)
 }
 
 func (ms *MockServer) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
@@ -489,7 +490,7 @@ func (ms *MockServer) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return as an array (to match the real API)
-	json.NewEncoder(w).Encode([]SSHKey{key})
+	writeJSON(w, []SSHKey{key})
 }
 
 func (ms *MockServer) handleCreateSSHKey(w http.ResponseWriter, r *http.Request) {
@@ -522,7 +523,7 @@ func (ms *MockServer) handleCreateSSHKey(w http.ResponseWriter, r *http.Request)
 
 	// Return just the ID as plain text (to match the real API)
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(keyID))
+	writeBytes(w, []byte(keyID))
 }
 
 func (ms *MockServer) handleGetScripts(w http.ResponseWriter, _ *http.Request) {
@@ -537,7 +538,7 @@ func (ms *MockServer) handleGetScripts(w http.ResponseWriter, _ *http.Request) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(scripts)
+	writeJSON(w, scripts)
 }
 
 func (ms *MockServer) handleGetScript(w http.ResponseWriter, r *http.Request) {
@@ -560,7 +561,7 @@ func (ms *MockServer) handleGetScript(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Return as an array (to match the real API behavior)
-	json.NewEncoder(w).Encode([]StartupScript{script})
+	writeJSON(w, []StartupScript{script})
 }
 
 func (ms *MockServer) handleCreateScript(w http.ResponseWriter, r *http.Request) {
@@ -578,7 +579,7 @@ func (ms *MockServer) handleCreateScript(w http.ResponseWriter, r *http.Request)
 	scriptID := "script_new_123"
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusCreated)
-	w.Write([]byte(scriptID))
+	writeBytes(w, []byte(scriptID))
 }
 
 func (ms *MockServer) handleDeleteScript(w http.ResponseWriter, r *http.Request) {
@@ -594,11 +595,25 @@ func (ms *MockServer) handleDeleteScript(w http.ResponseWriter, r *http.Request)
 
 // Note: CreateTestClient is implemented in test files to avoid circular imports
 
+// writeJSON writes a JSON response, handling errors appropriately for test mocks
+func writeJSON(w http.ResponseWriter, v interface{}) {
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("mock server: failed to encode JSON response: %v", err)
+	}
+}
+
+// writeBytes writes raw bytes, handling errors appropriately for test mocks
+func writeBytes(w http.ResponseWriter, data []byte) {
+	if _, err := w.Write(data); err != nil {
+		log.Printf("mock server: failed to write response: %v", err)
+	}
+}
+
 // ErrorResponse creates a mock error response
 func ErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	writeJSON(w, map[string]interface{}{
 		"message": message,
 		"status":  statusCode,
 	})

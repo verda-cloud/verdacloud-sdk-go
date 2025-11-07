@@ -92,50 +92,51 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 	}
 
 	var tokenResp TokenResponse
-	if err := s.client.handleResponse(resp, &tokenResp); err == nil {
+	err = s.client.handleResponse(resp, &tokenResp)
+	if err == nil {
 		tokenResp.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 		s.token = &tokenResp
 		return &tokenResp, nil
-	} else {
-		// Potentially staging requires form-encoded; inspect error and retry
-		if apiErr, ok := err.(*APIError); ok {
-			msg := strings.ToLower(apiErr.Message)
-			if apiErr.StatusCode == 400 && (strings.Contains(msg, "grant_type") && strings.Contains(msg, "not specified") || strings.Contains(msg, "unsupported grant type") || strings.Contains(msg, "not valid json")) {
-				form := url.Values{}
-				form.Set("grant_type", body.GrantType)
-				if body.ClientID != "" {
-					form.Set("client_id", body.ClientID)
-				}
-				if body.ClientSecret != "" {
-					form.Set("client_secret", body.ClientSecret)
-				}
-				if body.RefreshToken != "" {
-					form.Set("refresh_token", body.RefreshToken)
-				}
+	}
 
-				req2, err2 := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
-				if err2 != nil {
-					return nil, fmt.Errorf("failed to create token request (form): %w", err2)
-				}
-				req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-				req2.Header.Set("Accept", "application/json")
-				if s.client.AuthBearerToken != "" {
-					req2.Header.Set("Authorization", "Bearer "+s.client.AuthBearerToken)
-				}
-				resp2, err2 := s.client.HTTPClient.Do(req2)
-				if err2 != nil {
-					return nil, fmt.Errorf("authentication request failed (form): %w", err2)
-				}
-				var tokenResp2 TokenResponse
-				if err3 := s.client.handleResponse(resp2, &tokenResp2); err3 == nil {
-					tokenResp2.ExpiresAt = time.Now().Add(time.Duration(tokenResp2.ExpiresIn) * time.Second)
-					s.token = &tokenResp2
-					return &tokenResp2, nil
-				}
+	// Potentially staging requires form-encoded; inspect error and retry
+	if apiErr, ok := err.(*APIError); ok {
+		msg := strings.ToLower(apiErr.Message)
+		if apiErr.StatusCode == 400 && (strings.Contains(msg, "grant_type") && strings.Contains(msg, "not specified") || strings.Contains(msg, "unsupported grant type") || strings.Contains(msg, "not valid json")) {
+			form := url.Values{}
+			form.Set("grant_type", body.GrantType)
+			if body.ClientID != "" {
+				form.Set("client_id", body.ClientID)
+			}
+			if body.ClientSecret != "" {
+				form.Set("client_secret", body.ClientSecret)
+			}
+			if body.RefreshToken != "" {
+				form.Set("refresh_token", body.RefreshToken)
+			}
+
+			req2, err2 := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
+			if err2 != nil {
+				return nil, fmt.Errorf("failed to create token request (form): %w", err2)
+			}
+			req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+			req2.Header.Set("Accept", "application/json")
+			if s.client.AuthBearerToken != "" {
+				req2.Header.Set("Authorization", "Bearer "+s.client.AuthBearerToken)
+			}
+			resp2, err2 := s.client.HTTPClient.Do(req2)
+			if err2 != nil {
+				return nil, fmt.Errorf("authentication request failed (form): %w", err2)
+			}
+			var tokenResp2 TokenResponse
+			if err3 := s.client.handleResponse(resp2, &tokenResp2); err3 == nil {
+				tokenResp2.ExpiresAt = time.Now().Add(time.Duration(tokenResp2.ExpiresIn) * time.Second)
+				s.token = &tokenResp2
+				return &tokenResp2, nil
 			}
 		}
-		return nil, fmt.Errorf("authentication failed: %w", err)
 	}
+	return nil, fmt.Errorf("authentication failed: %w", err)
 }
 
 func (s *AuthService) GetValidToken() (*TokenResponse, error) {

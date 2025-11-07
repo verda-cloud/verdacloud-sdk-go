@@ -16,11 +16,10 @@ type Logger interface {
 // NoOpLogger discards all log messages (default)
 type NoOpLogger struct{}
 
-//nolint:revive // Parameters intentionally unused - no-op logger
-func (l *NoOpLogger) Debug(msg string, args ...interface{}) {}
-func (l *NoOpLogger) Info(msg string, args ...interface{})  {}
-func (l *NoOpLogger) Warn(msg string, args ...interface{})  {}
-func (l *NoOpLogger) Error(msg string, args ...interface{}) {}
+func (l *NoOpLogger) Debug(msg string, args ...interface{}) {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Info(msg string, args ...interface{})  {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Warn(msg string, args ...interface{})  {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Error(msg string, args ...interface{}) {} //nolint:revive // Parameters intentionally unused - no-op logger
 
 // StdLogger uses Go's standard log package
 type StdLogger struct {
