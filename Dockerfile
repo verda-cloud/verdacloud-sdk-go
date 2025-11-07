@@ -12,9 +12,9 @@ RUN apk add --no-cache \
     bash
 
 # Install golangci-lint at a specific version for consistency
-# Using latest v2.x for best compatibility with v2 config format
+# Using v2.6.1 - latest stable version as of Nov 2024
 # Pin to specific version to ensure reproducibility
-RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.5.0
+RUN wget -O- -nv https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.6.1
 
 # Install goimports for import formatting (v0.21.0 is compatible with Go 1.21)
 RUN go install golang.org/x/tools/cmd/goimports@v0.21.0

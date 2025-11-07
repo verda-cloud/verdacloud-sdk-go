@@ -40,17 +40,17 @@ setup: install-tools setup-hooks ## Complete development environment setup (tool
 install-tools: ## Install required development tools (golangci-lint) and check for pre-commit
 	@echo "→ Checking development tools..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "  Installing golangci-lint v2.5.0..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.5.0; \
-		echo "  ✓ golangci-lint v2.5.0 installed successfully"; \
+		echo "  Installing golangci-lint v2.6.1..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.6.1; \
+		echo "  ✓ golangci-lint v2.6.1 installed successfully"; \
 	else \
 		echo "  ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	fi
 	@echo ""
 	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo "  ✗ pre-commit not found"; \
+		echo "  ⚠ pre-commit not found (optional for local development)"; \
 		echo ""; \
-		echo "  Please install pre-commit for your operating system:"; \
+		echo "  To enable pre-commit hooks, install pre-commit:"; \
 		echo ""; \
 		echo "  macOS:"; \
 		echo "    brew install pre-commit"; \
@@ -65,9 +65,8 @@ install-tools: ## Install required development tools (golangci-lint) and check f
 		echo "  Windows:"; \
 		echo "    pip install pre-commit"; \
 		echo ""; \
-		echo "  After installing, run 'make setup' again."; \
+		echo "  After installing, run 'make setup-hooks' to configure."; \
 		echo ""; \
-		exit 1; \
 	else \
 		echo "  ✓ pre-commit already installed ($$(pre-commit --version))"; \
 	fi
@@ -254,9 +253,6 @@ ci-local: fmt lint test-unit ## Quick local CI check (without strict format/tidy
 DOCKER_IMAGE := verda-dev
 DOCKER_CONTAINER := verda-dev-container
 
-# Check if container is running (suppress error when docker not available, e.g. inside container)
-CONTAINER_RUNNING := $(shell docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null)
-
 docker-build: ## Build Docker development image with fixed Go and tool versions
 	@echo "→ Building Docker development image..."
 	@docker build -t $(DOCKER_IMAGE) .
@@ -266,12 +262,36 @@ docker-build: ## Build Docker development image with fixed Go and tool versions
 
 # Internal target: ensures container is running (auto-starts if needed)
 docker-ensure-running:
-	@if [ -z "$(CONTAINER_RUNNING)" ]; then \
+	@CONTAINER_RUNNING=$$(docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
+	CONTAINER_EXISTS=$$(docker ps -aq -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
+	if [ -z "$$CONTAINER_RUNNING" ]; then \
 		if ! docker image inspect $(DOCKER_IMAGE) >/dev/null 2>&1; then \
 			echo "→ Building Docker image..."; \
 			docker build -q -t $(DOCKER_IMAGE) .; \
 		fi; \
-		echo "→ Starting dev container..."; \
+		if [ -n "$$CONTAINER_EXISTS" ]; then \
+			echo "→ Restarting existing dev container..."; \
+			docker start $(DOCKER_CONTAINER) >/dev/null 2>&1; \
+			sleep 1; \
+			echo "✓ Dev container restarted"; \
+		else \
+			echo "→ Starting dev container..."; \
+			docker run -d \
+				--name $(DOCKER_CONTAINER) \
+				-v $(PWD):/workspace \
+				-w /workspace \
+				-e CGO_ENABLED=0 \
+				$(DOCKER_IMAGE) \
+				tail -f /dev/null >/dev/null 2>&1; \
+			sleep 1; \
+			echo "✓ Dev container started"; \
+		fi; \
+	fi
+	@# Verify correct mount: Makefile must be at /workspace/Makefile; otherwise recreate container
+	@docker exec $(DOCKER_CONTAINER) sh -lc 'test -f /workspace/Makefile' >/dev/null 2>&1 || ( \
+		echo "→ Detected incorrect mount in container; recreating with correct volume..."; \
+		docker stop $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
+		docker rm $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
 		docker run -d \
 			--name $(DOCKER_CONTAINER) \
 			-v $(PWD):/workspace \
@@ -279,8 +299,8 @@ docker-ensure-running:
 			-e CGO_ENABLED=0 \
 			$(DOCKER_IMAGE) \
 			tail -f /dev/null >/dev/null 2>&1; \
-		echo "✓ Dev container started"; \
-	fi
+		sleep 1; \
+		echo "✓ Dev container recreated" )
 
 docker-start: docker-ensure-running ## Start persistent dev container in background (stays running)
 	@echo "✓ Dev container is ready"
@@ -291,10 +311,11 @@ docker-start: docker-ensure-running ## Start persistent dev container in backgro
 	@echo "  make docker-ci"
 
 docker-stop: ## Stop and remove the persistent dev container
-	@if [ -n "$(CONTAINER_RUNNING)" ]; then \
+	@CONTAINER_EXISTS=$$(docker ps -aq -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
+	if [ -n "$$CONTAINER_EXISTS" ]; then \
 		echo "→ Stopping dev container..."; \
-		docker stop $(DOCKER_CONTAINER) >/dev/null; \
-		docker rm $(DOCKER_CONTAINER) >/dev/null; \
+		docker stop $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
+		docker rm $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
 		echo "✓ Dev container stopped"; \
 	else \
 		echo "✓ Dev container not running"; \
@@ -304,15 +325,15 @@ docker-restart: docker-stop docker-start ## Restart the dev container (useful af
 
 docker-lint: docker-ensure-running ## Run linting in persistent container (auto-starts if needed)
 	@echo "→ Running linting in container..."
-	@docker exec $(DOCKER_CONTAINER) make lint
+	@docker exec -w /workspace $(DOCKER_CONTAINER) make lint
 
 docker-test: docker-ensure-running ## Run unit tests in persistent container (auto-starts if needed)
 	@echo "→ Running unit tests in container..."
-	@docker exec $(DOCKER_CONTAINER) make test-unit
+	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make test-unit
 
 docker-test-integration: docker-ensure-running ## Run integration tests (auto-starts, set VERDA_* env vars first)
 	@echo "→ Running integration tests in container..."
-	@docker exec \
+	@docker exec -w /workspace \
 		-e VERDA_CLIENT_ID=$(VERDA_CLIENT_ID) \
 		-e VERDA_CLIENT_SECRET=$(VERDA_CLIENT_SECRET) \
 		-e VERDA_BASE_URL=$(VERDA_BASE_URL) \
@@ -320,22 +341,23 @@ docker-test-integration: docker-ensure-running ## Run integration tests (auto-st
 
 docker-coverage: docker-ensure-running ## Run tests with coverage in persistent container (auto-starts if needed)
 	@echo "→ Running coverage in container..."
-	@docker exec $(DOCKER_CONTAINER) make coverage
+	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make coverage
 
 docker-ci: docker-ensure-running ## Run all CI checks in persistent container (auto-starts if needed)
 	@echo "→ Running CI checks in container..."
-	@docker exec $(DOCKER_CONTAINER) make ci
+	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make ci
 
 docker-fmt: docker-ensure-running ## Format code in persistent container (auto-starts if needed)
 	@echo "→ Formatting code in container..."
-	@docker exec $(DOCKER_CONTAINER) make fmt
+	@docker exec -w /workspace $(DOCKER_CONTAINER) make fmt
 
 docker-shell: docker-ensure-running ## Open interactive shell in persistent container (auto-starts if needed)
 	@echo "→ Opening shell in container..."
-	@docker exec -it $(DOCKER_CONTAINER) /bin/bash
+	@docker exec -it -w /workspace $(DOCKER_CONTAINER) /bin/bash
 
 docker-status: ## Show status of dev container
-	@if [ -n "$(CONTAINER_RUNNING)" ]; then \
+	@CONTAINER_RUNNING=$$(docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
+	if [ -n "$$CONTAINER_RUNNING" ]; then \
 		echo "✓ Dev container is RUNNING"; \
 		echo ""; \
 		docker ps -f name=$(DOCKER_CONTAINER) --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"; \
@@ -356,7 +378,7 @@ docker-help: ## Show Docker-specific help
 	@echo '╚════════════════════════════════════════════════════════════════╝'
 	@echo ''
 	@echo 'Why Docker?'
-	@echo '  • Guaranteed consistency: Same Go 1.21 and golangci-lint v2.5.0'
+	@echo '  • Guaranteed consistency: Same Go 1.21 and golangci-lint v2.6.1'
 	@echo '  • No local setup needed: Everything runs in container'
 	@echo '  • Matches CI/CD exactly: Same environment as GitHub Actions'
 	@echo '  • FAST: Container stays running, commands execute instantly!'
