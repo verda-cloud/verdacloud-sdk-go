@@ -27,8 +27,8 @@ You have **two options** for development:
 **Setup:**
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/verda-go.git
-cd verda-go
+git clone https://github.com/YOUR_USERNAME/verdacloud-sdk-go.git
+cd verdacloud-sdk-go
 
 # Set up development tools
 make setup
@@ -55,8 +55,8 @@ This installs:
 **Setup:**
 ```bash
 # Clone your fork
-git clone https://github.com/YOUR_USERNAME/verda-go.git
-cd verda-go
+git clone https://github.com/YOUR_USERNAME/verdacloud-sdk-go.git
+cd verdacloud-sdk-go
 
 # Build the dev container (one time)
 make docker-build
@@ -272,10 +272,10 @@ Run all checks locally before pushing: `make ci`
 func TestClientGet(t *testing.T) {
     // Setup
     client := setupTestClient(t)
-    
+
     // Test
     result, err := client.Get(context.Background())
-    
+
     // Assert
     assert.NoError(t, err)
     assert.NotNil(t, result)
@@ -433,7 +433,7 @@ To enable integration tests in GitHub Actions:
    - Click **New repository secret**
 
 2. **Add Required Secrets:**
-   
+
    **Secret 1: VERDA_CLIENT_ID**
    - Name: `VERDA_CLIENT_ID`
    - Value: Your Verda API Client ID
@@ -554,4 +554,3 @@ By contributing, you agree that your contributions will be licensed under the MI
 ---
 
 **Thank you for contributing!** 🎉
-

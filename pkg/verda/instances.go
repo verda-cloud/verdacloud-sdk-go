@@ -54,21 +54,7 @@ func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest)
 		req.SSHKeyIDs = []string{}
 	}
 
-	// Try to create using the new request library first
-	// The API might return either JSON or just an instance ID as plain text
-	instance, _, err := postRequest[Instance](ctx, s.client, "/instances", req)
-	if err != nil {
-		// If the new request library fails, it might be because the API returned plain text
-		// In this case, we need to handle it manually
-
-		// For now, let's try to extract the instance ID from the error and fetch the instance
-		// This is a fallback for APIs that return plain text instead of JSON
-
-		// Try to make a raw request to handle the plain text response
-		return s.createWithPlainTextResponse(ctx, req)
-	}
-
-	return &instance, nil
+	return s.createWithPlainTextResponse(ctx, req)
 }
 
 // createWithPlainTextResponse handles the case where the API returns plain text instead of JSON

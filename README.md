@@ -1,9 +1,9 @@
 # Verda Cloud Go SDK
 
-[![CI](https://github.com/verda-cloud/verda-go/actions/workflows/ci.yml/badge.svg)](https://github.com/verda-cloud/verda-go/actions/workflows/ci.yml)
-[![Security](https://github.com/verda-cloud/verda-go/actions/workflows/security.yml/badge.svg)](https://github.com/verda-cloud/verda-go/actions/workflows/security.yml)
-[![Go Report Card](https://goreportcard.com/badge/github.com/verda-cloud/verda-go)](https://goreportcard.com/report/github.com/verda-cloud/verda-go)
-[![Go Reference](https://pkg.go.dev/badge/github.com/verda-cloud/verda-go.svg)](https://pkg.go.dev/github.com/verda-cloud/verda-go)
+[![CI](https://github.com/verda-cloud/verdacloud-sdk-go/actions/workflows/ci.yml/badge.svg)](https://github.com/verda-cloud/verdacloud-sdk-go/actions/workflows/ci.yml)
+[![Security](https://github.com/verda-cloud/verdacloud-sdk-go/actions/workflows/security.yml/badge.svg)](https://github.com/verda-cloud/verdacloud-sdk-go/actions/workflows/security.yml)
+[![Go Report Card](https://goreportcard.com/badge/github.com/verda-cloud/verdacloud-sdk-go)](https://goreportcard.com/report/github.com/verda-cloud/verdacloud-sdk-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/verda-cloud/verdacloud-sdk-go.svg)](https://pkg.go.dev/github.com/verda-cloud/verdacloud-sdk-go)
 
 > **⚠️ Important Notice**: This SDK was previously known as DataCrunch Go SDK. We are transitioning from DataCrunch.io to Verda.com as part of our company rebranding. All functionality remains the same, only the naming has changed.
 
@@ -95,7 +95,7 @@ Key features:
 
 ```bash
 # Install the SDK
-go get github.com/verda-cloud/verda-go
+go get github.com/verda-cloud/verdacloud-sdk-go
 
 # Build your project
 go build
@@ -112,7 +112,7 @@ import (
     "log"
     "os"
 
-    "github.com/verda-cloud/verda-go/pkg/verda"
+    "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
 func main() {
@@ -484,8 +484,8 @@ We welcome contributions to the Verda Go SDK! Here's how you can help:
 1. **Fork the repository** on GitHub
 2. **Clone your fork** locally:
    ```bash
-   git clone https://github.com/your-username/verda-go.git
-   cd verda-go
+   git clone https://github.com/your-username/verdacloud-sdk-go.git
+   cd verdacloud-sdk-go
    ```
 
 3. **Set up your development environment**:
@@ -497,7 +497,7 @@ We welcome contributions to the Verda Go SDK! Here's how you can help:
    - Install `golangci-lint` automatically for code quality checks
    - Check for `pre-commit` and guide you to install it if needed
    - Configure pre-commit hooks to run automatically on commit
-   
+
    **Note:** If pre-commit is not installed, `make setup` will show OS-specific installation instructions:
    - macOS: `brew install pre-commit`
    - Linux: `pip install pre-commit`
@@ -535,13 +535,13 @@ We welcome contributions to the Verda Go SDK! Here's how you can help:
    git add .
    git commit -m "feat: add new feature description"
    ```
-   
+
    Pre-commit hooks will automatically:
    - Format your code with `gofmt` and `goimports`
    - Run `golangci-lint` for static analysis
    - Run unit tests
    - Tidy `go.mod` and `go.sum`
-   
+
    If any checks fail, fix the issues and commit again.
 
 4. **Optionally run checks manually**:

@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/verda-cloud/verda-go/pkg/verda/testutil"
+	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
 
 func TestInstanceService_Get(t *testing.T) {

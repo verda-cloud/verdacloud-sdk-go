@@ -7,7 +7,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/verda-cloud/verda-go/pkg/verda"
+	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
 func TestAuth(t *testing.T) {

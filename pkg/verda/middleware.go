@@ -1,9 +1,14 @@
 package verda
 
 import (
+	"crypto/rand"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -78,6 +83,17 @@ func JSONContentTypeMiddleware() RequestMiddleware {
 	return ContentTypeMiddleware("application/json")
 }
 
+// cryptoRandFloat64 generates a random float64 in [0,1) using crypto/rand
+func cryptoRandFloat64() float64 {
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		// Fallback to zero if crypto/rand fails (extremely unlikely)
+		return 0
+	}
+	// Use the random bytes to create a float64 in [0,1)
+	return float64(binary.BigEndian.Uint64(b[:])&((1<<53)-1)) / (1 << 53)
+}
+
 // LoggingMiddleware logs request details using the client's logger
 func LoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
@@ -109,16 +125,30 @@ func UserAgentMiddleware(userAgent string) RequestMiddleware {
 	}
 }
 
-// RetryMiddleware implements retry logic for failed requests
-func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) RequestMiddleware {
+// ExponentialBackoffRetryMiddleware implements retry logic with exponential backoff and jitter
+func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duration, logger Logger) RequestMiddleware {
+	const maxDelay = 30 * time.Second
+	const jitterPercent = 0.5 // 50% jitter
+
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
 			var lastErr error
 
 			for attempt := 0; attempt <= maxRetries; attempt++ {
 				if attempt > 0 {
-					logger.Debug("Retrying request %s %s (attempt %d/%d)", ctx.Method, ctx.Path, attempt+1, maxRetries+1)
-					time.Sleep(retryDelay)
+					// Calculate exponential backoff: initialDelay * 2^(attempt-1)
+					baseDelay := float64(initialDelay) * math.Pow(2, float64(attempt-1))
+
+					// Cap the delay at maxDelay
+					cappedDelay := time.Duration(math.Min(baseDelay, float64(maxDelay)))
+
+					// Add jitter: random value between -50% and +50%
+					jitter := (cryptoRandFloat64()*2 - 1) * jitterPercent
+					actualDelay := time.Duration(float64(cappedDelay) * (1 + jitter))
+
+					logger.Debug("Retrying request %s %s (attempt %d/%d) after %v",
+						ctx.Method, ctx.Path, attempt+1, maxRetries+1, actualDelay)
+					time.Sleep(actualDelay)
 				}
 
 				lastErr = next(ctx)
@@ -128,6 +158,7 @@ func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) Re
 
 				// Don't retry on certain errors (like authentication failures)
 				if !shouldRetry(lastErr) {
+					logger.Debug("Request %s %s failed with non-retryable error: %v", ctx.Method, ctx.Path, lastErr)
 					break
 				}
 			}
@@ -137,39 +168,81 @@ func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) Re
 	}
 }
 
-// shouldRetry determines if an error is retryable
+// RetryMiddleware is deprecated. Use ExponentialBackoffRetryMiddleware instead.
+// Kept for backwards compatibility.
+func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) RequestMiddleware {
+	return ExponentialBackoffRetryMiddleware(maxRetries, retryDelay, logger)
+}
+
+// shouldRetry determines if an error is retryable based on status codes and error patterns
 func shouldRetry(err error) bool {
-	// Add logic to determine if error is retryable
-	// For now, we'll retry on most errors except authentication
 	if err == nil {
 		return false
 	}
 
-	errStr := err.Error()
-	// Don't retry authentication errors
-	if contains(errStr, "authentication") || contains(errStr, "unauthorized") {
-		return false
+	// Check if error is an APIError and inspect status code
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		statusCode := apiErr.StatusCode
+
+		// Retry on specific server errors and rate limits
+		switch statusCode {
+		case http.StatusInternalServerError, // 500
+			http.StatusBadGateway,         // 502
+			http.StatusServiceUnavailable, // 503
+			http.StatusGatewayTimeout,     // 504
+			http.StatusTooManyRequests,    // 429
+			http.StatusRequestTimeout:     // 408
+			return true
+		case http.StatusBadRequest, // 400
+			http.StatusUnauthorized, // 401
+			http.StatusForbidden,    // 403
+			http.StatusNotFound:     // 404
+			return false
+		default:
+			// Retry on other 5xx errors, don't retry on other 4xx errors
+			if statusCode >= 500 && statusCode < 600 {
+				return true
+			}
+			if statusCode >= 400 && statusCode < 500 {
+				return false
+			}
+		}
 	}
 
-	return true
-}
+	// Check error message patterns
+	errStr := strings.ToLower(err.Error())
 
-// contains checks if a string contains a substring (case-insensitive)
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) &&
-		(s == substr ||
-			(len(s) > len(substr) &&
-				(s[:len(substr)] == substr ||
-					s[len(s)-len(substr):] == substr ||
-					containsHelper(s, substr))))
-}
+	// Non-retryable patterns
+	nonRetryablePatterns := []string{
+		"authentication",
+		"unauthorized",
+		"forbidden",
+		"not found",
+		"invalid",
+		"bad request",
+	}
+	for _, pattern := range nonRetryablePatterns {
+		if strings.Contains(errStr, pattern) {
+			return false
+		}
+	}
 
-func containsHelper(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
+	// Retryable patterns
+	retryablePatterns := []string{
+		"timeout",
+		"connection",
+		"temporary",
+		"rate limit",
+		"too many requests",
+	}
+	for _, pattern := range retryablePatterns {
+		if strings.Contains(errStr, pattern) {
 			return true
 		}
 	}
+
+	// Default to non-retryable for unknown errors
 	return false
 }
 

@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/verda-cloud/verda-go/pkg/verda"
+	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
 func main() {

@@ -18,9 +18,9 @@
 
 <!-- List the specific changes made in this PR -->
 
-- 
-- 
-- 
+-
+-
+-
 
 ## Testing
 
@@ -62,4 +62,3 @@ Related to #
 ---
 
 **Note:** Pre-commit hooks will run automatically when you commit. Make sure to run `make check` before pushing to ensure all CI checks will pass.
-

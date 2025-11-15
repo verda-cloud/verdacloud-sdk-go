@@ -1,3 +1,3 @@
-module github.com/verda-cloud/verda-go
+module github.com/verda-cloud/verdacloud-sdk-go
 
 go 1.23

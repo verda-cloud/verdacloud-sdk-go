@@ -39,22 +39,20 @@ repos:
         description: Runs unit tests (non-integration)
         args: ['./pkg/verda']
 
-  # golangci-lint - run in Docker for consistency
   - repo: local
     hooks:
-      - id: golangci-lint-docker
-        name: Lint Go code (golangci-lint in Docker)
-        description: Fast linters runner for Go running in Docker
-        entry: make docker-lint
-        language: system
-        types: [go]
-        pass_filenames: false
-        
-      - id: go-test-docker
-        name: Run Go unit tests (in Docker)
-        description: Runs unit tests in Docker environment
-        entry: make docker-test
+      - id: golangci-lint
+        name: Lint Go code (golangci-lint)
+        description: Fast linters runner for Go running
+        entry: make lint
         language: system
         types: [go]
         pass_filenames: false
 
+      - id: go-test-docker
+        name: Run Go unit tests
+        description: Runs unit tests
+        entry: make test
+        language: system
+        types: [go]
+        pass_filenames: false

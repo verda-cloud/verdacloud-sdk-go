@@ -14,20 +14,20 @@ linters:
     - govet         # Go vet analysis
     - staticcheck   # Advanced Go analyzer
     - unused        # Find unused code
-    
+
     # Code quality
     - ineffassign   # Detect ineffectual assignments
     - unconvert     # Remove unnecessary type conversions
     - misspell      # Fix spelling mistakes
-    
+
     # Security
     - gosec         # Security checks
-    
+
     # Style (less strict)
     - gocyclo       # Cyclomatic complexity
     - dupl          # Code duplication
     - goconst       # Repeated strings that should be constants
-    
+
     # Documentation (can be disabled if too noisy)
     - revive        # Flexible Go linter
 
@@ -52,13 +52,13 @@ linters:
 
   exclusions:
     generated: lax
-    
+
     # Use standard presets to exclude common false positives
     presets:
       - comments  # Exclude comment-related issues
       - common-false-positives
       - std-error-handling  # Allow common error handling patterns
-    
+
     rules:
       # Test files - relax most rules
       - linters:
@@ -69,13 +69,13 @@ linters:
           - gosec
           - revive
         path: _test\.go
-      
+
       # Test helpers - relax error checking
       - linters:
           - errcheck
           - gosec
         path: test_helpers\.go
-      
+
       # Test utilities - relax style rules but keep security checks
       - linters:
           - dupl
@@ -84,20 +84,20 @@ linters:
           - revive
           - unused
         path: testutil/
-      
+
       # Example code - relax all rules
       - linters:
           - errcheck
           - gosec
           - revive
         path: example/
-      
+
       # Allow blank error assignment in defer (common pattern)
       - linters:
           - errcheck
         text: 'Error return value of .*(Close|Flush|Remove|Write).*is not checked'
         source: 'defer.*\.Close\(\)'
-    
+
     paths:
       - third_party$
       - builtin$

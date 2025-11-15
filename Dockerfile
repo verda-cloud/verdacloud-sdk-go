@@ -27,4 +27,3 @@ WORKDIR /workspace
 
 # Default command shows help
 CMD ["make", "help"]
-
