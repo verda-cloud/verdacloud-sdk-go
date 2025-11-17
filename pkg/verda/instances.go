@@ -14,7 +14,6 @@ type InstanceService struct {
 	client *Client
 }
 
-// Get retrieves all non-deleted instances, optionally filtered by status
 func (s *InstanceService) Get(ctx context.Context, status string) ([]Instance, error) {
 	path := "/instances"
 	if status != "" {
@@ -31,7 +30,6 @@ func (s *InstanceService) Get(ctx context.Context, status string) ([]Instance, e
 	return instances, nil
 }
 
-// GetByID fetches a specific instance by its ID
 func (s *InstanceService) GetByID(ctx context.Context, id string) (*Instance, error) {
 	path := fmt.Sprintf("/instances/%s", id)
 
@@ -42,14 +40,11 @@ func (s *InstanceService) GetByID(ctx context.Context, id string) (*Instance, er
 	return &instance, nil
 }
 
-// Create creates and deploys a new cloud instance
 func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest) (*Instance, error) {
-	// Set default location if not provided
 	if req.LocationCode == "" {
 		req.LocationCode = LocationFIN01
 	}
 
-	// Ensure SSH key IDs is not nil
 	if req.SSHKeyIDs == nil {
 		req.SSHKeyIDs = []string{}
 	}
@@ -57,27 +52,23 @@ func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest)
 	return s.createWithPlainTextResponse(ctx, req)
 }
 
-// createWithPlainTextResponse handles the case where the API returns plain text instead of JSON
+// createWithPlainTextResponse handles API's inconsistent response format (sometimes JSON, sometimes plain text ID)
 func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req CreateInstanceRequest) (*Instance, error) {
-	// Use the old method as a fallback for plain text responses
 	resp, err := s.client.makeRequest(ctx, http.MethodPost, "/instances", req)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		_ = resp.Body.Close() // Ignore close error in defer
+		_ = resp.Body.Close()
 	}()
 
-	// Check for error status codes first
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Read and parse the error response
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read error response: %w", err)
 		}
 		s.client.Logger.Debug("Instance creation failed with status %d: %s", resp.StatusCode, string(body))
 
-		// Parse the error manually since we already read the body
 		var apiError APIError
 		if err := json.Unmarshal(body, &apiError); err != nil {
 			return nil, &APIError{
@@ -89,7 +80,6 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 		return nil, &apiError
 	}
 
-	// Try to parse as JSON first
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
@@ -97,16 +87,14 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 
 	var instance Instance
 	if err := json.Unmarshal(body, &instance); err != nil {
-		// If JSON parsing fails, assume it's just the instance ID as plain text
+		// Fall back to plain text ID
 		instanceID := strings.TrimSpace(string(body))
-		// Fetch the full instance details
 		return s.GetByID(ctx, instanceID)
 	}
 
 	return &instance, nil
 }
 
-// Action performs actions on one or multiple instances
 func (s *InstanceService) Action(ctx context.Context, idList any, action string, volumeIDs []string) error {
 	req := InstanceActionRequest{
 		IDList:    idList,
@@ -118,8 +106,7 @@ func (s *InstanceService) Action(ctx context.Context, idList any, action string,
 	return err
 }
 
-// IsAvailable checks if a specific instance type is available
-// Deprecated: Use CheckInstanceTypeAvailability instead
+// Deprecated: Use CheckInstanceTypeAvailability
 func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, isSpot bool, locationCode string) (bool, error) {
 	path := fmt.Sprintf("/instance-availability/%s", instanceType)
 
@@ -134,8 +121,7 @@ func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, 
 		path += "?" + params.Encode()
 	}
 
-	// The API returns a JSON string "true" or "false", not a boolean
-	// We need to handle this manually
+	// API returns "true"/"false" as JSON string, not boolean
 	resp, err := s.client.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
@@ -161,13 +147,11 @@ func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, 
 		return false, &apiError
 	}
 
-	// Try to parse as boolean first
 	var boolResult bool
 	if err := json.Unmarshal(body, &boolResult); err == nil {
 		return boolResult, nil
 	}
 
-	// Try to parse as string "true" or "false"
 	var stringResult string
 	if err := json.Unmarshal(body, &stringResult); err == nil {
 		return stringResult == "true", nil
@@ -176,8 +160,7 @@ func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, 
 	return false, fmt.Errorf("unexpected response format: %s", string(body))
 }
 
-// GetAvailabilities gets available instance types across locations
-// Deprecated: Use GetLocationAvailabilities instead. This method will be removed in a future version.
+// Deprecated: Use GetLocationAvailabilities
 func (s *InstanceService) GetAvailabilities(ctx context.Context, isSpot *bool, locationCode string) ([]InstanceAvailability, error) {
 	path := "/instance-availability"
 
@@ -204,7 +187,6 @@ func (s *InstanceService) GetAvailabilities(ctx context.Context, isSpot *bool, l
 	return availabilities, nil
 }
 
-// GetLocationAvailabilities gets instance types available by location
 func (s *InstanceService) GetLocationAvailabilities(ctx context.Context) ([]LocationAvailability, error) {
 	availabilities, _, err := getRequest[[]LocationAvailability](ctx, s.client, "/instance-availability")
 	if err != nil {
@@ -214,11 +196,10 @@ func (s *InstanceService) GetLocationAvailabilities(ctx context.Context) ([]Loca
 	return availabilities, nil
 }
 
-// CheckInstanceTypeAvailability checks if a specific instance type is available
 func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, instanceType string) (bool, error) {
 	path := fmt.Sprintf("/instance-availability/%s", instanceType)
 
-	// The API returns a JSON string "true" or "false", not a boolean
+	// API returns "true"/"false" as JSON string, not boolean
 	resp, err := s.client.makeRequest(ctx, http.MethodGet, path, nil)
 	if err != nil {
 		return false, err
@@ -244,13 +225,11 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 		return false, &apiError
 	}
 
-	// Try to parse as boolean first
 	var boolResult bool
 	if err := json.Unmarshal(body, &boolResult); err == nil {
 		return boolResult, nil
 	}
 
-	// Try to parse as string "true" or "false"
 	var stringResult string
 	if err := json.Unmarshal(body, &stringResult); err == nil {
 		return stringResult == "true", nil
@@ -259,60 +238,48 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	return false, fmt.Errorf("unexpected response format: %s", string(body))
 }
 
-// Boot is a convenience method to boot instances
 func (s *InstanceService) Boot(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionBoot, nil)
 }
 
-// Start is a convenience method to start instances
 func (s *InstanceService) Start(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionStart, nil)
 }
 
-// Shutdown is a convenience method to shutdown instances
 func (s *InstanceService) Shutdown(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionShutdown, nil)
 }
 
-// Delete is a convenience method to delete instances
 func (s *InstanceService) Delete(ctx context.Context, idList any, volumeIDs []string) error {
 	return s.Action(ctx, idList, ActionDelete, volumeIDs)
 }
 
-// Discontinue is a convenience method to discontinue instances
 func (s *InstanceService) Discontinue(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionDiscontinue, nil)
 }
 
-// Hibernate is a convenience method to hibernate instances.
-// IMPORTANT: The instance must be shut down before hibernation can succeed.
-// The API will return an error if you attempt to hibernate a running instance.
-// During hibernation, all volumes are detached and the instance is deleted.
+// Hibernate shuts down and archives an instance - must be shut down first or API will error.
+// Volumes are detached and the instance is deleted during hibernation.
 func (s *InstanceService) Hibernate(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionHibernate, nil)
 }
 
-// ConfigureSpot is a convenience method to configure instances as spot instances
 func (s *InstanceService) ConfigureSpot(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionConfigureSpot, nil)
 }
 
-// ForceShutdown is a convenience method to force shutdown instances
 func (s *InstanceService) ForceShutdown(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionForceShutdown, nil)
 }
 
-// DeleteStuck is a convenience method to delete stuck instances
 func (s *InstanceService) DeleteStuck(ctx context.Context, idList any, volumeIDs []string) error {
 	return s.Action(ctx, idList, ActionDeleteStuck, volumeIDs)
 }
 
-// Deploy is a convenience method to deploy instances
 func (s *InstanceService) Deploy(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionDeploy, nil)
 }
 
-// Transfer is a convenience method to transfer instances
 func (s *InstanceService) Transfer(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionTransfer, nil)
 }

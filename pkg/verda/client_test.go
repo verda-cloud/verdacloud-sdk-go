@@ -116,8 +116,26 @@ func TestNewClient(t *testing.T) {
 			if client.Locations == nil {
 				t.Error("Locations service not initialized")
 			}
-			if client.Containers == nil {
-				t.Error("Containers service not initialized")
+			if client.Images == nil {
+				t.Error("Images service not initialized")
+			}
+			if client.InstanceTypes == nil {
+				t.Error("InstanceTypes service not initialized")
+			}
+			if client.InstanceAvailability == nil {
+				t.Error("InstanceAvailability service not initialized")
+			}
+			if client.ContainerTypes == nil {
+				t.Error("ContainerTypes service not initialized")
+			}
+			if client.LongTerm == nil {
+				t.Error("LongTerm service not initialized")
+			}
+			if client.ContainerDeployments == nil {
+				t.Error("ContainerDeployments service not initialized")
+			}
+			if client.ServerlessJobs == nil {
+				t.Error("ServerlessJobs service not initialized")
 			}
 		})
 	}

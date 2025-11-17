@@ -18,7 +18,7 @@ func cleanupTestVolumes(t *testing.T, client *verda.Client) {
 	ctx := context.Background()
 	t.Log("Checking for existing test volumes to cleanup...")
 
-	volumes, err := client.Volumes.Get(ctx)
+	volumes, err := client.Volumes.ListVolumes(ctx)
 	if err != nil {
 		t.Logf("Warning: failed to list volumes for cleanup: %v", err)
 		return
@@ -42,7 +42,7 @@ func cleanupTestVolumes(t *testing.T, client *verda.Client) {
 
 		if isTestVolume {
 			t.Logf("Cleaning up existing test volume: %s (ID: %s, Status: %s)", volume.Name, volume.ID, volume.Status)
-			err := client.Volumes.Delete(ctx, volume.ID, true)
+			err := client.Volumes.DeleteVolume(ctx, volume.ID, true)
 			if err != nil {
 				t.Logf("Warning: failed to delete volume %s: %v", volume.ID, err)
 			} else {
@@ -65,7 +65,7 @@ func cleanupVolume(t *testing.T, client *verda.Client, volumeID string) {
 	ctx := context.Background()
 	t.Logf("Cleaning up volume %s...", volumeID)
 
-	err := client.Volumes.Delete(ctx, volumeID, true)
+	err := client.Volumes.DeleteVolume(ctx, volumeID, true)
 	if err != nil {
 		// Don't fail the test on cleanup errors, just log them
 		t.Logf("Warning: Failed to delete volume %s: %v (this is non-fatal for test cleanup)", volumeID, err)
@@ -79,15 +79,24 @@ func TestVolumes(t *testing.T) {
 		t.Skip("skipping integration tests in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
-	t.Run("get_volumes", func(t *testing.T) {
+	t.Run("list_volumes", func(t *testing.T) {
+		ctx := context.Background()
+		volumes, err := client.Volumes.ListVolumes(ctx)
+		if err != nil {
+			t.Errorf("failed to list volumes: %v", err)
+		}
+		t.Logf("Found %d volumes", len(volumes))
+	})
+
+	t.Run("deprecated_get_volumes", func(t *testing.T) {
 		ctx := context.Background()
 		volumes, err := client.Volumes.Get(ctx)
 		if err != nil {
 			t.Errorf("failed to get volumes: %v", err)
 		}
-		t.Logf("Found %d volumes", len(volumes))
+		t.Logf("Found %d volumes (deprecated method)", len(volumes))
 	})
 }
 
@@ -97,11 +106,11 @@ func TestListVolumes_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	ctx := context.Background()
 	// Test listing volumes with specific status
-	volumes, err := client.Volumes.GetByStatus(ctx, verda.VolumeStatusOrdered)
+	volumes, err := client.Volumes.ListVolumesByStatus(ctx, verda.VolumeStatusOrdered)
 	if err != nil {
 		t.Fatalf("failed to list volumes with status 'ordered': %v", err)
 	}
@@ -109,7 +118,7 @@ func TestListVolumes_Integration(t *testing.T) {
 	t.Logf("Found %d volumes with status 'ordered'", len(volumes))
 
 	// Test listing all volumes (ignore status)
-	volumes, err = client.Volumes.Get(ctx)
+	volumes, err = client.Volumes.ListVolumes(ctx)
 	if err != nil {
 		t.Fatalf("failed to list all volumes: %v", err)
 	}
@@ -142,13 +151,13 @@ func TestCreateVolume_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	// Cleanup any existing test volumes first
 	cleanupTestVolumes(t, client)
 
 	ctx := context.Background()
-	volumeID, err := client.Volumes.Create(ctx, verda.VolumeCreateRequest{
+	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 		Type:     verda.VolumeTypeNVMe,
 		Location: verda.LocationFIN01,
 		Size:     50,
@@ -176,7 +185,7 @@ func TestCreateVolume_Integration(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	// Verify volume appears in list
-	volumes, err := client.Volumes.Get(ctx)
+	volumes, err := client.Volumes.ListVolumes(ctx)
 	if err != nil {
 		t.Fatalf("failed to list volumes: %v", err)
 	}
@@ -205,7 +214,7 @@ func TestCreateVolume_Integration(t *testing.T) {
 	}
 
 	// Test getting volume by ID
-	volume, err := client.Volumes.GetByID(ctx, volumeID)
+	volume, err := client.Volumes.GetVolume(ctx, volumeID)
 	if err != nil {
 		t.Fatalf("failed to get volume by ID: %v", err)
 	}
@@ -224,7 +233,7 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	// Cleanup any existing test volumes first
 	cleanupTestVolumes(t, client)
@@ -253,7 +262,7 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 
 	// Create volumes
 	for _, config := range volumeConfigs {
-		volumeID, err := client.Volumes.Create(ctx, verda.VolumeCreateRequest{
+		volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 			Type:     config.volumeType,
 			Location: verda.LocationFIN01,
 			Size:     config.size,
@@ -275,7 +284,7 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	// Verify all volumes exist in the list
-	allVolumes, err := client.Volumes.Get(ctx)
+	allVolumes, err := client.Volumes.ListVolumes(ctx)
 	if err != nil {
 		t.Fatalf("failed to list volumes: %v", err)
 	}
@@ -317,11 +326,213 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 		verda.VolumeStatusDetached,
 		verda.VolumeStatusCreated,
 	} {
-		volumes, err := client.Volumes.GetByStatus(ctx, status)
+		volumes, err := client.Volumes.ListVolumesByStatus(ctx, status)
 		if err != nil {
 			t.Errorf("failed to list volumes with status '%s': %v", status, err)
 		} else {
 			t.Logf("Found %d volumes with status '%s'", len(volumes), status)
 		}
+	}
+}
+
+// TestVolumeRename_Integration tests renaming a volume
+func TestVolumeRename_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := getTestClient(t)
+
+	// Cleanup any existing test volumes first
+	cleanupTestVolumes(t, client)
+
+	ctx := context.Background()
+	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
+		Type:     verda.VolumeTypeNVMe,
+		Location: verda.LocationFIN01,
+		Size:     50,
+		Name:     "test-volume-rename-original",
+	})
+
+	if err != nil {
+		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 {
+			t.Skipf("Skipping volume rename test due to quota: %v", apiErr)
+			return
+		}
+		t.Fatalf("failed to create volume: %v", err)
+	}
+
+	if volumeID == "" {
+		t.Fatal("created volume has empty ID")
+	}
+
+	t.Logf("Created volume with ID: %s", volumeID)
+	defer cleanupVolume(t, client, volumeID)
+
+	// Wait for volume to be created
+	time.Sleep(3 * time.Second)
+
+	// Rename the volume
+	err = client.Volumes.RenameVolume(ctx, volumeID, verda.VolumeRenameRequest{
+		Name: "test-volume-renamed",
+	})
+	if err != nil {
+		t.Fatalf("failed to rename volume: %v", err)
+	}
+
+	t.Logf("Successfully renamed volume %s", volumeID)
+
+	// Wait for rename to take effect
+	time.Sleep(2 * time.Second)
+
+	// Verify the new name
+	volume, err := client.Volumes.GetVolume(ctx, volumeID)
+	if err != nil {
+		t.Fatalf("failed to get volume after rename: %v", err)
+	}
+
+	if volume.Name != "test-volume-renamed" {
+		t.Errorf("expected volume name 'test-volume-renamed', got '%s'", volume.Name)
+	}
+}
+
+// TestVolumeResize_Integration tests resizing a volume
+func TestVolumeResize_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := getTestClient(t)
+
+	// Cleanup any existing test volumes first
+	cleanupTestVolumes(t, client)
+
+	ctx := context.Background()
+	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
+		Type:     verda.VolumeTypeNVMe,
+		Location: verda.LocationFIN01,
+		Size:     50,
+		Name:     "test-volume-resize",
+	})
+
+	if err != nil {
+		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 {
+			t.Skipf("Skipping volume resize test due to quota: %v", apiErr)
+			return
+		}
+		t.Fatalf("failed to create volume: %v", err)
+	}
+
+	if volumeID == "" {
+		t.Fatal("created volume has empty ID")
+	}
+
+	t.Logf("Created volume with ID: %s", volumeID)
+	defer cleanupVolume(t, client, volumeID)
+
+	// Wait for volume to be created
+	time.Sleep(3 * time.Second)
+
+	// Resize the volume to a larger size
+	err = client.Volumes.ResizeVolume(ctx, volumeID, verda.VolumeResizeRequest{
+		Size: 100,
+	})
+	if err != nil {
+		t.Fatalf("failed to resize volume: %v", err)
+	}
+
+	t.Logf("Successfully resized volume %s to 100 GB", volumeID)
+
+	// Wait for resize to take effect
+	time.Sleep(3 * time.Second)
+
+	// Verify the new size
+	volume, err := client.Volumes.GetVolume(ctx, volumeID)
+	if err != nil {
+		t.Fatalf("failed to get volume after resize: %v", err)
+	}
+
+	if volume.Size != 100 {
+		t.Errorf("expected volume size 100, got %d", volume.Size)
+	}
+}
+
+// TestVolumeClone_Integration tests cloning a volume
+func TestVolumeClone_Integration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := getTestClient(t)
+
+	// Cleanup any existing test volumes first
+	cleanupTestVolumes(t, client)
+
+	ctx := context.Background()
+	originalVolumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
+		Type:     verda.VolumeTypeNVMe,
+		Location: verda.LocationFIN01,
+		Size:     50,
+		Name:     "test-volume-original",
+	})
+
+	if err != nil {
+		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 {
+			t.Skipf("Skipping volume clone test due to quota: %v", apiErr)
+			return
+		}
+		t.Fatalf("failed to create original volume: %v", err)
+	}
+
+	if originalVolumeID == "" {
+		t.Fatal("created volume has empty ID")
+	}
+
+	t.Logf("Created original volume with ID: %s", originalVolumeID)
+	defer cleanupVolume(t, client, originalVolumeID)
+
+	// Wait for volume to be created
+	time.Sleep(3 * time.Second)
+
+	// Clone the volume
+	clonedVolumeID, err := client.Volumes.CloneVolume(ctx, originalVolumeID, verda.VolumeCloneRequest{
+		Name:     "test-volume-cloned",
+		Location: verda.LocationFIN01,
+	})
+
+	if err != nil {
+		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 {
+			t.Skipf("Skipping volume clone due to quota or restriction: %v", apiErr)
+			return
+		}
+		t.Fatalf("failed to clone volume: %v", err)
+	}
+
+	if clonedVolumeID == "" {
+		t.Fatal("cloned volume has empty ID")
+	}
+
+	t.Logf("Cloned volume with ID: %s", clonedVolumeID)
+	defer cleanupVolume(t, client, clonedVolumeID)
+
+	// Wait for clone to complete
+	time.Sleep(5 * time.Second)
+
+	// Verify the cloned volume exists
+	clonedVolume, err := client.Volumes.GetVolume(ctx, clonedVolumeID)
+	if err != nil {
+		t.Fatalf("failed to get cloned volume: %v", err)
+	}
+
+	if clonedVolume.Name != "test-volume-cloned" {
+		t.Errorf("expected cloned volume name 'test-volume-cloned', got '%s'", clonedVolume.Name)
+	}
+
+	if clonedVolume.Size != 50 {
+		t.Errorf("expected cloned volume size 50, got %d", clonedVolume.Size)
+	}
+
+	if clonedVolume.Type != "NVMe" {
+		t.Errorf("expected cloned volume type 'NVMe', got '%s'", clonedVolume.Type)
 	}
 }

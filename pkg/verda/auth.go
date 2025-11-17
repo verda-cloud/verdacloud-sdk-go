@@ -68,9 +68,8 @@ func (s *AuthService) authenticateWithoutLock() (*TokenResponse, error) {
 	})
 }
 
-// doTokenRequest posts to /oauth2/token attempting JSON first and falling back to form-encoded
+// doTokenRequest tries JSON first (production), falls back to form-encoded (staging quirk)
 func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) {
-	// First try JSON body (per production API docs)
 	payload, err := json.Marshal(body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal token request: %w", err)
@@ -99,7 +98,7 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 		return &tokenResp, nil
 	}
 
-	// Potentially staging requires form-encoded; inspect error and retry
+	// Staging environments may require form-encoded instead of JSON
 	if apiErr, ok := err.(*APIError); ok {
 		msg := strings.ToLower(apiErr.Message)
 		if apiErr.StatusCode == 400 && (strings.Contains(msg, "grant_type") && strings.Contains(msg, "not specified") || strings.Contains(msg, "unsupported grant type") || strings.Contains(msg, "not valid json")) {
@@ -148,6 +147,7 @@ func (s *AuthService) GetValidToken() (*TokenResponse, error) {
 		return s.Authenticate()
 	}
 
+	// Refresh 30s before expiry to avoid races
 	if time.Now().Add(30 * time.Second).After(token.ExpiresAt) {
 		return s.RefreshToken()
 	}
@@ -163,6 +163,7 @@ func (s *AuthService) IsExpired() bool {
 		return true
 	}
 
+	// Consider expired 30s before actual expiry
 	return time.Now().Add(30 * time.Second).After(s.token.ExpiresAt)
 }
 

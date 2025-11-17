@@ -133,7 +133,7 @@ func TestListInstances_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	ctx := context.Background()
 	instances, err := client.Instances.Get(ctx, "")
@@ -173,7 +173,7 @@ func TestRateLimiting_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	ctx := context.Background()
 	// Make multiple rapid requests to test rate limiting
@@ -209,7 +209,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	ctx := context.Background()
 	// Create test resources

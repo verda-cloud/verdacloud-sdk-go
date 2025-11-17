@@ -8,16 +8,10 @@ import (
 	"net/http"
 )
 
-// Response represents an HTTP response with additional metadata
 type Response struct {
 	*http.Response
-	// Add any additional fields we might need later
 }
 
-// Standalone generic request functions
-
-// getRequest performs a GET request and returns the response body, HTTP response, and error
-// T represents the expected response body type that will be unmarshaled from JSON
 func getRequest[T any](ctx context.Context, client *Client, url string) (T, *Response, error) {
 	var respBody T
 
@@ -34,8 +28,6 @@ func getRequest[T any](ctx context.Context, client *Client, url string) (T, *Res
 	return respBody, resp, nil
 }
 
-// requestWithBody performs an HTTP request with a body (POST, PUT, etc.) and returns the response
-// T represents the expected response body type that will be unmarshaled from JSON
 func requestWithBody[T any](ctx context.Context, client *Client, method, url string, reqBody any) (T, *Response, error) {
 	var respBody T
 
@@ -62,26 +54,38 @@ func requestWithBody[T any](ctx context.Context, client *Client, method, url str
 	return respBody, resp, nil
 }
 
-// postRequest performs a POST request and returns the response body, HTTP response, and error
-// T represents the expected response body type that will be unmarshaled from JSON
 func postRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
 	return requestWithBody[T](ctx, client, http.MethodPost, url, reqBody)
 }
 
-// putRequest performs a PUT request and returns the response body, HTTP response, and error
-// T represents the expected response body type that will be unmarshaled from JSON
-// Note: Currently unused by Verda API services, but provided for completeness and future API endpoints
-//
-//nolint:unused // Provided for complete HTTP method coverage
+func postRequestNoResult(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
+	var reqBodyReader io.Reader
+	if reqBody != nil {
+		reqBodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, err
+		}
+		reqBodyReader = bytes.NewReader(reqBodyBytes)
+	}
+
+	req, err := client.NewRequest(ctx, http.MethodPost, url, reqBodyReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Do(req, nil)
+}
+
+//nolint:unused // Reserved for PUT endpoints
 func putRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
 	return requestWithBody[T](ctx, client, http.MethodPut, url, reqBody)
 }
 
-// deleteRequest performs a DELETE request and returns the response body, HTTP response, and error
-// T represents the expected response body type that will be unmarshaled from JSON
-// Note: Currently unused by Verda API services, but provided for completeness and future API endpoints
-//
-//nolint:unused // Provided for complete HTTP method coverage
+func patchRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
+	return requestWithBody[T](ctx, client, http.MethodPatch, url, reqBody)
+}
+
+//nolint:unused // Reserved for DELETE endpoints with response bodies
 func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *Response, error) {
 	var respBody T
 
@@ -98,9 +102,26 @@ func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *
 	return respBody, resp, nil
 }
 
-// deleteRequestNoResult performs a DELETE request without expecting a response body
 func deleteRequestNoResult(ctx context.Context, client *Client, url string) (*Response, error) {
 	req, err := client.NewRequest(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Do(req, nil)
+}
+
+func deleteRequestWithBody(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
+	var reqBodyReader io.Reader
+	if reqBody != nil {
+		reqBodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, err
+		}
+		reqBodyReader = bytes.NewReader(reqBodyBytes)
+	}
+
+	req, err := client.NewRequest(ctx, http.MethodDelete, url, reqBodyReader)
 	if err != nil {
 		return nil, err
 	}

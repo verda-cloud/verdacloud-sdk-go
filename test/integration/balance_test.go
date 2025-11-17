@@ -13,7 +13,7 @@ func TestBalance(t *testing.T) {
 		t.Skip("skipping integration tests in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	t.Run("get_balance", func(t *testing.T) {
 		ctx := context.Background()

@@ -100,7 +100,7 @@ lint: ## Run golangci-lint on all Go code (static analysis, security checks)
 security: ## Run security checks (gosec via golangci-lint + govulncheck)
 	@echo "→ Running security checks..."
 	@echo "  1. Running gosec (via golangci-lint)..."
-	@golangci-lint run --disable-all --enable gosec ./...
+	@golangci-lint run --no-config -E gosec ./...
 	@echo "  2. Running govulncheck..."
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "    Installing govulncheck..."; \
@@ -111,7 +111,7 @@ security: ## Run security checks (gosec via golangci-lint + govulncheck)
 
 gosec: ## Run gosec security scanner (respects .golangci.yml exclusions)
 	@echo "→ Running gosec via golangci-lint..."
-	@golangci-lint run --disable-all --enable gosec ./...
+	@golangci-lint run --no-config -E gosec ./...
 	@echo "✓ gosec complete!"
 
 govulncheck: ## Run Go vulnerability checker

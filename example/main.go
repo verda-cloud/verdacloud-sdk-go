@@ -13,6 +13,7 @@ func main() {
 	// Get credentials from environment variables
 	clientID := os.Getenv("VERDA_CLIENT_ID")
 	clientSecret := os.Getenv("VERDA_CLIENT_SECRET")
+	baseURL := os.Getenv("VERDA_BASE_URL")
 
 	if clientID == "" || clientSecret == "" {
 		log.Fatal("VERDA_CLIENT_ID and VERDA_CLIENT_SECRET environment variables are required")
@@ -20,11 +21,16 @@ func main() {
 
 	// Create client
 	client, err := verda.NewClient(
+		verda.WithDebugLogging(true),
+		verda.WithBaseURL(baseURL),
 		verda.WithClientID(clientID),
 		verda.WithClientSecret(clientSecret))
 	if err != nil {
 		log.Fatalf("Failed to create client: %v", err)
 	}
+
+	// Add detailed debug logging to see full request/response payloads
+	verda.AddDetailedDebugLogging(client)
 
 	// Example: Get account balance
 	fmt.Println("=== Account Balance ===")
@@ -51,7 +57,7 @@ func main() {
 
 	// Example: List SSH keys
 	fmt.Println("\n=== SSH Keys ===")
-	keys, err := client.SSHKeys.Get(ctx)
+	keys, err := client.SSHKeys.GetAllSSHKeys(ctx)
 	if err != nil {
 		log.Printf("Error getting SSH keys: %v", err)
 	} else {
@@ -80,7 +86,7 @@ func main() {
 
 	// Example: Check instance availability
 	fmt.Println("\n=== Instance Availability ===")
-	available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")
+	available, err := client.Instances.CheckInstanceTypeAvailability(ctx, "1V100.6V")
 	if err != nil {
 		log.Printf("Error checking availability: %v", err)
 	} else {

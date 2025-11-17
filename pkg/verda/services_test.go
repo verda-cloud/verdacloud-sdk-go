@@ -76,8 +76,8 @@ func TestSSHKeyService_GetByID(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for specific SSH key
-	mockServer.SetHandler(http.MethodGet, "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
+	// Set up mock response for specific SSH key (both old and new paths)
+	mockServerHandler := func(w http.ResponseWriter, r *http.Request) {
 		key := testutil.SSHKey{
 			ID:          "key_123",
 			Name:        "Specific Test Key",
@@ -85,8 +85,10 @@ func TestSSHKeyService_GetByID(t *testing.T) {
 			Fingerprint: "SHA256:abc123...",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]testutil.SSHKey{key})
-	})
+		_ = json.NewEncoder(w).Encode([]testutil.SSHKey{key})
+	}
+	mockServer.SetHandler(http.MethodGet, "/ssh-keys/key_123", mockServerHandler)
+	mockServer.SetHandler(http.MethodGet, "/sshkeys/key_123", mockServerHandler)
 
 	t.Run("get SSH key by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -115,10 +117,10 @@ func TestSSHKeyService_Create(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for SSH key creation
-	mockServer.SetHandler(http.MethodPost, "/sshkeys", func(w http.ResponseWriter, r *http.Request) {
+	// Set up mock response for SSH key creation (both old and new paths)
+	createHandler := func(w http.ResponseWriter, r *http.Request) {
 		var req CreateSSHKeyRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		key := testutil.SSHKey{
 			ID:          "key_new_123",
@@ -129,8 +131,10 @@ func TestSSHKeyService_Create(t *testing.T) {
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(key.ID))
-	})
+		_, _ = w.Write([]byte(key.ID))
+	}
+	mockServer.SetHandler(http.MethodPost, "/ssh-keys", createHandler)
+	mockServer.SetHandler(http.MethodPost, "/sshkeys", createHandler)
 
 	t.Run("create SSH key", func(t *testing.T) {
 		req := CreateSSHKeyRequest{
@@ -234,7 +238,7 @@ func TestVolumeService_Get(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(volumes)
+		_ = json.NewEncoder(w).Encode(volumes)
 	})
 
 	t.Run("get all volumes", func(t *testing.T) {
@@ -275,7 +279,7 @@ func TestVolumeService_GetByID(t *testing.T) {
 			Status: "in-use",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(volume)
+		_ = json.NewEncoder(w).Encode(volume)
 	})
 
 	t.Run("get volume by ID", func(t *testing.T) {
@@ -316,7 +320,7 @@ func TestStartupScriptService_Get(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(scripts)
+		_ = json.NewEncoder(w).Encode(scripts)
 	})
 
 	t.Run("get all startup scripts", func(t *testing.T) {
@@ -350,12 +354,12 @@ func TestStartupScriptService_Create(t *testing.T) {
 	// Set up mock response for startup script creation (returns plain text ID)
 	mockServer.SetHandler(http.MethodPost, "/scripts", func(w http.ResponseWriter, r *http.Request) {
 		var req CreateStartupScriptRequest
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		// Return plain text ID (matching real API behavior)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte("script_new_123"))
+		_, _ = w.Write([]byte("script_new_123"))
 	})
 
 	// Set up mock response for GetByID (returns array)
@@ -368,7 +372,7 @@ func TestStartupScriptService_Create(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(scripts)
+		_ = json.NewEncoder(w).Encode(scripts)
 	})
 
 	t.Run("create startup script", func(t *testing.T) {
@@ -393,107 +397,6 @@ func TestStartupScriptService_Create(t *testing.T) {
 
 		if script.Script != req.Script {
 			t.Errorf("expected script content to match request")
-		}
-	})
-}
-
-// Test Containers Service
-func TestContainerService_Get(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	// Set up mock response for containers
-	mockServer.SetHandler(http.MethodGet, "/containers", func(w http.ResponseWriter, r *http.Request) {
-		containers := []testutil.Container{
-			{
-				ID:     "container_123",
-				Name:   "Test Container",
-				Image:  "nginx:latest",
-				Status: "running",
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(containers)
-	})
-
-	t.Run("get all containers", func(t *testing.T) {
-		ctx := context.Background()
-		containers, err := client.Containers.Get(ctx)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(containers) != 1 {
-			t.Errorf("expected 1 container, got %d", len(containers))
-		}
-
-		container := containers[0]
-		if container.ID != "container_123" {
-			t.Errorf("expected container ID 'container_123', got '%s'", container.ID)
-		}
-
-		if container.Name != "Test Container" {
-			t.Errorf("expected container name 'Test Container', got '%s'", container.Name)
-		}
-	})
-}
-
-func TestContainerService_Create(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	// Set up mock response for container creation
-	mockServer.SetHandler(http.MethodPost, "/containers", func(w http.ResponseWriter, r *http.Request) {
-		var req CreateContainerRequest
-		json.NewDecoder(r.Body).Decode(&req)
-
-		container := testutil.Container{
-			ID:          "container_new_123",
-			Name:        req.Name,
-			Image:       req.Image,
-			Status:      "creating",
-			Environment: req.Environment,
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(container)
-	})
-
-	t.Run("create container", func(t *testing.T) {
-		req := CreateContainerRequest{
-			Name:  "my-container",
-			Image: "python:3.9",
-			Environment: map[string]string{
-				"API_KEY": "secret",
-				"DEBUG":   "true",
-			},
-		}
-
-		ctx := context.Background()
-		container, err := client.Containers.Create(ctx, req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if container == nil {
-			t.Fatal("expected container, got nil")
-		}
-
-		if container.Name != req.Name {
-			t.Errorf("expected container name '%s', got '%s'", req.Name, container.Name)
-		}
-
-		if container.Image != req.Image {
-			t.Errorf("expected container image '%s', got '%s'", req.Image, container.Image)
-		}
-
-		if len(container.Environment) != 2 {
-			t.Errorf("expected 2 environment variables, got %d", len(container.Environment))
 		}
 	})
 }

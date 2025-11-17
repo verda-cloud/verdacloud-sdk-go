@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 )
 
 const (
@@ -26,14 +28,22 @@ type Client struct {
 	Middleware *Middleware
 
 	// Services
-	Auth           *AuthService
-	Balance        *BalanceService
-	Instances      *InstanceService
-	Volumes        *VolumeService
-	SSHKeys        *SSHKeyService
-	StartupScripts *StartupScriptService
-	Locations      *LocationService
-	Containers     *ContainerService
+	Auth                 *AuthService
+	Balance              *BalanceService
+	Instances            *InstanceService
+	Volumes              *VolumeService
+	VolumeTypes          *VolumeTypeService
+	SSHKeys              *SSHKeyService
+	StartupScripts       *StartupScriptService
+	Locations            *LocationService
+	Images               *ImagesService
+	InstanceTypes        *InstanceTypesService
+	InstanceAvailability *InstanceAvailabilityService
+	ContainerTypes       *ContainerTypesService
+	Clusters             *ClusterService
+	LongTerm             *LongTermService
+	ContainerDeployments *ContainerDeploymentsService
+	ServerlessJobs       *ServerlessJobsService
 }
 
 type ClientOption func(*Client)
@@ -50,10 +60,21 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		option(client)
 	}
 
-	// Initialize middleware with the configured logger
+	// Enable debug logging via VERDA_DEBUG env var if no custom logger was set
+	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == "true" {
+		if _, isNoOp := client.Logger.(*NoOpLogger); isNoOp {
+			client.Logger = NewStdLogger(true)
+		}
+	}
+
 	client.Middleware = NewDefaultMiddleware(client.Logger)
 
-	// Validate required fields
+	// Wire up debug middleware if VERDA_DEBUG is set
+	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == "true" {
+		client.Middleware.AddRequestMiddleware(DebugLoggingMiddleware(client.Logger))
+		client.Middleware.AddResponseMiddleware(DebugResponseLoggingMiddleware(client.Logger))
+	}
+
 	if client.ClientID == "" {
 		return nil, fmt.Errorf("client ID is required")
 	}
@@ -65,40 +86,42 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.Balance = &BalanceService{client: client}
 	client.Instances = &InstanceService{client: client}
 	client.Volumes = &VolumeService{client: client}
+	client.VolumeTypes = &VolumeTypeService{client: client}
 	client.SSHKeys = &SSHKeyService{client: client}
 	client.StartupScripts = &StartupScriptService{client: client}
 	client.Locations = &LocationService{client: client}
-	client.Containers = &ContainerService{client: client}
+	client.Images = &ImagesService{client: client}
+	client.InstanceTypes = &InstanceTypesService{client: client}
+	client.InstanceAvailability = &InstanceAvailabilityService{client: client}
+	client.ContainerTypes = &ContainerTypesService{client: client}
+	client.Clusters = &ClusterService{client: client}
+	client.LongTerm = &LongTermService{client: client}
+	client.ContainerDeployments = &ContainerDeploymentsService{client: client}
+	client.ServerlessJobs = &ServerlessJobsService{client: client}
 
 	return client, nil
 }
 
-// AddRequestMiddleware adds a request middleware to the client
 func (c *Client) AddRequestMiddleware(middleware RequestMiddleware) {
 	c.Middleware.AddRequestMiddleware(middleware)
 }
 
-// AddResponseMiddleware adds a response middleware to the client
 func (c *Client) AddResponseMiddleware(middleware ResponseMiddleware) {
 	c.Middleware.AddResponseMiddleware(middleware)
 }
 
-// SetRequestMiddleware replaces all request middleware
 func (c *Client) SetRequestMiddleware(middleware []RequestMiddleware) {
 	c.Middleware.SetRequestMiddleware(middleware)
 }
 
-// SetResponseMiddleware replaces all response middleware
 func (c *Client) SetResponseMiddleware(middleware []ResponseMiddleware) {
 	c.Middleware.SetResponseMiddleware(middleware)
 }
 
-// ClearRequestMiddleware removes all request middleware
 func (c *Client) ClearRequestMiddleware() {
 	c.Middleware.ClearRequestMiddleware()
 }
 
-// ClearResponseMiddleware removes all response middleware
 func (c *Client) ClearResponseMiddleware() {
 	c.Middleware.ClearResponseMiddleware()
 }
@@ -128,14 +151,12 @@ func WithAuthBearerToken(token string) ClientOption {
 	}
 }
 
-// WithLogger sets a custom logger for the client
 func WithLogger(logger Logger) ClientOption {
 	return func(c *Client) {
 		c.Logger = logger
 	}
 }
 
-// WithDebugLogging enables debug logging using the standard logger
 func WithDebugLogging(enabled bool) ClientOption {
 	return func(c *Client) {
 		c.Logger = NewStdLogger(enabled)
@@ -170,87 +191,83 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
-// Do executes an HTTP request with middleware support and handles the response
+// Do executes the request through middleware and returns the parsed response
 func (c *Client) Do(req *http.Request, result any) (*Response, error) {
-	// Get thread-safe copies of client's default middleware
+	// Snapshot middleware to avoid race conditions
 	requestMiddleware, responseMiddleware := c.Middleware.Snapshot()
 
-	// Create request context from the HTTP request
 	reqCtx := &RequestContext{
 		Method:  req.Method,
 		Path:    req.URL.Path,
-		Body:    nil, // Body is already in the request
+		Body:    nil,
 		Headers: req.Header.Clone(),
 		Query:   req.URL.Query(),
 		Client:  c,
 		Request: req,
 	}
 
-	// Build and execute request middleware chain
 	requestHandler := c.buildRequestChain(requestMiddleware)
 	if err := requestHandler(reqCtx); err != nil {
 		return nil, fmt.Errorf("request middleware failed: %w", err)
 	}
 
-	// Apply any headers modified by middleware
+	// Apply middleware-modified headers back to the request
 	for name, values := range reqCtx.Headers {
-		req.Header.Del(name) // Clear existing
+		req.Header.Del(name)
 		for _, value := range values {
 			req.Header.Add(name, value)
 		}
 	}
 
-	// Execute the HTTP request
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 
-	// Wrap the response
 	wrappedResp := &Response{Response: resp}
 
-	// Handle response parsing if result is provided
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if readErr != nil {
+		return wrappedResp, fmt.Errorf("failed to read response body: %w", readErr)
+	}
+
+	var parseErr error
 	if result != nil {
-		if err := c.handleResponse(resp, result); err != nil {
-			// Create response context for middleware with error
-			respCtx := &ResponseContext{
-				Request:    reqCtx,
-				Response:   resp,
-				Body:       nil, // Body was consumed by handleResponse
-				StatusCode: resp.StatusCode,
-				Error:      err,
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			var apiError APIError
+			if err := json.Unmarshal(bodyBytes, &apiError); err != nil {
+				parseErr = &APIError{
+					StatusCode: resp.StatusCode,
+					Message:    string(bodyBytes),
+				}
+			} else {
+				apiError.StatusCode = resp.StatusCode
+				parseErr = &apiError
 			}
-
-			// Build and execute response middleware chain
-			responseHandler := c.buildResponseChain(responseMiddleware)
-			if middlewareErr := responseHandler(respCtx); middlewareErr != nil {
-				return wrappedResp, fmt.Errorf("response middleware failed: %w", middlewareErr)
+		} else {
+			trimmed := bytes.TrimSpace(bodyBytes)
+			if len(trimmed) > 0 && result != nil {
+				if err := json.Unmarshal(trimmed, result); err != nil {
+					parseErr = fmt.Errorf("failed to unmarshal response: %w", err)
+				}
 			}
-
-			// Return the original error or modified error from middleware
-			if respCtx.Error != nil {
-				return wrappedResp, respCtx.Error
-			}
-			return wrappedResp, err
 		}
 	}
 
-	// Create response context for successful response
 	respCtx := &ResponseContext{
 		Request:    reqCtx,
 		Response:   resp,
-		Body:       nil, // Body was consumed by handleResponse
+		Body:       bodyBytes,
 		StatusCode: resp.StatusCode,
-		Error:      nil,
+		Error:      parseErr,
 	}
 
-	// Build and execute response middleware chain
 	responseHandler := c.buildResponseChain(responseMiddleware)
-	if err := responseHandler(respCtx); err != nil {
-		return wrappedResp, fmt.Errorf("response middleware failed: %w", err)
+	if middlewareErr := responseHandler(respCtx); middlewareErr != nil {
+		return wrappedResp, fmt.Errorf("response middleware failed: %w", middlewareErr)
 	}
 
-	// Check if middleware set an error
 	if respCtx.Error != nil {
 		return wrappedResp, respCtx.Error
 	}
@@ -258,15 +275,13 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	return wrappedResp, nil
 }
 
-// buildRequestChain builds the request middleware chain
 func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) RequestHandler {
-	// Default handler that does nothing
 	//nolint:revive // ctx unused in default no-op handler
 	handler := func(ctx *RequestContext) error {
 		return nil
 	}
 
-	// Apply middleware in reverse order (last middleware wraps first)
+	// Reverse order so last middleware wraps first
 	for i := len(requestMiddleware) - 1; i >= 0; i-- {
 		handler = requestMiddleware[i](handler)
 	}
@@ -274,15 +289,13 @@ func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) Reques
 	return handler
 }
 
-// buildResponseChain builds the response middleware chain
 func (c *Client) buildResponseChain(responseMiddleware []ResponseMiddleware) ResponseHandler {
-	// Default handler that does nothing
 	//nolint:revive // ctx unused in default no-op handler
 	handler := func(ctx *ResponseContext) error {
 		return nil
 	}
 
-	// Apply middleware in reverse order (last middleware wraps first)
+	// Reverse order so last middleware wraps first
 	for i := len(responseMiddleware) - 1; i >= 0; i-- {
 		handler = responseMiddleware[i](handler)
 	}
@@ -290,9 +303,8 @@ func (c *Client) buildResponseChain(responseMiddleware []ResponseMiddleware) Res
 	return handler
 }
 
-// makeRequest creates and executes an HTTP request with the given context
-// This is a legacy method used by some endpoints that return plain text responses.
-// New code should use NewRequest() and Do() instead for better middleware support.
+// makeRequest is kept for endpoints with plain text responses that don't fit the normal JSON flow.
+// Prefer NewRequest() + Do() for new code to get full middleware support.
 func (c *Client) makeRequest(ctx context.Context, method, path string, body any) (*http.Response, error) {
 	url := c.BaseURL + path
 
@@ -326,10 +338,9 @@ func (c *Client) makeRequest(ctx context.Context, method, path string, body any)
 	return resp, nil
 }
 
-// handleResponse reads the response body and unmarshals it into the result if provided
 func (c *Client) handleResponse(resp *http.Response, result any) error {
 	defer func() {
-		_ = resp.Body.Close() // Ignore close error in defer
+		_ = resp.Body.Close()
 	}()
 
 	body, err := io.ReadAll(resp.Body)
@@ -349,7 +360,6 @@ func (c *Client) handleResponse(resp *http.Response, result any) error {
 		return &apiError
 	}
 
-	// If there's no response body, nothing to unmarshal
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
 		return nil

@@ -18,29 +18,30 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
-			if r.URL.Path == "/users" {
+			switch r.URL.Path {
+			case "/users":
 				users := []TestUser{
 					{ID: 1, Name: "John Doe"},
 					{ID: 2, Name: "Jane Smith"},
 				}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(users)
-			} else if r.URL.Path == "/users/1" {
+				_ = json.NewEncoder(w).Encode(users)
+			case "/users/1":
 				user := TestUser{ID: 1, Name: "John Doe"}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(user)
+				_ = json.NewEncoder(w).Encode(user)
 			}
 		case http.MethodPost:
 			if r.URL.Path == "/users" {
 				user := TestUser{ID: 3, Name: "New User"}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(user)
+				_ = json.NewEncoder(w).Encode(user)
 			}
 		case http.MethodPut:
 			if r.URL.Path == "/users/1" {
 				user := TestUser{ID: 1, Name: "Updated User"}
 				w.Header().Set("Content-Type", "application/json")
-				json.NewEncoder(w).Encode(user)
+				_ = json.NewEncoder(w).Encode(user)
 			}
 		case http.MethodDelete:
 			if r.URL.Path == "/users/1" {
@@ -157,13 +158,13 @@ func TestServiceIntegration(t *testing.T) {
 		case "/balance":
 			balance := Balance{Amount: 100.50, Currency: "USD"}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(balance)
+			_ = json.NewEncoder(w).Encode(balance)
 		case "/locations":
 			locations := []Location{
 				{Code: "FIN-01", Name: "Finland 1", Country: "Finland"},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(locations)
+			_ = json.NewEncoder(w).Encode(locations)
 		}
 	}))
 	defer server.Close()

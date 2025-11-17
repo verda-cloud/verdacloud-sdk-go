@@ -1,10 +1,12 @@
 package verda
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"net/url"
@@ -12,7 +14,6 @@ import (
 	"time"
 )
 
-// RequestContext holds the context for request middleware
 type RequestContext struct {
 	Method  string
 	Path    string
@@ -23,7 +24,6 @@ type RequestContext struct {
 	Client  *Client
 }
 
-// ResponseContext holds the context for response middleware
 type ResponseContext struct {
 	Request    *RequestContext
 	Response   *http.Response
@@ -32,23 +32,17 @@ type ResponseContext struct {
 	StatusCode int
 }
 
-// RequestMiddleware defines the request middleware function signature
 type RequestMiddleware func(next RequestHandler) RequestHandler
 
-// ResponseMiddleware defines the response middleware function signature
 type ResponseMiddleware func(next ResponseHandler) ResponseHandler
 
-// RequestHandler processes the request
 type RequestHandler func(ctx *RequestContext) error
 
-// ResponseHandler processes the response
 type ResponseHandler func(ctx *ResponseContext) error
 
-// AuthenticationMiddleware adds authentication headers to requests
 func AuthenticationMiddleware() RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
-			// Get bearer token
 			bearerToken, err := ctx.Client.Auth.GetBearerToken()
 			if err != nil {
 				return fmt.Errorf("failed to get authentication token: %w", err)
@@ -58,7 +52,6 @@ func AuthenticationMiddleware() RequestMiddleware {
 				return fmt.Errorf("empty authentication token")
 			}
 
-			// Add authorization header
 			ctx.Headers.Set("Authorization", bearerToken)
 
 			return next(ctx)
@@ -66,7 +59,6 @@ func AuthenticationMiddleware() RequestMiddleware {
 	}
 }
 
-// ContentTypeMiddleware sets the Content-Type header for requests with body
 func ContentTypeMiddleware(contentType string) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -78,23 +70,20 @@ func ContentTypeMiddleware(contentType string) RequestMiddleware {
 	}
 }
 
-// JSONContentTypeMiddleware is a convenience middleware for JSON content type
 func JSONContentTypeMiddleware() RequestMiddleware {
 	return ContentTypeMiddleware("application/json")
 }
 
-// cryptoRandFloat64 generates a random float64 in [0,1) using crypto/rand
+// cryptoRandFloat64 uses crypto/rand for jitter to prevent thundering herd on retries
 func cryptoRandFloat64() float64 {
 	var b [8]byte
 	if _, err := rand.Read(b[:]); err != nil {
-		// Fallback to zero if crypto/rand fails (extremely unlikely)
 		return 0
 	}
-	// Use the random bytes to create a float64 in [0,1)
+	// Convert random bytes to float64 in [0,1) using mantissa bits
 	return float64(binary.BigEndian.Uint64(b[:])&((1<<53)-1)) / (1 << 53)
 }
 
-// LoggingMiddleware logs request details using the client's logger
 func LoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -115,7 +104,6 @@ func LoggingMiddleware(logger Logger) RequestMiddleware {
 	}
 }
 
-// UserAgentMiddleware adds a User-Agent header
 func UserAgentMiddleware(userAgent string) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -125,10 +113,9 @@ func UserAgentMiddleware(userAgent string) RequestMiddleware {
 	}
 }
 
-// ExponentialBackoffRetryMiddleware implements retry logic with exponential backoff and jitter
 func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duration, logger Logger) RequestMiddleware {
 	const maxDelay = 30 * time.Second
-	const jitterPercent = 0.5 // 50% jitter
+	const jitterPercent = 0.5
 
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -136,13 +123,11 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 
 			for attempt := 0; attempt <= maxRetries; attempt++ {
 				if attempt > 0 {
-					// Calculate exponential backoff: initialDelay * 2^(attempt-1)
+					// Exponential backoff: initialDelay * 2^(attempt-1), capped at 30s
 					baseDelay := float64(initialDelay) * math.Pow(2, float64(attempt-1))
-
-					// Cap the delay at maxDelay
 					cappedDelay := time.Duration(math.Min(baseDelay, float64(maxDelay)))
 
-					// Add jitter: random value between -50% and +50%
+					// Add ±50% jitter to avoid thundering herd
 					jitter := (cryptoRandFloat64()*2 - 1) * jitterPercent
 					actualDelay := time.Duration(float64(cappedDelay) * (1 + jitter))
 
@@ -153,10 +138,9 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 
 				lastErr = next(ctx)
 				if lastErr == nil {
-					return nil // Success
+					return nil
 				}
 
-				// Don't retry on certain errors (like authentication failures)
 				if !shouldRetry(lastErr) {
 					logger.Debug("Request %s %s failed with non-retryable error: %v", ctx.Method, ctx.Path, lastErr)
 					break
@@ -168,39 +152,35 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 	}
 }
 
-// RetryMiddleware is deprecated. Use ExponentialBackoffRetryMiddleware instead.
-// Kept for backwards compatibility.
+// Deprecated: Use ExponentialBackoffRetryMiddleware
 func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) RequestMiddleware {
 	return ExponentialBackoffRetryMiddleware(maxRetries, retryDelay, logger)
 }
 
-// shouldRetry determines if an error is retryable based on status codes and error patterns
+// shouldRetry decides if we should retry based on status code - never retry auth/client errors
 func shouldRetry(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Check if error is an APIError and inspect status code
 	var apiErr *APIError
 	if errors.As(err, &apiErr) {
 		statusCode := apiErr.StatusCode
 
-		// Retry on specific server errors and rate limits
 		switch statusCode {
-		case http.StatusInternalServerError, // 500
-			http.StatusBadGateway,         // 502
-			http.StatusServiceUnavailable, // 503
-			http.StatusGatewayTimeout,     // 504
-			http.StatusTooManyRequests,    // 429
-			http.StatusRequestTimeout:     // 408
+		case http.StatusInternalServerError,
+			http.StatusBadGateway,
+			http.StatusServiceUnavailable,
+			http.StatusGatewayTimeout,
+			http.StatusTooManyRequests,
+			http.StatusRequestTimeout:
 			return true
-		case http.StatusBadRequest, // 400
-			http.StatusUnauthorized, // 401
-			http.StatusForbidden,    // 403
-			http.StatusNotFound:     // 404
+		case http.StatusBadRequest,
+			http.StatusUnauthorized,
+			http.StatusForbidden,
+			http.StatusNotFound:
 			return false
 		default:
-			// Retry on other 5xx errors, don't retry on other 4xx errors
 			if statusCode >= 500 && statusCode < 600 {
 				return true
 			}
@@ -210,10 +190,8 @@ func shouldRetry(err error) bool {
 		}
 	}
 
-	// Check error message patterns
 	errStr := strings.ToLower(err.Error())
 
-	// Non-retryable patterns
 	nonRetryablePatterns := []string{
 		"authentication",
 		"unauthorized",
@@ -228,7 +206,6 @@ func shouldRetry(err error) bool {
 		}
 	}
 
-	// Retryable patterns
 	retryablePatterns := []string{
 		"timeout",
 		"connection",
@@ -242,22 +219,15 @@ func shouldRetry(err error) bool {
 		}
 	}
 
-	// Default to non-retryable for unknown errors
 	return false
 }
 
-// Response middleware implementations
-
-// ErrorHandlingMiddleware handles HTTP error responses
 func ErrorHandlingMiddleware() ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			// Check for HTTP errors
 			if ctx.StatusCode < 200 || ctx.StatusCode >= 300 {
-				// Try to parse as API error
 				var apiError APIError
 				if len(ctx.Body) > 0 {
-					// This would need proper JSON parsing
 					apiError = APIError{
 						StatusCode: ctx.StatusCode,
 						Message:    string(ctx.Body),
@@ -276,7 +246,6 @@ func ErrorHandlingMiddleware() ResponseMiddleware {
 	}
 }
 
-// ResponseLoggingMiddleware logs response details using the client's logger
 func ResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
@@ -292,17 +261,10 @@ func ResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	}
 }
 
-// MetricsMiddleware could collect metrics about requests/responses
+// MetricsMiddleware is a placeholder for collecting request/response metrics
 func MetricsMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			// Here you could collect metrics like:
-			// - Response time
-			// - Status codes
-			// - Error rates
-			// - Request/response sizes
-
-			// For now, just log basic metrics
 			logger.Debug("Metrics: %s %s -> %d (%d bytes)",
 				ctx.Request.Method, ctx.Request.Path, ctx.StatusCode, len(ctx.Body))
 
@@ -311,13 +273,116 @@ func MetricsMiddleware(logger Logger) ResponseMiddleware {
 	}
 }
 
-// CacheMiddleware could implement response caching
+// CacheMiddleware is a placeholder for response caching
 func CacheMiddleware() ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			// Cache implementation would go here
-			// For now, just pass through
 			return next(ctx)
 		}
 	}
+}
+
+// DebugLoggingMiddleware logs full request details - redacts auth headers and skips token endpoints
+func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
+	return func(next RequestHandler) RequestHandler {
+		return func(ctx *RequestContext) error {
+			// Don't log sensitive token refresh endpoints
+			if strings.Contains(ctx.Path, "/token") {
+				return next(ctx)
+			}
+
+			logger.Info("=== API Request ===")
+			logger.Info("Method: %s", ctx.Method)
+			logger.Info("Path: %s", ctx.Path)
+
+			if len(ctx.Query) > 0 {
+				logger.Info("Query Parameters: %s", ctx.Query.Encode())
+			}
+
+			logger.Info("Headers:")
+			for name, values := range ctx.Headers {
+				if name == "Authorization" {
+					logger.Info("  %s: [REDACTED]", name)
+				} else {
+					for _, value := range values {
+						logger.Info("  %s: %s", name, value)
+					}
+				}
+			}
+
+			// Log request body if present
+			if ctx.Request != nil && ctx.Request.Body != nil {
+				// Read the body
+				bodyBytes, err := io.ReadAll(ctx.Request.Body)
+				if err != nil {
+					logger.Info("Request Body: [error reading body: %v]", err)
+				} else {
+					// Restore the body for the actual request
+					ctx.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+
+					if len(bodyBytes) > 0 {
+						bodyStr := string(bodyBytes)
+						if len(bodyStr) > 1000 {
+							logger.Info("Request Body (truncated): %s...", bodyStr[:1000])
+						} else {
+							logger.Info("Request Body: %s", bodyStr)
+						}
+					} else {
+						logger.Info("Request Body: [empty]")
+					}
+				}
+			} else {
+				logger.Info("Request Body: [none]")
+			}
+
+			return next(ctx)
+		}
+	}
+}
+
+func DebugResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
+	return func(next ResponseHandler) ResponseHandler {
+		return func(ctx *ResponseContext) error {
+			if ctx.Request != nil && strings.Contains(ctx.Request.Path, "/token") {
+				return next(ctx)
+			}
+
+			logger.Info("=== API Response ===")
+			logger.Info("Status Code: %d", ctx.StatusCode)
+
+			if ctx.Response != nil {
+				logger.Info("Response Headers:")
+				for name, values := range ctx.Response.Header {
+					for _, value := range values {
+						logger.Info("  %s: %s", name, value)
+					}
+				}
+			}
+
+			if len(ctx.Body) > 0 {
+				bodyStr := string(ctx.Body)
+				if len(bodyStr) > 1000 {
+					logger.Info("Response Body (truncated): %s...", bodyStr[:1000])
+				} else {
+					logger.Info("Response Body: %s", bodyStr)
+				}
+			} else {
+				logger.Info("Response Body: [empty]")
+			}
+
+			if ctx.Error != nil {
+				logger.Info("Error: %v", ctx.Error)
+			}
+			logger.Info("==================")
+
+			return next(ctx)
+		}
+	}
+}
+
+// AddDetailedDebugLogging adds verbose request/response debug logging to the client.
+// Call this after creating your client if you want to see full HTTP requests/responses.
+func AddDetailedDebugLogging(client *Client) {
+	client.AddRequestMiddleware(DebugLoggingMiddleware(client.Logger))
+	client.AddResponseMiddleware(DebugResponseLoggingMiddleware(client.Logger))
 }

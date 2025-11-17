@@ -5,30 +5,59 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
-func TestStartupScripts(t *testing.T) {
+func TestStartupScriptsIntegration(t *testing.T) {
 	if testing.Short() {
-		t.Skip("skipping integration tests in short mode")
+		t.Skip("skipping integration test")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
-	t.Run("get_startup_scripts", func(t *testing.T) {
+	t.Run("get all startup scripts", func(t *testing.T) {
 		ctx := context.Background()
-		scripts, err := client.StartupScripts.Get(ctx)
+		scripts, err := client.StartupScripts.GetAllStartupScripts(ctx)
 		if err != nil {
 			// Check if it's a 404 error (not supported on staging)
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
-				t.Logf("Startup scripts endpoint not available (404) - skipping test")
+				t.Skip("Startup scripts endpoint not available (404)")
 				return
 			}
 			t.Errorf("failed to get startup scripts: %v", err)
 		}
 		t.Logf("Found %d startup scripts", len(scripts))
+
+		// Verify structure if scripts exist
+		if len(scripts) > 0 {
+			for i, script := range scripts {
+				if i < 3 { // Log first 3
+					t.Logf("Startup Script: %s (%s)", script.Name, script.ID)
+				}
+				if script.ID == "" {
+					t.Errorf("script %d missing ID", i)
+				}
+				if script.Name == "" {
+					t.Errorf("script %d missing Name", i)
+				}
+			}
+		}
+	})
+
+	t.Run("test deprecated Get method", func(t *testing.T) {
+		ctx := context.Background()
+		scripts, err := client.StartupScripts.Get(ctx)
+		if err != nil {
+			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
+				t.Skip("Startup scripts endpoint not available (404)")
+				return
+			}
+			t.Errorf("failed to get startup scripts with deprecated method: %v", err)
+		}
+		t.Logf("Deprecated Get method returned %d startup scripts", len(scripts))
 	})
 }
 
@@ -38,7 +67,7 @@ func TestCreateStartScript_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	ctx := context.Background()
 	scriptID, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptRequest{
@@ -93,7 +122,7 @@ func TestListStartScripts_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	// Create a start script
 	ctx := context.Background()
@@ -153,7 +182,7 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 		t.Skip("skipping integration test in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 	ctx := context.Background()
 
 	// Test creating multiple scripts
@@ -228,4 +257,54 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 			}
 		}
 	}()
+}
+
+// TestDeleteMultipleStartupScriptsIntegration tests deleting multiple startup scripts at once
+func TestDeleteMultipleStartupScriptsIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	client := getTestClient(t)
+	ctx := context.Background()
+
+	var scriptIDs []string
+
+	// Create multiple test scripts
+	t.Run("create multiple startup scripts", func(t *testing.T) {
+		for i := 1; i <= 2; i++ {
+			req := &verda.CreateStartupScriptRequest{
+				Name:   fmt.Sprintf("test-go-sdk-multi-script-%d", i),
+				Script: fmt.Sprintf("#!/bin/bash\necho 'Script %d'", i),
+			}
+
+			script, err := client.StartupScripts.AddStartupScript(ctx, req)
+			if err != nil {
+				// Check if it's a 404 error (not supported on staging)
+				if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
+					t.Skip("Startup scripts endpoint not available (404)")
+					return
+				}
+				t.Errorf("failed to create startup script %d: %v", i, err)
+				continue
+			}
+
+			scriptIDs = append(scriptIDs, script.ID)
+			t.Logf("Created startup script %d: %s (%s)", i, script.Name, script.ID)
+		}
+	})
+
+	// Delete all created scripts at once
+	t.Run("delete multiple startup scripts", func(t *testing.T) {
+		if len(scriptIDs) == 0 {
+			t.Skip("no scripts to delete")
+		}
+
+		err := client.StartupScripts.DeleteMultipleStartupScripts(ctx, scriptIDs)
+		if err != nil {
+			t.Errorf("failed to delete multiple startup scripts: %v", err)
+		} else {
+			t.Logf("Successfully deleted %d startup scripts", len(scriptIDs))
+		}
+	})
 }

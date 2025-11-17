@@ -13,7 +13,7 @@ func TestLocations(t *testing.T) {
 		t.Skip("skipping integration tests in short mode")
 	}
 
-	client := createTestClient(t)
+	client := getTestClient(t)
 
 	t.Run("get_locations", func(t *testing.T) {
 		ctx := context.Background()
