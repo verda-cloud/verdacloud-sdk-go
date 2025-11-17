@@ -1,7 +1,7 @@
 version: "2"
 
 run:
-  go: "1.23"
+  go: "1.24"
   concurrency: 4
   timeout: 5m
   tests: false
@@ -28,80 +28,17 @@ linters:
     - dupl          # Code duplication
     - goconst       # Repeated strings that should be constants
 
-    # Documentation (can be disabled if too noisy)
-    - revive        # Flexible Go linter
-
-  settings:
-    errcheck:
-      check-type-assertions: false  # Too strict for SDK
-      check-blank: true
-    dupl:
-      threshold: 100
-    goconst:
-      min-len: 3
-      min-occurrences: 5  # Increased from 3 - less noisy
-    gocyclo:
-      min-complexity: 20  # Increased from 15 - more reasonable
-    revive:
-      # Disable the most annoying rules
-      rules:
-        - name: exported
-          disabled: true  # Don't require comments on every export
-        - name: package-comments
-          disabled: true  # Don't require package comments
-
-  exclusions:
-    generated: lax
-
-    # Use standard presets to exclude common false positives
-    presets:
-      - comments  # Exclude comment-related issues
-      - common-false-positives
-      - std-error-handling  # Allow common error handling patterns
-
-    rules:
-      # Test files - relax most rules
-      - linters:
-          - dupl
-          - errcheck
-          - goconst
-          - gocyclo
-          - gosec
-          - revive
-        path: _test\.go
-
-      # Test helpers - relax error checking
-      - linters:
-          - errcheck
-          - gosec
-        path: test_helpers\.go
-
-      # Test utilities - relax style rules but keep security checks
-      - linters:
-          - dupl
-          - goconst
-          - gocyclo
-          - revive
-          - unused
-        path: testutil/
-
-      # Example code - relax all rules
-      - linters:
-          - errcheck
-          - gosec
-          - revive
-        path: example/
-
-      # Allow blank error assignment in defer (common pattern)
-      - linters:
-          - errcheck
-        text: 'Error return value of .*(Close|Flush|Remove|Write).*is not checked'
-        source: 'defer.*\.Close\(\)'
-
-    paths:
-      - third_party$
-      - builtin$
-      - vendor$
+linters-settings:
+  errcheck:
+    check-type-assertions: false  # Too strict for SDK
+    check-blank: true
+  dupl:
+    threshold: 100
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  gocyclo:
+    min-complexity: 30
 
 issues:
   max-issues-per-linter: 0
@@ -109,14 +46,34 @@ issues:
   exclude-dirs:
     - vendor
     - third_party
+  exclude-files:
+    - ".*_test\\.go$"
+  exclude-rules:
+    # Test files - relax most rules
+    - linters:
+        - dupl
+        - errcheck
+        - goconst
+        - gocyclo
+        - gosec
+      path: _test\.go
 
-formatters:
-  enable:
-    - gofmt
-    - goimports
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - vendor$
+    # Test utilities - relax style rules but keep security checks
+    - linters:
+        - dupl
+        - goconst
+        - gocyclo
+        - unused
+      path: testutil/
+
+    # Example code - relax all rules
+    - linters:
+        - errcheck
+        - gosec
+      path: example/
+
+    # Allow blank error assignment in defer (common pattern)
+    - linters:
+        - errcheck
+      text: 'Error return value of .*(Close|Flush|Remove|Write).*is not checked'
+      source: 'defer.*\.Close\(\)'

@@ -154,7 +154,7 @@ func (s *InstanceService) IsAvailable(ctx context.Context, instanceType string, 
 
 	var stringResult string
 	if err := json.Unmarshal(body, &stringResult); err == nil {
-		return stringResult == "true", nil
+		return stringResult == trueString, nil
 	}
 
 	return false, fmt.Errorf("unexpected response format: %s", string(body))
@@ -232,7 +232,7 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 
 	var stringResult string
 	if err := json.Unmarshal(body, &stringResult); err == nil {
-		return stringResult == "true", nil
+		return stringResult == trueString, nil
 	}
 
 	return false, fmt.Errorf("unexpected response format: %s", string(body))

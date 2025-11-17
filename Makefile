@@ -40,9 +40,9 @@ setup: install-tools setup-hooks ## Complete development environment setup (tool
 install-tools: ## Install required development tools (golangci-lint) and check for pre-commit
 	@echo "→ Checking development tools..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "  Installing golangci-lint v1.62.2..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.62.2; \
-		echo "  ✓ golangci-lint v1.62.2 installed successfully"; \
+		echo "  Installing golangci-lint v2.5.0..."; \
+		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.5.0; \
+		echo "  ✓ golangci-lint v2.5.0 installed successfully"; \
 	else \
 		echo "  ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	fi

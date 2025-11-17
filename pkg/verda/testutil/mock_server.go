@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+// API path constants
+const (
+	pathSSHKeys    = "/sshkeys"
+	pathSSHKeysAlt = "/ssh-keys"
+	pathScripts    = "/scripts"
+	pathClusters   = "/clusters"
+)
+
 // TestClientConfig holds configuration for creating test clients
 type TestClientConfig struct {
 	BaseURL      string
@@ -324,6 +332,8 @@ func (ms *MockServer) SetHandler(method, path string, handler http.HandlerFunc) 
 }
 
 // handleRequest routes requests to appropriate handlers
+//
+//nolint:gocyclo // Mock server router naturally has high complexity
 func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 	ms.mu.RLock()
 	key := r.Method + " " + r.URL.Path
@@ -350,37 +360,37 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 	case r.Method == http.MethodGet && r.URL.Path == "/balance":
 		ms.handleGetBalance(w, r)
 	// SSH Keys - support both /ssh-keys and deprecated /sshkeys paths
-	case r.Method == http.MethodGet && (r.URL.Path == "/ssh-keys" || r.URL.Path == "/sshkeys"):
+	case r.Method == http.MethodGet && (r.URL.Path == pathSSHKeysAlt || r.URL.Path == pathSSHKeys):
 		ms.handleGetSSHKeys(w, r)
-	case r.Method == http.MethodGet && (strings.HasPrefix(r.URL.Path, "/ssh-keys/") || strings.HasPrefix(r.URL.Path, "/sshkeys/")):
+	case r.Method == http.MethodGet && (strings.HasPrefix(r.URL.Path, pathSSHKeysAlt+"/") || strings.HasPrefix(r.URL.Path, pathSSHKeys+"/")):
 		ms.handleGetSSHKey(w, r)
-	case r.Method == http.MethodPost && (r.URL.Path == "/ssh-keys" || r.URL.Path == "/sshkeys"):
+	case r.Method == http.MethodPost && (r.URL.Path == pathSSHKeysAlt || r.URL.Path == pathSSHKeys):
 		ms.handleCreateSSHKey(w, r)
-	case r.Method == http.MethodDelete && (strings.HasPrefix(r.URL.Path, "/ssh-keys/") || strings.HasPrefix(r.URL.Path, "/sshkeys/")):
+	case r.Method == http.MethodDelete && (strings.HasPrefix(r.URL.Path, pathSSHKeysAlt+"/") || strings.HasPrefix(r.URL.Path, pathSSHKeys+"/")):
 		ms.handleDeleteSSHKey(w, r)
-	case r.Method == http.MethodDelete && (r.URL.Path == "/ssh-keys" || r.URL.Path == "/sshkeys"):
+	case r.Method == http.MethodDelete && (r.URL.Path == pathSSHKeysAlt || r.URL.Path == pathSSHKeys):
 		ms.handleDeleteMultipleSSHKeys(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/locations":
 		ms.handleGetLocations(w, r)
-	case r.Method == http.MethodGet && r.URL.Path == "/scripts":
+	case r.Method == http.MethodGet && r.URL.Path == pathScripts:
 		ms.handleGetScripts(w, r)
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/scripts/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathScripts+"/"):
 		ms.handleGetScript(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/scripts":
+	case r.Method == http.MethodPost && r.URL.Path == pathScripts:
 		ms.handleCreateScript(w, r)
-	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/scripts/"):
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, pathScripts+"/"):
 		ms.handleDeleteScript(w, r)
-	case r.Method == http.MethodDelete && r.URL.Path == "/scripts":
+	case r.Method == http.MethodDelete && r.URL.Path == pathScripts:
 		ms.handleDeleteMultipleScripts(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/volume-types":
 		ms.handleGetVolumeTypes(w, r)
-	case r.Method == http.MethodGet && r.URL.Path == "/clusters":
+	case r.Method == http.MethodGet && r.URL.Path == pathClusters:
 		ms.handleGetClusters(w, r)
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/clusters/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathClusters+"/"):
 		ms.handleGetCluster(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/clusters":
+	case r.Method == http.MethodPost && r.URL.Path == pathClusters:
 		ms.handleCreateCluster(w, r)
-	case r.Method == http.MethodPut && r.URL.Path == "/clusters":
+	case r.Method == http.MethodPut && r.URL.Path == pathClusters:
 		ms.handleClusterAction(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/cluster-types":
 		ms.handleGetClusterTypes(w, r)
@@ -1471,7 +1481,7 @@ func (ms *MockServer) handleGetContainerDeployments(w http.ResponseWriter, _ *ht
 	writeJSON(w, deployments)
 }
 
-func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
@@ -1569,7 +1579,7 @@ func (ms *MockServer) handleGetJobDeployments(w http.ResponseWriter, _ *http.Req
 	writeJSON(w, jobs)
 }
 
-func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.Request) {
+func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 

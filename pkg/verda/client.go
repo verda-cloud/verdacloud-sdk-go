@@ -13,6 +13,7 @@ import (
 
 const (
 	DefaultBaseURL = "https://api.verda.com/v1"
+	trueString     = "true"
 )
 
 type Client struct {
@@ -61,7 +62,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	}
 
 	// Enable debug logging via VERDA_DEBUG env var if no custom logger was set
-	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == "true" {
+	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == trueString {
 		if _, isNoOp := client.Logger.(*NoOpLogger); isNoOp {
 			client.Logger = NewStdLogger(true)
 		}
@@ -70,7 +71,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.Middleware = NewDefaultMiddleware(client.Logger)
 
 	// Wire up debug middleware if VERDA_DEBUG is set
-	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == "true" {
+	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == trueString {
 		client.Middleware.AddRequestMiddleware(DebugLoggingMiddleware(client.Logger))
 		client.Middleware.AddResponseMiddleware(DebugResponseLoggingMiddleware(client.Logger))
 	}
