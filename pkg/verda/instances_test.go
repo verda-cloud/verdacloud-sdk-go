@@ -192,9 +192,17 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	t.Run("delete instance", func(t *testing.T) {
+	t.Run("boot instance", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Instances.Delete(ctx, "inst_123", []string{"vol_123"})
+		err := client.Instances.Boot(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("start instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Start(ctx, "inst_123")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -208,9 +216,84 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 		}
 	})
 
+	t.Run("delete instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Delete(ctx, "inst_123", []string{"vol_123"})
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("discontinue instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Discontinue(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
 	t.Run("hibernate instance", func(t *testing.T) {
 		ctx := context.Background()
 		err := client.Instances.Hibernate(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("configure spot instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.ConfigureSpot(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("force shutdown instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.ForceShutdown(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("delete stuck instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.DeleteStuck(ctx, "inst_123", []string{"vol_123"})
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("deploy instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Deploy(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("transfer instance", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Transfer(ctx, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("boot multiple instances", func(t *testing.T) {
+		ctx := context.Background()
+		instanceIDs := []string{"inst_123", "inst_456", "inst_789"}
+		err := client.Instances.Boot(ctx, instanceIDs)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("delete multiple instances with volumes", func(t *testing.T) {
+		ctx := context.Background()
+		instanceIDs := []string{"inst_123", "inst_456"}
+		volumeIDs := []string{"vol_123", "vol_456"}
+		err := client.Instances.Delete(ctx, instanceIDs, volumeIDs)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

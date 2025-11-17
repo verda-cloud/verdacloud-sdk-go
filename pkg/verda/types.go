@@ -161,9 +161,17 @@ type Container struct {
 
 // Action constants
 const (
-	ActionDelete    = "DELETE"
-	ActionShutdown  = "SHUTDOWN"
-	ActionHibernate = "HIBERNATE"
+	ActionBoot          = "boot"
+	ActionStart         = "start"
+	ActionShutdown      = "shutdown"
+	ActionDelete        = "delete"
+	ActionDiscontinue   = "discontinue"
+	ActionHibernate     = "hibernate"
+	ActionConfigureSpot = "configure_spot"
+	ActionForceShutdown = "force_shutdown"
+	ActionDeleteStuck   = "delete_stuck"
+	ActionDeploy        = "deploy"
+	ActionTransfer      = "transfer"
 )
 
 // Instance status constants
@@ -178,11 +186,30 @@ const (
 	LocationFIN01 = "FIN-01"
 )
 
-// Volume status constants
+// Volume type constants
+const (
+	VolumeTypeHDD               = "HDD"
+	VolumeTypeNVMe              = "NVMe"
+	VolumeTypeHDDShared         = "HDD_Shared"
+	VolumeTypeNVMeShared        = "NVMe_Shared"
+	VolumeTypeNVMeLocalStorage  = "NVMe_Local_Storage"
+	VolumeTypeNVMeSharedCluster = "NVMe_Shared_Cluster"
+	VolumeTypeNVMeOSCluster     = "NVMe_OS_Cluster"
+)
+
+// Volume status constants - these match the actual API values
 const (
 	VolumeStatusOrdered   = "ordered"
-	VolumeStatusCreating  = "creating"
-	VolumeStatusAvailable = "available"
-	VolumeStatusInUse     = "in-use"
+	VolumeStatusAttached  = "attached"
+	VolumeStatusAttaching = "attaching"
+	VolumeStatusDetached  = "detached"
+	VolumeStatusDeleted   = "deleted"
+	VolumeStatusCloning   = "cloning"
+	VolumeStatusDetaching = "detaching"
 	VolumeStatusDeleting  = "deleting"
+	VolumeStatusRestoring = "restoring"
+	VolumeStatusCreated   = "created"
+	VolumeStatusExported  = "exported"
+	VolumeStatusCanceled  = "canceled"
+	VolumeStatusCanceling = "canceling"
 )

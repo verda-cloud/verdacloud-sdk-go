@@ -181,7 +181,7 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 	@go test -tags=integration -v -timeout=10m ./test/integration
 	@echo "✓ Integration tests passed!"
 
-test: test-unit ## Alias for test-unit (default test target)
+test: lint test-unit ## Run linting and unit tests (default test target)
 
 coverage: ## Generate test coverage report (HTML output)
 	@echo "→ Generating coverage report..."

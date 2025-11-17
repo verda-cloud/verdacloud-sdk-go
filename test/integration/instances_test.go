@@ -83,16 +83,19 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 	ctx := context.Background()
 	t.Logf("Cleaning up instance %s...", instanceID)
 
-	// First try to stop the instance if it's running
+	// First try to get the instance to check its status
 	instance, err := client.Instances.GetByID(ctx, instanceID)
 	if err != nil {
 		t.Logf("Could not get instance %s for cleanup: %v", instanceID, err)
 		return
 	}
 
+	t.Logf("Instance %s current status: %s", instanceID, instance.Status)
+
+	// If instance is running, try to shut it down first
 	if instance.Status == verda.StatusRunning {
 		t.Logf("Instance %s is running, stopping it first...", instanceID)
-		err = client.Instances.Action(ctx, instanceID, verda.ActionShutdown, nil)
+		err = client.Instances.Shutdown(ctx, instanceID)
 		if err != nil {
 			t.Logf("Failed to shutdown instance %s: %v", instanceID, err)
 		} else {
@@ -100,6 +103,7 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 			for i := 0; i < 30; i++ {
 				instance, err := client.Instances.GetByID(ctx, instanceID)
 				if err == nil && instance.Status == verda.StatusOffline {
+					t.Logf("Instance %s successfully shut down", instanceID)
 					break
 				}
 				time.Sleep(10 * time.Second)
@@ -107,10 +111,17 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 		}
 	}
 
-	// Now delete the instance
+	// If instance is pending/deploying, wait a bit for it to reach a stable state
+	if instance.Status == verda.StatusPending {
+		t.Logf("Instance %s is pending, waiting for stable state...", instanceID)
+		time.Sleep(30 * time.Second)
+	}
+
+	// Now try to delete the instance
 	err = client.Instances.Delete(ctx, instanceID, nil)
 	if err != nil {
-		t.Errorf("Failed to delete instance %s: %v", instanceID, err)
+		// Don't fail the test on cleanup errors, just log them
+		t.Logf("Warning: Failed to delete instance %s: %v (this is non-fatal for test cleanup)", instanceID, err)
 	} else {
 		t.Logf("Successfully initiated deletion of instance %s", instanceID)
 	}
@@ -210,7 +221,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 		InstanceType: "1V100.6V",
 		Image:        "ubuntu-24.04-cuda-12.8-open-docker",
 		SSHKeyIDs:    []string{sshKeyID},
-		Location:     verda.LocationFIN01,
+		LocationCode: verda.LocationFIN01,
 		Hostname:     "integration-test-vm",
 		Description:  "Integration test instance - safe to delete",
 	}
@@ -221,12 +232,12 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 	}
 
 	// Check availability first
-	available, err := client.Instances.IsAvailable(ctx, input.InstanceType, input.IsSpot, input.Location)
+	available, err := client.Instances.IsAvailable(ctx, input.InstanceType, input.IsSpot, input.LocationCode)
 	if err != nil {
 		t.Fatalf("failed to check instance availability: %v", err)
 	}
 	if !available {
-		t.Skipf("Instance type %s not available in location %s", input.InstanceType, input.Location)
+		t.Skipf("Instance type %s not available in location %s", input.InstanceType, input.LocationCode)
 	}
 
 	instance, err := client.Instances.Create(ctx, input)

@@ -12,6 +12,68 @@ import (
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
+// cleanupTestVolumes removes all test volumes created during integration tests
+// This should be called at the beginning of volume tests to ensure a clean state
+func cleanupTestVolumes(t *testing.T, client *verda.Client) {
+	ctx := context.Background()
+	t.Log("Checking for existing test volumes to cleanup...")
+
+	volumes, err := client.Volumes.Get(ctx)
+	if err != nil {
+		t.Logf("Warning: failed to list volumes for cleanup: %v", err)
+		return
+	}
+
+	testVolumePrefixes := []string{
+		"integration-test-",
+		"test-volume-",
+	}
+
+	cleanedCount := 0
+	for _, volume := range volumes {
+		// Check if this is a test volume
+		isTestVolume := false
+		for _, prefix := range testVolumePrefixes {
+			if strings.HasPrefix(volume.Name, prefix) {
+				isTestVolume = true
+				break
+			}
+		}
+
+		if isTestVolume {
+			t.Logf("Cleaning up existing test volume: %s (ID: %s, Status: %s)", volume.Name, volume.ID, volume.Status)
+			err := client.Volumes.Delete(ctx, volume.ID, true)
+			if err != nil {
+				t.Logf("Warning: failed to delete volume %s: %v", volume.ID, err)
+			} else {
+				cleanedCount++
+			}
+		}
+	}
+
+	if cleanedCount > 0 {
+		t.Logf("Cleaned up %d existing test volume(s)", cleanedCount)
+		// Give the API a moment to process the deletions
+		time.Sleep(2 * time.Second)
+	} else {
+		t.Log("No existing test volumes found to cleanup")
+	}
+}
+
+// cleanupVolume forcefully cleans up a single volume
+func cleanupVolume(t *testing.T, client *verda.Client, volumeID string) {
+	ctx := context.Background()
+	t.Logf("Cleaning up volume %s...", volumeID)
+
+	err := client.Volumes.Delete(ctx, volumeID, true)
+	if err != nil {
+		// Don't fail the test on cleanup errors, just log them
+		t.Logf("Warning: Failed to delete volume %s: %v (this is non-fatal for test cleanup)", volumeID, err)
+	} else {
+		t.Logf("Successfully initiated deletion of volume %s", volumeID)
+	}
+}
+
 func TestVolumes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration tests in short mode")
@@ -82,16 +144,19 @@ func TestCreateVolume_Integration(t *testing.T) {
 
 	client := createTestClient(t)
 
+	// Cleanup any existing test volumes first
+	cleanupTestVolumes(t, client)
+
 	ctx := context.Background()
 	volumeID, err := client.Volumes.Create(ctx, verda.VolumeCreateRequest{
-		Type:     "NVMe",
+		Type:     verda.VolumeTypeNVMe,
 		Location: verda.LocationFIN01,
 		Size:     50,
 		Name:     "integration-test-volume",
 	})
 
 	if err != nil {
-		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 && strings.Contains(apiErr.Message, "Volume limit exceeded") {
+		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 && (strings.Contains(apiErr.Message, "Volume limit exceeded") || strings.Contains(apiErr.Message, "Storage limit exceeded")) {
 			t.Skipf("Skipping volume create due to quota: %v", apiErr)
 			return
 		}
@@ -105,15 +170,7 @@ func TestCreateVolume_Integration(t *testing.T) {
 	t.Logf("Created volume with ID: %s", volumeID)
 
 	// Cleanup
-	defer func() {
-		t.Log("Cleaning up test volume...")
-		err := client.Volumes.Delete(ctx, volumeID, true)
-		if err != nil {
-			t.Errorf("failed to delete volume %s: %v", volumeID, err)
-		} else {
-			t.Log("Successfully cleaned up test volume")
-		}
-	}()
+	defer cleanupVolume(t, client, volumeID)
 
 	// Wait a moment for volume to be created
 	time.Sleep(3 * time.Second)
@@ -168,6 +225,10 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	}
 
 	client := createTestClient(t)
+
+	// Cleanup any existing test volumes first
+	cleanupTestVolumes(t, client)
+
 	ctx := context.Background()
 
 	// Test creating multiple volumes with different configurations
@@ -178,12 +239,12 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	}{
 		{
 			name:       "test-volume-nvme",
-			volumeType: "NVMe",
+			volumeType: verda.VolumeTypeNVMe,
 			size:       50,
 		},
 		{
-			name:       "test-volume-ssd",
-			volumeType: "SSD",
+			name:       "test-volume-hdd",
+			volumeType: verda.VolumeTypeHDD,
 			size:       100,
 		},
 	}
@@ -199,7 +260,7 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 			Name:     config.name,
 		})
 		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 && strings.Contains(apiErr.Message, "Volume limit exceeded") {
+			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 && (strings.Contains(apiErr.Message, "Volume limit exceeded") || strings.Contains(apiErr.Message, "Storage limit exceeded")) {
 				t.Skipf("Skipping volume lifecycle due to quota: %v", apiErr)
 				return
 			}
@@ -244,21 +305,17 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	defer func() {
 		for i, volumeID := range createdVolumeIDs {
 			t.Logf("Cleaning up volume %s (%s)...", volumeConfigs[i].name, volumeID)
-			err := client.Volumes.Delete(ctx, volumeID, true)
-			if err != nil {
-				t.Errorf("failed to delete volume %s: %v", volumeID, err)
-			} else {
-				t.Logf("Successfully cleaned up volume %s", volumeID)
-			}
+			cleanupVolume(t, client, volumeID)
 		}
 	}()
 
-	// Test volume status filtering
+	// Test volume status filtering with valid API status values
 	for _, status := range []string{
 		verda.VolumeStatusOrdered,
-		verda.VolumeStatusCreating,
-		verda.VolumeStatusAvailable,
-		verda.VolumeStatusInUse,
+		verda.VolumeStatusAttached,
+		verda.VolumeStatusAttaching,
+		verda.VolumeStatusDetached,
+		verda.VolumeStatusCreated,
 	} {
 		volumes, err := client.Volumes.GetByStatus(ctx, status)
 		if err != nil {

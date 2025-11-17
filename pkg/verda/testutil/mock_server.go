@@ -138,6 +138,9 @@ const (
 	StatusRunning = "RUNNING"
 	StatusPending = "PENDING"
 	LocationFIN01 = "FIN-01"
+	pathInstances = "/instances"
+	// nolint:gosec // G101: This is a URL path, not a credential
+	pathOAuth2Token = "/oauth2/token"
 )
 
 // MockServer provides a test HTTP server for mocking Verda API responses
@@ -191,15 +194,15 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Default handlers
 	switch {
-	case r.Method == http.MethodPost && r.URL.Path == "/oauth2/token":
+	case r.Method == http.MethodPost && r.URL.Path == pathOAuth2Token:
 		ms.handleAuth(w, r)
-	case r.Method == http.MethodGet && r.URL.Path == "/instances":
+	case r.Method == http.MethodGet && r.URL.Path == pathInstances:
 		ms.handleGetInstances(w, r)
-	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/instances/"):
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathInstances+"/"):
 		ms.handleGetInstance(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/instances":
+	case r.Method == http.MethodPost && r.URL.Path == pathInstances:
 		ms.handleCreateInstance(w, r)
-	case r.Method == http.MethodPost && r.URL.Path == "/instances/action":
+	case r.Method == http.MethodPut && r.URL.Path == pathInstances:
 		ms.handleInstanceAction(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/balance":
 		ms.handleGetBalance(w, r)
@@ -395,17 +398,14 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 }
 
 func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	var req InstanceActionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	// Mock successful action
-	w.WriteHeader(http.StatusOK)
-	writeJSON(w, map[string]string{"status": "success"})
+	// Mock successful action - API returns 202 Accepted with empty body
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (ms *MockServer) handleGetBalance(w http.ResponseWriter, _ *http.Request) {

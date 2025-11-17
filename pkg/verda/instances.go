@@ -114,7 +114,7 @@ func (s *InstanceService) Action(ctx context.Context, idList any, action string,
 		VolumeIDs: volumeIDs,
 	}
 
-	_, _, err := postRequest[interface{}](ctx, s.client, "/instances/action", req)
+	_, _, err := putRequest[any](ctx, s.client, "/instances", req)
 	return err
 }
 
@@ -259,9 +259,14 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	return false, fmt.Errorf("unexpected response format: %s", string(body))
 }
 
-// Delete is a convenience method to delete instances
-func (s *InstanceService) Delete(ctx context.Context, idList any, volumeIDs []string) error {
-	return s.Action(ctx, idList, ActionDelete, volumeIDs)
+// Boot is a convenience method to boot instances
+func (s *InstanceService) Boot(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionBoot, nil)
+}
+
+// Start is a convenience method to start instances
+func (s *InstanceService) Start(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionStart, nil)
 }
 
 // Shutdown is a convenience method to shutdown instances
@@ -269,7 +274,45 @@ func (s *InstanceService) Shutdown(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionShutdown, nil)
 }
 
-// Hibernate is a convenience method to hibernate instances
+// Delete is a convenience method to delete instances
+func (s *InstanceService) Delete(ctx context.Context, idList any, volumeIDs []string) error {
+	return s.Action(ctx, idList, ActionDelete, volumeIDs)
+}
+
+// Discontinue is a convenience method to discontinue instances
+func (s *InstanceService) Discontinue(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionDiscontinue, nil)
+}
+
+// Hibernate is a convenience method to hibernate instances.
+// IMPORTANT: The instance must be shut down before hibernation can succeed.
+// The API will return an error if you attempt to hibernate a running instance.
+// During hibernation, all volumes are detached and the instance is deleted.
 func (s *InstanceService) Hibernate(ctx context.Context, idList any) error {
 	return s.Action(ctx, idList, ActionHibernate, nil)
+}
+
+// ConfigureSpot is a convenience method to configure instances as spot instances
+func (s *InstanceService) ConfigureSpot(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionConfigureSpot, nil)
+}
+
+// ForceShutdown is a convenience method to force shutdown instances
+func (s *InstanceService) ForceShutdown(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionForceShutdown, nil)
+}
+
+// DeleteStuck is a convenience method to delete stuck instances
+func (s *InstanceService) DeleteStuck(ctx context.Context, idList any, volumeIDs []string) error {
+	return s.Action(ctx, idList, ActionDeleteStuck, volumeIDs)
+}
+
+// Deploy is a convenience method to deploy instances
+func (s *InstanceService) Deploy(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionDeploy, nil)
+}
+
+// Transfer is a convenience method to transfer instances
+func (s *InstanceService) Transfer(ctx context.Context, idList any) error {
+	return s.Action(ctx, idList, ActionTransfer, nil)
 }
