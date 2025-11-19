@@ -117,7 +117,7 @@ type OSVolumeCreateRequest struct {
 
 // InstanceActionRequest represents an action to perform on instances
 type InstanceActionRequest struct {
-	IDList    any      `json:"id_list"` // Can be string or []string
+	ID        string   `json:"id"`
 	Action    string   `json:"action"`
 	VolumeIDs []string `json:"volume_ids,omitempty"`
 }

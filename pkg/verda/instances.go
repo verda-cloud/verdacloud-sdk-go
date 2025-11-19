@@ -95,9 +95,9 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 	return &instance, nil
 }
 
-func (s *InstanceService) Action(ctx context.Context, idList any, action string, volumeIDs []string) error {
+func (s *InstanceService) Action(ctx context.Context, id string, action string, volumeIDs []string) error {
 	req := InstanceActionRequest{
-		IDList:    idList,
+		ID:        id,
 		Action:    action,
 		VolumeIDs: volumeIDs,
 	}
@@ -238,48 +238,48 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	return false, fmt.Errorf("unexpected response format: %s", string(body))
 }
 
-func (s *InstanceService) Boot(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionBoot, nil)
+func (s *InstanceService) Boot(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionBoot, nil)
 }
 
-func (s *InstanceService) Start(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionStart, nil)
+func (s *InstanceService) Start(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionStart, nil)
 }
 
-func (s *InstanceService) Shutdown(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionShutdown, nil)
+func (s *InstanceService) Shutdown(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionShutdown, nil)
 }
 
-func (s *InstanceService) Delete(ctx context.Context, idList any, volumeIDs []string) error {
-	return s.Action(ctx, idList, ActionDelete, volumeIDs)
+func (s *InstanceService) Delete(ctx context.Context, id string, volumeIDs []string) error {
+	return s.Action(ctx, id, ActionDelete, volumeIDs)
 }
 
-func (s *InstanceService) Discontinue(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionDiscontinue, nil)
+func (s *InstanceService) Discontinue(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionDiscontinue, nil)
 }
 
 // Hibernate shuts down and archives an instance - must be shut down first or API will error.
 // Volumes are detached and the instance is deleted during hibernation.
-func (s *InstanceService) Hibernate(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionHibernate, nil)
+func (s *InstanceService) Hibernate(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionHibernate, nil)
 }
 
-func (s *InstanceService) ConfigureSpot(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionConfigureSpot, nil)
+func (s *InstanceService) ConfigureSpot(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionConfigureSpot, nil)
 }
 
-func (s *InstanceService) ForceShutdown(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionForceShutdown, nil)
+func (s *InstanceService) ForceShutdown(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionForceShutdown, nil)
 }
 
-func (s *InstanceService) DeleteStuck(ctx context.Context, idList any, volumeIDs []string) error {
-	return s.Action(ctx, idList, ActionDeleteStuck, volumeIDs)
+func (s *InstanceService) DeleteStuck(ctx context.Context, id string, volumeIDs []string) error {
+	return s.Action(ctx, id, ActionDeleteStuck, volumeIDs)
 }
 
-func (s *InstanceService) Deploy(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionDeploy, nil)
+func (s *InstanceService) Deploy(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionDeploy, nil)
 }
 
-func (s *InstanceService) Transfer(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ActionTransfer, nil)
+func (s *InstanceService) Transfer(ctx context.Context, id string) error {
+	return s.Action(ctx, id, ActionTransfer, nil)
 }

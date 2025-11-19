@@ -168,7 +168,7 @@ func TestInstanceService_Action(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	t.Run("action on single instance", func(t *testing.T) {
+	t.Run("action on instance", func(t *testing.T) {
 		ctx := context.Background()
 		err := client.Instances.Action(ctx, "inst_123", ActionShutdown, nil)
 		if err != nil {
@@ -176,10 +176,9 @@ func TestInstanceService_Action(t *testing.T) {
 		}
 	})
 
-	t.Run("action on multiple instances", func(t *testing.T) {
+	t.Run("action delete with volumes", func(t *testing.T) {
 		ctx := context.Background()
-		instanceIDs := []string{"inst_123", "inst_456"}
-		err := client.Instances.Action(ctx, instanceIDs, ActionDelete, []string{"vol_123"})
+		err := client.Instances.Action(ctx, "inst_123", ActionDelete, []string{"vol_123"})
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -280,24 +279,6 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("boot multiple instances", func(t *testing.T) {
-		ctx := context.Background()
-		instanceIDs := []string{"inst_123", "inst_456", "inst_789"}
-		err := client.Instances.Boot(ctx, instanceIDs)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("delete multiple instances with volumes", func(t *testing.T) {
-		ctx := context.Background()
-		instanceIDs := []string{"inst_123", "inst_456"}
-		volumeIDs := []string{"vol_123", "vol_456"}
-		err := client.Instances.Delete(ctx, instanceIDs, volumeIDs)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
 }
 
 func TestInstanceService_IsAvailable(t *testing.T) {
