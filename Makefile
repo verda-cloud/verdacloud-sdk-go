@@ -411,7 +411,7 @@ docker-help: ## Show Docker-specific help
 	@echo '╚════════════════════════════════════════════════════════════════╝'
 	@echo ''
 	@echo 'Why Docker?'
-	@echo '  • Guaranteed consistency: Same Go 1.23 and golangci-lint v2.5.0'
+	@echo '  • Guaranteed consistency: Same Go 1.24 and golangci-lint v2.5.0'
 	@echo '  • No local setup needed: Everything runs in container'
 	@echo '  • Matches CI/CD exactly: Same environment as GitHub Actions'
 	@echo '  • FAST: Container stays running, commands execute instantly!'

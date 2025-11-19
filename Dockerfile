@@ -1,7 +1,7 @@
 # Dockerfile for Verda Cloud Go SDK Development
 # Provides consistent environment with fixed Go and tooling versions
 
-FROM golang:1.23-alpine AS base
+FROM golang:1.24-alpine AS base
 
 # Install build essentials and tools
 RUN apk add --no-cache \

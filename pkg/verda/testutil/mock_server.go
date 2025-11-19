@@ -90,7 +90,7 @@ type OSVolumeCreateRequest struct {
 }
 
 type InstanceActionRequest struct {
-	ID        string   `json:"id_list"`
+	ID        string   `json:"id"`
 	Action    string   `json:"action"`
 	VolumeIDs []string `json:"volume_ids,omitempty"`
 }
