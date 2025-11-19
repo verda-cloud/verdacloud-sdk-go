@@ -41,7 +41,7 @@ install-tools: ## Install required development tools (golangci-lint) and check f
 	@echo "→ Checking development tools..."
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
 		echo "  Installing golangci-lint v2.5.0..."; \
-		go install github.com/golangci/golangci-lint/cmd/golangci-lint@v2.5.0; \
+		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0; \
 		echo "  ✓ golangci-lint v2.5.0 installed successfully"; \
 	else \
 		echo "  ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
@@ -411,7 +411,7 @@ docker-help: ## Show Docker-specific help
 	@echo '╚════════════════════════════════════════════════════════════════╝'
 	@echo ''
 	@echo 'Why Docker?'
-	@echo '  • Guaranteed consistency: Same Go 1.21 and golangci-lint v2.6.1'
+	@echo '  • Guaranteed consistency: Same Go 1.23 and golangci-lint v2.5.0'
 	@echo '  • No local setup needed: Everything runs in container'
 	@echo '  • Matches CI/CD exactly: Same environment as GitHub Actions'
 	@echo '  • FAST: Container stays running, commands execute instantly!'
