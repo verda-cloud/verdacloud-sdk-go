@@ -233,7 +233,7 @@ func TestVolumeService_Get(t *testing.T) {
 				ID:     "vol_123",
 				Name:   "Test Volume",
 				Size:   100,
-				Type:   "SSD",
+				Type:   VolumeTypeNVMe,
 				Status: "available",
 			},
 		}
@@ -275,7 +275,7 @@ func TestVolumeService_GetByID(t *testing.T) {
 			ID:     "vol_123",
 			Name:   "Specific Volume",
 			Size:   200,
-			Type:   "SSD",
+			Type:   VolumeTypeNVMe,
 			Status: "in-use",
 		}
 		w.Header().Set("Content-Type", "application/json")

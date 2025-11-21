@@ -134,10 +134,10 @@ func TestInstanceService_Create(t *testing.T) {
 			Pricing:         "FIXED_PRICE",
 			StartupScriptID: stringPtr("script_123"),
 			Volumes: []VolumeCreateRequest{
-				{Size: 500, Type: "SSD", Name: "data"},
+				{Size: 500, Type: VolumeTypeNVMe, Name: "data"},
 			},
 			ExistingVolumes: []string{"vol_123"},
-			OSVolume:        &OSVolumeCreateRequest{Size: 100, Type: "SSD"},
+			OSVolume:        &OSVolumeCreateRequest{Size: 100},
 			IsSpot:          true,
 			Coupon:          stringPtr("DISCOUNT20"),
 		}

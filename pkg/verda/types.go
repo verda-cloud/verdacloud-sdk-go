@@ -79,7 +79,7 @@ type VolumeCreateRequest struct {
 	Size     int    `json:"size"`
 	Type     string `json:"type"`
 	Name     string `json:"name"`
-	Location string `json:"location,omitempty"`
+	Location string `json:"location_code,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -95,7 +95,7 @@ type VolumeDetachRequest struct {
 // VolumeCloneRequest represents a request to clone a volume
 type VolumeCloneRequest struct {
 	Name     string `json:"name"`
-	Location string `json:"location,omitempty"`
+	Location string `json:"location_code,omitempty"`
 }
 
 // VolumeResizeRequest represents a request to resize a volume
@@ -112,7 +112,6 @@ type VolumeRenameRequest struct {
 type OSVolumeCreateRequest struct {
 	Name string `json:"name"`
 	Size int    `json:"size"`
-	Type string `json:"type"`
 }
 
 // InstanceActionRequest represents an action to perform on instances
