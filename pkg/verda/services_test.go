@@ -38,7 +38,7 @@ func TestBalanceService_Get(t *testing.T) {
 }
 
 // Test SSH Keys Service
-func TestSSHKeyService_Get(t *testing.T) {
+func TestSSHKeyService_GetAllSSHKeysFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -46,7 +46,7 @@ func TestSSHKeyService_Get(t *testing.T) {
 
 	t.Run("get all SSH keys", func(t *testing.T) {
 		ctx := context.Background()
-		keys, err := client.SSHKeys.Get(ctx)
+		keys, err := client.SSHKeys.GetAllSSHKeys(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -70,7 +70,7 @@ func TestSSHKeyService_Get(t *testing.T) {
 	})
 }
 
-func TestSSHKeyService_GetByID(t *testing.T) {
+func TestSSHKeyService_GetSSHKeyByIDFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -92,7 +92,7 @@ func TestSSHKeyService_GetByID(t *testing.T) {
 
 	t.Run("get SSH key by ID", func(t *testing.T) {
 		ctx := context.Background()
-		key, err := client.SSHKeys.GetByID(ctx, "key_123")
+		key, err := client.SSHKeys.GetSSHKeyByID(ctx, "key_123")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -111,7 +111,7 @@ func TestSSHKeyService_GetByID(t *testing.T) {
 	})
 }
 
-func TestSSHKeyService_Create(t *testing.T) {
+func TestSSHKeyService_AddSSHKeyFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -137,13 +137,13 @@ func TestSSHKeyService_Create(t *testing.T) {
 	mockServer.SetHandler(http.MethodPost, "/sshkeys", createHandler)
 
 	t.Run("create SSH key", func(t *testing.T) {
-		req := CreateSSHKeyRequest{
+		req := &CreateSSHKeyRequest{
 			Name:      "My New Key",
 			PublicKey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQAB...",
 		}
 
 		ctx := context.Background()
-		key, err := client.SSHKeys.Create(ctx, req)
+		key, err := client.SSHKeys.AddSSHKey(ctx, req)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -162,20 +162,20 @@ func TestSSHKeyService_Create(t *testing.T) {
 	})
 }
 
-func TestSSHKeyService_Delete(t *testing.T) {
+func TestSSHKeyService_DeleteSSHKeyFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for SSH key deletion
-	mockServer.SetHandler(http.MethodDelete, "/sshkeys/key_123", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodDelete, "/ssh-keys/key_123", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
 	t.Run("delete SSH key", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.SSHKeys.Delete(ctx, "key_123")
+		err := client.SSHKeys.DeleteSSHKey(ctx, "key_123")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -209,18 +209,14 @@ func TestLocationService_Get(t *testing.T) {
 			t.Errorf("expected location name 'Finland 01', got '%s'", location.Name)
 		}
 
-		if location.Country != "Finland" {
-			t.Errorf("expected country 'Finland', got '%s'", location.Country)
-		}
-
-		if !location.Available {
-			t.Error("expected location to be available")
+		if location.CountryCode != "FI" {
+			t.Errorf("expected country code 'FI', got '%s'", location.CountryCode)
 		}
 	})
 }
 
 // Test Volumes Service
-func TestVolumeService_Get(t *testing.T) {
+func TestVolumeService_ListVolumesFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -243,7 +239,7 @@ func TestVolumeService_Get(t *testing.T) {
 
 	t.Run("get all volumes", func(t *testing.T) {
 		ctx := context.Background()
-		volumes, err := client.Volumes.Get(ctx)
+		volumes, err := client.Volumes.ListVolumes(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -263,7 +259,7 @@ func TestVolumeService_Get(t *testing.T) {
 	})
 }
 
-func TestVolumeService_GetByID(t *testing.T) {
+func TestVolumeService_GetVolumeFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -284,7 +280,7 @@ func TestVolumeService_GetByID(t *testing.T) {
 
 	t.Run("get volume by ID", func(t *testing.T) {
 		ctx := context.Background()
-		volume, err := client.Volumes.GetByID(ctx, "vol_123")
+		volume, err := client.Volumes.GetVolume(ctx, "vol_123")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -304,7 +300,7 @@ func TestVolumeService_GetByID(t *testing.T) {
 }
 
 // Test Startup Scripts Service
-func TestStartupScriptService_Get(t *testing.T) {
+func TestStartupScriptService_GetAllStartupScriptsFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -325,7 +321,7 @@ func TestStartupScriptService_Get(t *testing.T) {
 
 	t.Run("get all startup scripts", func(t *testing.T) {
 		ctx := context.Background()
-		scripts, err := client.StartupScripts.Get(ctx)
+		scripts, err := client.StartupScripts.GetAllStartupScripts(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -345,7 +341,7 @@ func TestStartupScriptService_Get(t *testing.T) {
 	})
 }
 
-func TestStartupScriptService_Create(t *testing.T) {
+func TestStartupScriptService_AddStartupScriptFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -376,13 +372,13 @@ func TestStartupScriptService_Create(t *testing.T) {
 	})
 
 	t.Run("create startup script", func(t *testing.T) {
-		req := CreateStartupScriptRequest{
+		req := &CreateStartupScriptRequest{
 			Name:   "Setup Script",
 			Script: "#!/bin/bash\nnpm install",
 		}
 
 		ctx := context.Background()
-		script, err := client.StartupScripts.Create(ctx, req)
+		script, err := client.StartupScripts.AddStartupScript(ctx, req)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

@@ -76,10 +76,10 @@ type CreateInstanceRequest struct {
 
 // VolumeCreateRequest represents a volume to be created
 type VolumeCreateRequest struct {
-	Size     int    `json:"size"`
-	Type     string `json:"type"`
-	Name     string `json:"name"`
-	Location string `json:"location_code,omitempty"`
+	Size         int    `json:"size"`
+	Type         string `json:"type"`
+	Name         string `json:"name"`
+	LocationCode string `json:"location_code,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -94,8 +94,8 @@ type VolumeDetachRequest struct {
 
 // VolumeCloneRequest represents a request to clone a volume
 type VolumeCloneRequest struct {
-	Name     string `json:"name"`
-	Location string `json:"location_code,omitempty"`
+	Name         string `json:"name"`
+	LocationCode string `json:"location_code,omitempty"`
 }
 
 // VolumeResizeRequest represents a request to resize a volume
@@ -123,13 +123,11 @@ type InstanceActionRequest struct {
 
 // InstanceAvailability represents instance availability information
 type InstanceAvailability struct {
-	InstanceType string `json:"instance_type"`
-	Location     string `json:"location"`
-	Available    bool   `json:"available"`
-	IsSpot       bool   `json:"is_spot"`
+	LocationCode   string   `json:"location_code"`
+	Availabilities []string `json:"availabilities"`
 }
 
-// LocationAvailability represents instance type availability by location
+// LocationAvailability represents instance type availability by location code
 type LocationAvailability struct {
 	LocationCode   string   `json:"location_code"`
 	Availabilities []string `json:"availabilities"`
@@ -184,9 +182,7 @@ type StartupScript struct {
 type Location struct {
 	Code        string `json:"code"`
 	Name        string `json:"name"`
-	Country     string `json:"country"`
 	CountryCode string `json:"country_code"`
-	Available   bool   `json:"available"`
 }
 
 // Balance represents account balance information
@@ -408,55 +404,146 @@ const (
 
 // ContainerDeployment represents a serverless container deployment
 type ContainerDeployment struct {
-	Name        string                 `json:"name"`
-	Image       string                 `json:"image"`
-	Status      string                 `json:"status"`
-	CreatedAt   string                 `json:"created_at"`
-	UpdatedAt   string                 `json:"updated_at"`
-	Replicas    int                    `json:"replicas"`
-	Environment map[string]string      `json:"environment,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	Name                      string                     `json:"name"`
+	Containers                []DeploymentContainer      `json:"containers"`
+	EndpointBaseURL           string                     `json:"endpoint_base_url"`
+	CreatedAt                 time.Time                  `json:"created_at"`
+	Compute                   *Compute                   `json:"compute,omitempty"`
+	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
+	IsSpot                    bool                       `json:"is_spot"`
+}
+
+// TargetNode represents the compute node/GPU configuration
+type TargetNode struct {
+	Name string `json:"name"` // e.g., "RTX 4500 Ada", "H100"
+	Size int    `json:"size"` // Number of GPUs
+}
+
+// ContainerRegistrySettings represents registry authentication settings
+type ContainerRegistrySettings struct {
+	IsPrivate   bool                    `json:"is_private,omitempty"`
+	Credentials *RegistryCredentialsRef `json:"credentials,omitempty"`
+}
+
+// RegistryCredentialsRef references registry credentials by name
+type RegistryCredentialsRef struct {
+	Name string `json:"name"`
+}
+
+// DeploymentContainer represents a container configuration in a deployment response
+// Uses flexible map[string]any for complex nested objects to handle API variations
+type DeploymentContainer struct {
+	Image               map[string]any    `json:"image"` // Flexible: contains "image" string and "last_updated_at"
+	Name                string            `json:"name,omitempty"`
+	ExposedPort         int               `json:"exposed_port,omitempty"`
+	Healthcheck         map[string]any    `json:"healthcheck,omitempty"`
+	EntrypointOverrides map[string]any    `json:"entrypoint_overrides,omitempty"`
+	Env                 []ContainerEnvVar `json:"env,omitempty"`
+	VolumeMounts        []map[string]any  `json:"volume_mounts,omitempty"`
+	Autoupdate          map[string]any    `json:"autoupdate,omitempty"`
+}
+
+// ContainerEnvVar represents an environment variable with type
+type ContainerEnvVar struct {
+	Type                     string `json:"type"` // "plain" or "secret"
+	Name                     string `json:"name"`
+	ValueOrReferenceToSecret string `json:"value_or_reference_to_secret,omitempty"`
+}
+
+// DeploymentScalingOptions represents scaling configuration for container deployment
+type DeploymentScalingOptions struct {
+	DeadlineSeconds        int `json:"deadline_seconds,omitempty"`
+	MaxReplicaCount        int `json:"max_replica_count"`
+	QueueMessageTTLSeconds int `json:"queue_message_ttl_seconds,omitempty"`
+}
+
+// Compute represents compute resources for deployments
+type Compute struct {
+	Name string `json:"name"` // e.g., "H100", "A100"
+	Size int    `json:"size"` // Number of GPUs
 }
 
 // CreateDeploymentRequest represents a request to create a new deployment
+// Uses flexible map[string]any for complex objects that may vary
 type CreateDeploymentRequest struct {
-	Name        string                 `json:"name"`
-	Image       string                 `json:"image"`
-	Replicas    int                    `json:"replicas,omitempty"`
-	Environment map[string]string      `json:"environment,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	Name                      string                      `json:"name"`
+	IsSpot                    bool                        `json:"is_spot"`
+	Compute                   map[string]any              `json:"compute,omitempty"`
+	ContainerRegistrySettings map[string]any              `json:"container_registry_settings,omitempty"`
+	Scaling                   map[string]any              `json:"scaling,omitempty"`
+	Containers                []CreateDeploymentContainer `json:"containers"`
+}
+
+// CreateDeploymentContainer represents a container configuration for create/update requests
+// Note: In requests, image is a string; in responses, image is an object
+type CreateDeploymentContainer struct {
+	Image               string            `json:"image"`
+	Name                string            `json:"name,omitempty"`
+	ExposedPort         int               `json:"exposed_port,omitempty"`
+	Healthcheck         map[string]any    `json:"healthcheck,omitempty"`
+	EntrypointOverrides map[string]any    `json:"entrypoint_overrides,omitempty"`
+	Env                 []ContainerEnvVar `json:"env,omitempty"`
+	VolumeMounts        []map[string]any  `json:"volume_mounts,omitempty"`
+	Autoupdate          map[string]any    `json:"autoupdate,omitempty"`
 }
 
 // UpdateDeploymentRequest represents a request to update a deployment
+// Uses flexible map[string]any for complex objects that may vary
 type UpdateDeploymentRequest struct {
-	Image       string                 `json:"image,omitempty"`
-	Replicas    int                    `json:"replicas,omitempty"`
-	Environment map[string]string      `json:"environment,omitempty"`
-	Config      map[string]interface{} `json:"config,omitempty"`
+	IsSpot                    *bool                       `json:"is_spot,omitempty"`
+	Compute                   map[string]any              `json:"compute,omitempty"`
+	ContainerRegistrySettings map[string]any              `json:"container_registry_settings,omitempty"`
+	Scaling                   map[string]any              `json:"scaling,omitempty"`
+	Containers                []CreateDeploymentContainer `json:"containers,omitempty"`
 }
 
 // DeploymentStatus represents the status of a deployment
 type DeploymentStatus struct {
 	Status            string `json:"status"`
-	DesiredReplicas   int    `json:"desired_replicas"`
-	CurrentReplicas   int    `json:"current_replicas"`
-	AvailableReplicas int    `json:"available_replicas"`
-	UpdatedAt         string `json:"updated_at"`
+	DesiredReplicas   int    `json:"desired_replicas,omitempty"`
+	CurrentReplicas   int    `json:"current_replicas,omitempty"`
+	AvailableReplicas int    `json:"available_replicas,omitempty"`
+	UpdatedAt         string `json:"updated_at,omitempty"`
 }
 
-// ScalingOptions represents scaling configuration for a deployment
+// ScalingOptions represents scaling configuration for container deployments
+// Used by both GET and PATCH /container-deployments/{name}/scaling
 type ScalingOptions struct {
-	MinReplicas int `json:"min_replicas"`
-	MaxReplicas int `json:"max_replicas"`
-	TargetCPU   int `json:"target_cpu_percent,omitempty"`
+	MinReplicaCount              int              `json:"min_replica_count,omitempty"`
+	MaxReplicaCount              int              `json:"max_replica_count,omitempty"`
+	ScaleDownPolicy              *ScalingPolicy   `json:"scale_down_policy,omitempty"`
+	ScaleUpPolicy                *ScalingPolicy   `json:"scale_up_policy,omitempty"`
+	QueueMessageTTLSeconds       int              `json:"queue_message_ttl_seconds,omitempty"`
+	ConcurrentRequestsPerReplica int              `json:"concurrent_requests_per_replica,omitempty"`
+	ScalingTriggers              *ScalingTriggers `json:"scaling_triggers,omitempty"`
 }
 
-// UpdateScalingOptionsRequest represents a request to update scaling options
-type UpdateScalingOptionsRequest struct {
-	MinReplicas *int `json:"min_replicas,omitempty"`
-	MaxReplicas *int `json:"max_replicas,omitempty"`
-	TargetCPU   *int `json:"target_cpu_percent,omitempty"`
+// ScalingPolicy represents scale up/down policy configuration
+type ScalingPolicy struct {
+	DelaySeconds int `json:"delay_seconds,omitempty"`
 }
+
+// ScalingTriggers represents the various scaling triggers
+type ScalingTriggers struct {
+	QueueLoad      *QueueLoadTrigger   `json:"queue_load,omitempty"`
+	CPUUtilization *UtilizationTrigger `json:"cpu_utilization,omitempty"`
+	GPUUtilization *UtilizationTrigger `json:"gpu_utilization,omitempty"`
+}
+
+// QueueLoadTrigger represents queue load based scaling trigger
+type QueueLoadTrigger struct {
+	Threshold float64 `json:"threshold,omitempty"`
+}
+
+// UtilizationTrigger represents CPU/GPU utilization based scaling trigger
+type UtilizationTrigger struct {
+	Enabled   bool `json:"enabled,omitempty"`
+	Threshold int  `json:"threshold,omitempty"`
+}
+
+// UpdateScalingOptionsRequest is an alias for ScalingOptions used for PATCH requests
+// All fields are optional for partial updates
+type UpdateScalingOptionsRequest = ScalingOptions
 
 // DeploymentReplicas represents replica information for a deployment
 type DeploymentReplicas struct {
@@ -471,44 +558,45 @@ type ReplicaInfo struct {
 }
 
 // EnvironmentVariablesRequest represents a request to add/update environment variables
+// Used by POST and PATCH /container-deployments/{name}/environment-variables
 type EnvironmentVariablesRequest struct {
-	Variables map[string]string `json:"variables"`
+	ContainerName string            `json:"container_name"`
+	Env           []ContainerEnvVar `json:"env"`
 }
 
 // DeleteEnvironmentVariablesRequest represents a request to delete environment variables
+// Uses the same format as add/update but only the Name field is required
 type DeleteEnvironmentVariablesRequest struct {
-	Names []string `json:"names"`
+	ContainerName string            `json:"container_name"`
+	Env           []ContainerEnvVar `json:"env"`
 }
 
 // ComputeResource represents available compute resources
 type ComputeResource struct {
-	Name      string `json:"name"`
-	Type      string `json:"type"`
-	Available bool   `json:"available"`
-	CPU       string `json:"cpu,omitempty"`
-	Memory    string `json:"memory,omitempty"`
-	GPU       string `json:"gpu,omitempty"`
+	Name        string `json:"name"`
+	Size        string `json:"size"`
+	IsAvailable bool   `json:"is_available"`
 }
 
 // Secret represents a secret used in deployments
 type Secret struct {
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
-	UpdatedAt string `json:"updated_at"`
+	Name       string `json:"name"`
+	CreatedAt  string `json:"created_at"`
+	SecretType string `json:"secret_type"`
 }
 
 // CreateSecretRequest represents a request to create a new secret
 type CreateSecretRequest struct {
-	Name string            `json:"name"`
-	Data map[string]string `json:"data"`
+	Name  string `json:"name"`
+	Value string `json:"value"`
 }
 
 // FileSecret represents a fileset secret
 type FileSecret struct {
-	Name      string   `json:"name"`
-	CreatedAt string   `json:"created_at"`
-	UpdatedAt string   `json:"updated_at"`
-	Files     []string `json:"files,omitempty"`
+	Name       string   `json:"name"`
+	CreatedAt  string   `json:"created_at"`
+	SecretType string   `json:"secret_type"`
+	FileNames  []string `json:"file_names,omitempty"`
 }
 
 // CreateFileSecretRequest represents a request to create a fileset secret
@@ -520,64 +608,127 @@ type CreateFileSecretRequest struct {
 // RegistryCredentials represents container registry credentials
 type RegistryCredentials struct {
 	Name      string `json:"name"`
-	Registry  string `json:"registry"`
 	CreatedAt string `json:"created_at"`
 }
 
 // CreateRegistryCredentialsRequest represents a request to create registry credentials
+// Type can be: "dockerhub", "gcr", "ghcr", "ecr", "scaleway", etc.
 type CreateRegistryCredentialsRequest struct {
-	Name     string `json:"name"`
-	Registry string `json:"registry"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Name              string `json:"name"`
+	Type              string `json:"type"`
+	Username          string `json:"username,omitempty"`
+	AccessToken       string `json:"access_token,omitempty"`
+	ServiceAccountKey string `json:"service_account_key,omitempty"`
+	DockerConfigJson  string `json:"docker_config_json,omitempty"`
+	AccessKeyID       string `json:"access_key_id,omitempty"`
+	SecretAccessKey   string `json:"secret_access_key,omitempty"`
+	Region            string `json:"region,omitempty"`
+	EcrRepo           string `json:"ecr_repo,omitempty"`
+	ScalewayDomain    string `json:"scaleway_domain,omitempty"`
+	ScalewayUUID      string `json:"scaleway_uuid,omitempty"`
 }
 
 // Serverless Jobs Types
 
 // JobDeploymentShortInfo represents summary information about a job deployment
 type JobDeploymentShortInfo struct {
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
-	Compute   string `json:"compute,omitempty"`
+	Name      string         `json:"name"`
+	CreatedAt string         `json:"created_at"`
+	Compute   map[string]any `json:"compute,omitempty"`
 }
 
 // JobDeployment represents a complete serverless job deployment
+// Shares types with ContainerDeployment for consistency
 type JobDeployment struct {
-	Name       string                 `json:"name"`
-	Status     string                 `json:"status"`
-	CreatedAt  string                 `json:"created_at"`
-	UpdatedAt  string                 `json:"updated_at"`
-	Containers []JobContainer         `json:"containers,omitempty"`
-	Scaling    *JobScalingOptions     `json:"scaling,omitempty"`
-	Config     map[string]interface{} `json:"config,omitempty"`
+	Name                      string                     `json:"name"`
+	Containers                []DeploymentContainer      `json:"containers"`
+	EndpointBaseURL           string                     `json:"endpoint_base_url,omitempty"`
+	CreatedAt                 string                     `json:"created_at,omitempty"`
+	Compute                   *Compute                   `json:"compute,omitempty"`
+	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
+	Scaling                   *JobScalingOptions         `json:"scaling,omitempty"`
+}
+
+// JobContainerRegistrySettings represents registry settings for job deployments
+type JobContainerRegistrySettings struct {
+	Credentials *JobRegistryCredentials `json:"credentials,omitempty"`
+}
+
+// JobRegistryCredentials references registry credentials by name
+type JobRegistryCredentials struct {
+	Name string `json:"name"`
 }
 
 // JobContainer represents a container configuration in a job deployment
 type JobContainer struct {
-	Name    string            `json:"name"`
-	Image   string            `json:"image"`
-	Command []string          `json:"command,omitempty"`
-	Args    []string          `json:"args,omitempty"`
-	Env     map[string]string `json:"env,omitempty"`
+	Image               string                  `json:"image"`
+	ExposedPort         int                     `json:"exposed_port,omitempty"`
+	Healthcheck         *JobHealthcheck         `json:"healthcheck,omitempty"`
+	EntrypointOverrides *JobEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
+	Env                 []JobEnvVar             `json:"env,omitempty"`
+	VolumeMounts        []JobVolumeMount        `json:"volume_mounts,omitempty"`
+}
+
+// JobHealthcheck represents health check configuration for jobs
+type JobHealthcheck struct {
+	Enabled bool   `json:"enabled"`
+	Port    int    `json:"port,omitempty"`
+	Path    string `json:"path,omitempty"`
+}
+
+// JobEntrypointOverrides allows overriding container entrypoint and cmd for jobs
+type JobEntrypointOverrides struct {
+	Enabled    bool     `json:"enabled"`
+	Entrypoint []string `json:"entrypoint,omitempty"`
+	Cmd        []string `json:"cmd,omitempty"`
+}
+
+// JobEnvVar represents an environment variable for job containers
+type JobEnvVar struct {
+	Name                     string `json:"name"`
+	ValueOrReferenceToSecret string `json:"value_or_reference_to_secret"`
+	Type                     string `json:"type"` // "plain" or "secret"
+}
+
+// JobVolumeMount represents a volume mount for job containers
+type JobVolumeMount struct {
+	Type       string `json:"type"` // "scratch", "secret", etc.
+	MountPath  string `json:"mount_path"`
+	SecretName string `json:"secret_name,omitempty"`
+	SizeInMB   int    `json:"size_in_mb,omitempty"`
+	VolumeID   string `json:"volumeId,omitempty"`
+}
+
+// JobCompute represents compute resources for job deployments
+type JobCompute struct {
+	Name string `json:"name"` // e.g., "H100", "A100"
+	Size int    `json:"size"` // Number of GPUs
 }
 
 // CreateJobDeploymentRequest represents a request to create a new job deployment
+// Shares container, compute, and scaling types with container deployments
 type CreateJobDeploymentRequest struct {
-	Name       string                 `json:"name"`
-	Containers []JobContainer         `json:"containers"`
-	Scaling    *JobScalingOptions     `json:"scaling,omitempty"`
-	Config     map[string]interface{} `json:"config,omitempty"`
+	Name                      string                      `json:"name"`
+	ContainerRegistrySettings map[string]any              `json:"container_registry_settings,omitempty"`
+	Containers                []CreateDeploymentContainer `json:"containers"`
+	Compute                   map[string]any              `json:"compute,omitempty"`
+	Scaling                   map[string]any              `json:"scaling,omitempty"`
+}
+
+// UpdateJobDeploymentRequest represents a request to update a job deployment
+// Shares container, compute, and scaling types with container deployments
+type UpdateJobDeploymentRequest struct {
+	ContainerRegistrySettings map[string]any              `json:"container_registry_settings,omitempty"`
+	Containers                []CreateDeploymentContainer `json:"containers,omitempty"`
+	Compute                   map[string]any              `json:"compute,omitempty"`
+	Scaling                   map[string]any              `json:"scaling,omitempty"`
 }
 
 // JobScalingOptions represents scaling configuration for a job deployment
 type JobScalingOptions struct {
-	MinReplicas           int `json:"min_replicas"`
-	MaxReplicas           int `json:"max_replicas"`
-	PollingInterval       int `json:"polling_interval,omitempty"`
-	CooldownPeriod        int `json:"cooldown_period,omitempty"`
-	MaxReplicaCount       int `json:"max_replica_count,omitempty"`
-	SuccessfulJobsHistory int `json:"successful_jobs_history,omitempty"`
-	FailedJobsHistory     int `json:"failed_jobs_history,omitempty"`
+	MaxReplicaCount        int `json:"max_replica_count"`
+	QueueMessageTTLSeconds int `json:"queue_message_ttl_seconds,omitempty"`
+	DeadlineSeconds        int `json:"deadline_seconds,omitempty"`
 }
 
 // JobDeploymentStatus represents the status of a job deployment

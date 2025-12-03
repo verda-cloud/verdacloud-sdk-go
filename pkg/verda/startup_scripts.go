@@ -103,23 +103,3 @@ func (s *StartupScriptService) DeleteMultipleStartupScripts(ctx context.Context,
 	_, err := deleteRequestWithBody(ctx, s.client, "/scripts", req)
 	return err
 }
-
-// Deprecated: Use GetAllStartupScripts
-func (s *StartupScriptService) Get(ctx context.Context) ([]StartupScript, error) {
-	return s.GetAllStartupScripts(ctx)
-}
-
-// Deprecated: Use GetStartupScriptByID
-func (s *StartupScriptService) GetByID(ctx context.Context, id string) (*StartupScript, error) {
-	return s.GetStartupScriptByID(ctx, id)
-}
-
-// Deprecated: Use AddStartupScript
-func (s *StartupScriptService) Create(ctx context.Context, req CreateStartupScriptRequest) (*StartupScript, error) {
-	return s.AddStartupScript(ctx, &req)
-}
-
-// Deprecated: Use DeleteStartupScript
-func (s *StartupScriptService) Delete(ctx context.Context, id string) error {
-	return s.DeleteStartupScript(ctx, id)
-}

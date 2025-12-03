@@ -2,7 +2,6 @@ package verda
 
 import (
 	"context"
-	"net/http"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -276,109 +275,6 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 		err := client.Instances.Transfer(ctx, "inst_123")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-}
-
-func TestInstanceService_IsAvailable(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	// Set up mock to return availability
-	mockServer.SetHandler(http.MethodGet, "/instance-availability/1V100.6V", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`true`))
-	})
-
-	t.Run("check instance availability", func(t *testing.T) {
-		ctx := context.Background()
-		available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if !available {
-			t.Error("expected instance type to be available")
-		}
-	})
-
-	t.Run("check spot instance availability", func(t *testing.T) {
-		ctx := context.Background()
-		available, err := client.Instances.IsAvailable(ctx, "1V100.6V", true, "FIN-01")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if !available {
-			t.Error("expected spot instance type to be available")
-		}
-	})
-}
-
-func TestInstanceService_GetAvailabilities(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	// Set up mock to return availabilities
-	mockServer.SetHandler(http.MethodGet, "/instance-availability", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`[
-			{
-				"instance_type": "1V100.6V",
-				"location": "FIN-01",
-				"available": true,
-				"is_spot": false
-			},
-			{
-				"instance_type": "8V100.48V",
-				"location": "FIN-01",
-				"available": false,
-				"is_spot": true
-			}
-		]`))
-	})
-
-	t.Run("get all availabilities", func(t *testing.T) {
-		ctx := context.Background()
-		availabilities, err := client.Instances.GetAvailabilities(ctx, nil, "")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(availabilities) != 2 {
-			t.Errorf("expected 2 availabilities, got %d", len(availabilities))
-		}
-
-		if availabilities[0].InstanceType != "1V100.6V" {
-			t.Errorf("expected first instance type '1V100.6V', got '%s'", availabilities[0].InstanceType)
-		}
-
-		if availabilities[0].Available != true {
-			t.Error("expected first instance to be available")
-		}
-
-		if availabilities[1].Available != false {
-			t.Error("expected second instance to be unavailable")
-		}
-	})
-
-	t.Run("get spot availabilities", func(t *testing.T) {
-		ctx := context.Background()
-		isSpot := true
-		availabilities, err := client.Instances.GetAvailabilities(ctx, &isSpot, "FIN-01")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(availabilities) != 2 {
-			t.Errorf("expected 2 availabilities, got %d", len(availabilities))
 		}
 	})
 }

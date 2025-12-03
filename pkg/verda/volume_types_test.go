@@ -166,33 +166,3 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 		}
 	})
 }
-
-func TestVolumeTypeService_DeprecatedMethods(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	t.Run("deprecated Get method", func(t *testing.T) {
-		ctx := context.Background()
-		volumeTypes, err := client.VolumeTypes.Get(ctx)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(volumeTypes) == 0 {
-			t.Error("expected at least one volume type")
-		}
-
-		// Verify the deprecated method returns the same data
-		volumeTypes2, err := client.VolumeTypes.GetAllVolumeTypes(ctx)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(volumeTypes) != len(volumeTypes2) {
-			t.Errorf("deprecated Get() returned %d items, GetAllVolumeTypes() returned %d items",
-				len(volumeTypes), len(volumeTypes2))
-		}
-	})
-}

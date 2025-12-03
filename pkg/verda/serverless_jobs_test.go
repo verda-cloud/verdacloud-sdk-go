@@ -65,18 +65,52 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 	t.Run("create job deployment", func(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateJobDeploymentRequest{
-			Name: "test-job",
-			Containers: []JobContainer{
-				{
-					Name:    "main",
-					Image:   "python:3.9",
-					Command: []string{"python"},
-					Args:    []string{"script.py"},
+			Name: "flux-training",
+			ContainerRegistrySettings: map[string]any{
+				"credentials": map[string]any{
+					"name": "dockerhub-credentials",
 				},
 			},
-			Scaling: &JobScalingOptions{
-				MinReplicas: 1,
-				MaxReplicas: 5,
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "registry-1.docker.io/chentex/random-logger:v1.0.1",
+					ExposedPort: 8080,
+					Healthcheck: map[string]any{
+						"enabled": true,
+						"port":    8081,
+						"path":    "/health",
+					},
+					EntrypointOverrides: map[string]any{
+						"enabled":    true,
+						"entrypoint": []string{"python3", "main.py"},
+						"cmd":        []string{"--port", "8080"},
+					},
+					Env: []ContainerEnvVar{
+						{
+							Name:                     "MY_ENV_VAR",
+							ValueOrReferenceToSecret: "my-value",
+							Type:                     "plain",
+						},
+					},
+					VolumeMounts: []map[string]any{
+						{
+							"type":        "scratch",
+							"mount_path":  "/data",
+							"secret_name": "my-secret",
+							"size_in_mb":  64,
+							"volumeId":    "fa4a0338-65b2-4819-8450-821190fbaf6d",
+						},
+					},
+				},
+			},
+			Compute: map[string]any{
+				"name": "H100",
+				"size": 1,
+			},
+			Scaling: map[string]any{
+				"max_replica_count":         1,
+				"queue_message_ttl_seconds": 300,
+				"deadline_seconds":          600,
 			},
 		}
 
@@ -91,9 +125,6 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 
 		if job.Name == "" {
 			t.Error("expected job to have a Name")
-		}
-		if job.Status == "" {
-			t.Error("expected job to have a Status")
 		}
 		if job.CreatedAt == "" {
 			t.Error("expected job to have a CreatedAt")
@@ -113,11 +144,17 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 		// First create a job
 		createReq := &CreateJobDeploymentRequest{
 			Name: "test-job",
-			Containers: []JobContainer{
+			Containers: []CreateDeploymentContainer{
 				{
-					Name:  "main",
-					Image: "python:3.9",
+					Image: "registry-1.docker.io/python:3.9",
 				},
+			},
+			Compute: map[string]any{
+				"name": "H100",
+				"size": 1,
+			},
+			Scaling: map[string]any{
+				"max_replica_count": 1,
 			},
 		}
 
@@ -144,11 +181,17 @@ func TestServerlessJobsService_DeleteJobDeployment(t *testing.T) {
 		// First create a job
 		createReq := &CreateJobDeploymentRequest{
 			Name: "test-job-delete",
-			Containers: []JobContainer{
+			Containers: []CreateDeploymentContainer{
 				{
-					Name:  "main",
-					Image: "python:3.9",
+					Image: "registry-1.docker.io/python:3.9",
 				},
+			},
+			Compute: map[string]any{
+				"name": "H100",
+				"size": 1,
+			},
+			Scaling: map[string]any{
+				"max_replica_count": 1,
 			},
 		}
 
@@ -174,11 +217,17 @@ func TestServerlessJobsService_GetJobDeploymentStatus(t *testing.T) {
 		// Create a job first
 		createReq := &CreateJobDeploymentRequest{
 			Name: "test-job-status",
-			Containers: []JobContainer{
+			Containers: []CreateDeploymentContainer{
 				{
-					Name:  "main",
-					Image: "python:3.9",
+					Image: "registry-1.docker.io/python:3.9",
 				},
+			},
+			Compute: map[string]any{
+				"name": "H100",
+				"size": 1,
+			},
+			Scaling: map[string]any{
+				"max_replica_count": 1,
 			},
 		}
 
@@ -204,11 +253,17 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 		// Create a job
 		createReq := &CreateJobDeploymentRequest{
 			Name: "test-job-ops",
-			Containers: []JobContainer{
+			Containers: []CreateDeploymentContainer{
 				{
-					Name:  "main",
-					Image: "python:3.9",
+					Image: "registry-1.docker.io/python:3.9",
 				},
+			},
+			Compute: map[string]any{
+				"name": "H100",
+				"size": 1,
+			},
+			Scaling: map[string]any{
+				"max_replica_count": 1,
 			},
 		}
 

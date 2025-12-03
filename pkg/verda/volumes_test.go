@@ -56,18 +56,6 @@ func TestVolumeService_ListVolumes(t *testing.T) {
 			t.Errorf("expected volume size 200, got %d", volumes[1].Size)
 		}
 	})
-
-	t.Run("deprecated Get method", func(t *testing.T) {
-		ctx := context.Background()
-		volumes, err := client.Volumes.Get(ctx)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(volumes) != 2 {
-			t.Errorf("expected 2 volumes, got %d", len(volumes))
-		}
-	})
 }
 
 func TestVolumeService_ListVolumesByStatus(t *testing.T) {
@@ -141,18 +129,6 @@ func TestVolumeService_ListVolumesByStatus(t *testing.T) {
 			t.Errorf("expected volume status 'detached', got '%s'", volumes[0].Status)
 		}
 	})
-
-	t.Run("deprecated GetByStatus method", func(t *testing.T) {
-		ctx := context.Background()
-		volumes, err := client.Volumes.GetByStatus(ctx, "attached")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if len(volumes) != 1 {
-			t.Errorf("expected 1 volume, got %d", len(volumes))
-		}
-	})
 }
 
 func TestVolumeService_GetVolume(t *testing.T) {
@@ -197,22 +173,6 @@ func TestVolumeService_GetVolume(t *testing.T) {
 			t.Errorf("expected volume name 'Specific Volume', got '%s'", volume.Name)
 		}
 	})
-
-	t.Run("deprecated GetByID method", func(t *testing.T) {
-		ctx := context.Background()
-		volume, err := client.Volumes.GetByID(ctx, "vol_123")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if volume == nil {
-			t.Fatal("expected volume, got nil")
-		}
-
-		if volume.ID != "vol_123" {
-			t.Errorf("expected volume ID 'vol_123', got '%s'", volume.ID)
-		}
-	})
 }
 
 func TestVolumeService_CreateVolume(t *testing.T) {
@@ -241,10 +201,10 @@ func TestVolumeService_CreateVolume(t *testing.T) {
 
 	t.Run("create volume", func(t *testing.T) {
 		req := VolumeCreateRequest{
-			Type:     VolumeTypeNVMe,
-			Location: LocationFIN01,
-			Size:     100,
-			Name:     "New Test Volume",
+			Type:         VolumeTypeNVMe,
+			LocationCode: LocationFIN01,
+			Size:         100,
+			Name:         "New Test Volume",
 		}
 
 		ctx := context.Background()
@@ -267,25 +227,6 @@ func TestVolumeService_CreateVolume(t *testing.T) {
 
 		ctx := context.Background()
 		volumeID, err := client.Volumes.CreateVolume(ctx, req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if volumeID == "" {
-			t.Error("expected volume ID, got empty string")
-		}
-	})
-
-	t.Run("deprecated Create method", func(t *testing.T) {
-		req := VolumeCreateRequest{
-			Type:     VolumeTypeNVMe,
-			Location: LocationFIN01,
-			Size:     100,
-			Name:     "Deprecated Create",
-		}
-
-		ctx := context.Background()
-		volumeID, err := client.Volumes.Create(ctx, req)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -318,14 +259,6 @@ func TestVolumeService_DeleteVolume(t *testing.T) {
 	t.Run("delete volume with force", func(t *testing.T) {
 		ctx := context.Background()
 		err := client.Volumes.DeleteVolume(ctx, "vol_123", true)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("deprecated Delete method", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.Volumes.Delete(ctx, "vol_123", false)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -363,18 +296,6 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
-
-	t.Run("deprecated Attach method", func(t *testing.T) {
-		req := VolumeAttachRequest{
-			InstanceID: "inst_123",
-		}
-
-		ctx := context.Background()
-		err := client.Volumes.Attach(ctx, "vol_123", req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
 }
 
 func TestVolumeService_DetachVolume(t *testing.T) {
@@ -408,18 +329,6 @@ func TestVolumeService_DetachVolume(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
-
-	t.Run("deprecated Detach method", func(t *testing.T) {
-		req := VolumeDetachRequest{
-			InstanceID: "inst_123",
-		}
-
-		ctx := context.Background()
-		err := client.Volumes.Detach(ctx, "vol_123", req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
 }
 
 func TestVolumeService_CloneVolume(t *testing.T) {
@@ -447,8 +356,8 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 
 	t.Run("clone volume", func(t *testing.T) {
 		req := VolumeCloneRequest{
-			Name:     "Cloned Volume",
-			Location: LocationFIN01,
+			Name:         "Cloned Volume",
+			LocationCode: LocationFIN01,
 		}
 
 		ctx := context.Background()
@@ -459,23 +368,6 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 
 		if newVolumeID != "vol_cloned_456" {
 			t.Errorf("expected volume ID 'vol_cloned_456', got '%s'", newVolumeID)
-		}
-	})
-
-	t.Run("deprecated Clone method", func(t *testing.T) {
-		req := VolumeCloneRequest{
-			Name:     "Cloned Volume",
-			Location: LocationFIN01,
-		}
-
-		ctx := context.Background()
-		newVolumeID, err := client.Volumes.Clone(ctx, "vol_123", req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-
-		if newVolumeID == "" {
-			t.Error("expected volume ID, got empty string")
 		}
 	})
 }
@@ -507,18 +399,6 @@ func TestVolumeService_ResizeVolume(t *testing.T) {
 
 		ctx := context.Background()
 		err := client.Volumes.ResizeVolume(ctx, "vol_123", req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("deprecated Resize method", func(t *testing.T) {
-		req := VolumeResizeRequest{
-			Size: 200,
-		}
-
-		ctx := context.Background()
-		err := client.Volumes.Resize(ctx, "vol_123", req)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -556,18 +436,6 @@ func TestVolumeService_RenameVolume(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 	})
-
-	t.Run("deprecated Rename method", func(t *testing.T) {
-		req := VolumeRenameRequest{
-			Name: "New Volume Name",
-		}
-
-		ctx := context.Background()
-		err := client.Volumes.Rename(ctx, "vol_123", req)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
 }
 
 // Test error scenarios
@@ -597,10 +465,10 @@ func TestVolumeService_ErrorHandling(t *testing.T) {
 		})
 
 		req := VolumeCreateRequest{
-			Type:     VolumeTypeNVMe,
-			Location: LocationFIN01,
-			Size:     0, // Invalid size
-			Name:     "Invalid Volume",
+			Type:         VolumeTypeNVMe,
+			LocationCode: LocationFIN01,
+			Size:         0, // Invalid size
+			Name:         "Invalid Volume",
 		}
 
 		ctx := context.Background()

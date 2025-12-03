@@ -42,15 +42,6 @@ func TestSSHKeysIntegration(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("test deprecated Get method", func(t *testing.T) {
-		ctx := context.Background()
-		keys, err := client.SSHKeys.Get(ctx)
-		if err != nil {
-			t.Errorf("failed to get SSH keys with deprecated method: %v", err)
-		}
-		t.Logf("Deprecated Get method returned %d SSH keys", len(keys))
-	})
 }
 
 // TestSSHKeyLifecycleIntegration tests creating and managing SSH keys

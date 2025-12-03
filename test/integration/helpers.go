@@ -4,6 +4,8 @@
 package integration
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"os"
 	"testing"
 
@@ -39,4 +41,13 @@ func getTestClient(t *testing.T) *verda.Client {
 	}
 
 	return client
+}
+
+func generateRandomName(prefix string) string {
+	b := make([]byte, 4)
+	_, err := rand.Read(b)
+	if err != nil {
+		return prefix + "-test"
+	}
+	return prefix + "-" + hex.EncodeToString(b)
 }

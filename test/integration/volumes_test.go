@@ -89,15 +89,6 @@ func TestVolumes(t *testing.T) {
 		}
 		t.Logf("Found %d volumes", len(volumes))
 	})
-
-	t.Run("deprecated_get_volumes", func(t *testing.T) {
-		ctx := context.Background()
-		volumes, err := client.Volumes.Get(ctx)
-		if err != nil {
-			t.Errorf("failed to get volumes: %v", err)
-		}
-		t.Logf("Found %d volumes (deprecated method)", len(volumes))
-	})
 }
 
 // TestListVolumes_Integration tests listing volumes with status filtering
@@ -158,10 +149,10 @@ func TestCreateVolume_Integration(t *testing.T) {
 
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
-		Type:     verda.VolumeTypeNVMe,
-		Location: verda.LocationFIN01,
-		Size:     50,
-		Name:     "integration-test-volume",
+		Type:         verda.VolumeTypeNVMe,
+		LocationCode: verda.LocationFIN01,
+		Size:         50,
+		Name:         "integration-test-volume",
 	})
 
 	if err != nil {
@@ -263,10 +254,10 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	// Create volumes
 	for _, config := range volumeConfigs {
 		volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
-			Type:     config.volumeType,
-			Location: verda.LocationFIN01,
-			Size:     config.size,
-			Name:     config.name,
+			Type:         config.volumeType,
+			LocationCode: verda.LocationFIN01,
+			Size:         config.size,
+			Name:         config.name,
 		})
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 && (strings.Contains(apiErr.Message, "Volume limit exceeded") || strings.Contains(apiErr.Message, "Storage limit exceeded")) {
@@ -348,10 +339,10 @@ func TestVolumeRename_Integration(t *testing.T) {
 
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
-		Type:     verda.VolumeTypeNVMe,
-		Location: verda.LocationFIN01,
-		Size:     50,
-		Name:     "test-volume-rename-original",
+		Type:         verda.VolumeTypeNVMe,
+		LocationCode: verda.LocationFIN01,
+		Size:         50,
+		Name:         "test-volume-rename-original",
 	})
 
 	if err != nil {
@@ -409,10 +400,10 @@ func TestVolumeResize_Integration(t *testing.T) {
 
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
-		Type:     verda.VolumeTypeNVMe,
-		Location: verda.LocationFIN01,
-		Size:     50,
-		Name:     "test-volume-resize",
+		Type:         verda.VolumeTypeNVMe,
+		LocationCode: verda.LocationFIN01,
+		Size:         50,
+		Name:         "test-volume-resize",
 	})
 
 	if err != nil {
@@ -470,10 +461,10 @@ func TestVolumeClone_Integration(t *testing.T) {
 
 	ctx := context.Background()
 	originalVolumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
-		Type:     verda.VolumeTypeNVMe,
-		Location: verda.LocationFIN01,
-		Size:     50,
-		Name:     "test-volume-original",
+		Type:         verda.VolumeTypeNVMe,
+		LocationCode: verda.LocationFIN01,
+		Size:         50,
+		Name:         "test-volume-original",
 	})
 
 	if err != nil {
@@ -496,8 +487,8 @@ func TestVolumeClone_Integration(t *testing.T) {
 
 	// Clone the volume
 	clonedVolumeID, err := client.Volumes.CloneVolume(ctx, originalVolumeID, verda.VolumeCloneRequest{
-		Name:     "test-volume-cloned",
-		Location: verda.LocationFIN01,
+		Name:         "test-volume-cloned",
+		LocationCode: verda.LocationFIN01,
 	})
 
 	if err != nil {

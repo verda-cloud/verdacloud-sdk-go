@@ -19,6 +19,28 @@ func (s *ServerlessJobsService) GetJobDeployments(ctx context.Context) ([]JobDep
 }
 
 func (s *ServerlessJobsService) CreateJobDeployment(ctx context.Context, req *CreateJobDeploymentRequest) (*JobDeployment, error) {
+	// Validate required fields for create
+	if req == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	if req.Compute == nil {
+		return nil, fmt.Errorf("compute is required")
+	}
+	if req.Scaling == nil {
+		return nil, fmt.Errorf("scaling is required")
+	}
+	if len(req.Containers) == 0 {
+		return nil, fmt.Errorf("at least one container is required")
+	}
+	for i, c := range req.Containers {
+		if c.Image == "" {
+			return nil, fmt.Errorf("containers[%d].image is required", i)
+		}
+	}
+
 	job, _, err := postRequest[JobDeployment](ctx, s.client, "/job-deployments", req)
 	if err != nil {
 		return nil, err
@@ -29,6 +51,15 @@ func (s *ServerlessJobsService) CreateJobDeployment(ctx context.Context, req *Cr
 func (s *ServerlessJobsService) GetJobDeploymentByName(ctx context.Context, jobName string) (*JobDeployment, error) {
 	path := fmt.Sprintf("/job-deployments/%s", jobName)
 	job, _, err := getRequest[JobDeployment](ctx, s.client, path)
+	if err != nil {
+		return nil, err
+	}
+	return &job, nil
+}
+
+func (s *ServerlessJobsService) UpdateJobDeployment(ctx context.Context, jobName string, req *UpdateJobDeploymentRequest) (*JobDeployment, error) {
+	path := fmt.Sprintf("/job-deployments/%s", jobName)
+	job, _, err := patchRequest[JobDeployment](ctx, s.client, path, req)
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +80,27 @@ func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName
 	return err
 }
 
-func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, jobName string) (*JobScalingOptions, error) {
+func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, jobName string) (*ScalingOptions, error) {
+	if jobName == "" {
+		return nil, fmt.Errorf("jobName is required")
+	}
 	path := fmt.Sprintf("/job-deployments/%s/scaling", jobName)
-	scaling, _, err := getRequest[JobScalingOptions](ctx, s.client, path)
+	scaling, _, err := getRequest[ScalingOptions](ctx, s.client, path)
+	if err != nil {
+		return nil, err
+	}
+	return &scaling, nil
+}
+
+func (s *ServerlessJobsService) UpdateJobDeploymentScaling(ctx context.Context, jobName string, req *UpdateScalingOptionsRequest) (*ScalingOptions, error) {
+	if jobName == "" {
+		return nil, fmt.Errorf("jobName is required")
+	}
+	if req == nil {
+		return nil, fmt.Errorf("request cannot be nil")
+	}
+	path := fmt.Sprintf("/job-deployments/%s/scaling", jobName)
+	scaling, _, err := patchRequest[ScalingOptions](ctx, s.client, path, req)
 	if err != nil {
 		return nil, err
 	}
@@ -83,4 +132,70 @@ func (s *ServerlessJobsService) GetJobDeploymentStatus(ctx context.Context, jobN
 		return nil, err
 	}
 	return &status, nil
+}
+
+func (s *ServerlessJobsService) GetJobEnvironmentVariables(ctx context.Context, jobName string) ([]ContainerEnvVar, error) {
+	if jobName == "" {
+		return nil, fmt.Errorf("jobName is required")
+	}
+	path := fmt.Sprintf("/job-deployments/%s/environment-variables", jobName)
+	envVars, _, err := getRequest[[]ContainerEnvVar](ctx, s.client, path)
+	if err != nil {
+		return nil, err
+	}
+	return envVars, nil
+}
+
+func (s *ServerlessJobsService) AddJobEnvironmentVariables(ctx context.Context, jobName string, req *EnvironmentVariablesRequest) error {
+	if jobName == "" {
+		return fmt.Errorf("jobName is required")
+	}
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+	if req.ContainerName == "" {
+		return fmt.Errorf("container_name is required")
+	}
+	if len(req.Env) == 0 {
+		return fmt.Errorf("env array cannot be empty")
+	}
+	path := fmt.Sprintf("/job-deployments/%s/environment-variables", jobName)
+	_, _, err := postRequest[interface{}](ctx, s.client, path, req)
+	return err
+}
+
+func (s *ServerlessJobsService) UpdateJobEnvironmentVariables(ctx context.Context, jobName string, req *EnvironmentVariablesRequest) error {
+	if jobName == "" {
+		return fmt.Errorf("jobName is required")
+	}
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+	if req.ContainerName == "" {
+		return fmt.Errorf("container_name is required")
+	}
+	if len(req.Env) == 0 {
+		return fmt.Errorf("env array cannot be empty")
+	}
+	path := fmt.Sprintf("/job-deployments/%s/environment-variables", jobName)
+	_, _, err := patchRequest[interface{}](ctx, s.client, path, req)
+	return err
+}
+
+func (s *ServerlessJobsService) DeleteJobEnvironmentVariables(ctx context.Context, jobName string, req *DeleteEnvironmentVariablesRequest) error {
+	if jobName == "" {
+		return fmt.Errorf("jobName is required")
+	}
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+	if req.ContainerName == "" {
+		return fmt.Errorf("container_name is required")
+	}
+	if len(req.Env) == 0 {
+		return fmt.Errorf("env array cannot be empty")
+	}
+	path := fmt.Sprintf("/job-deployments/%s/environment-variables", jobName)
+	_, err := deleteRequestWithBody(ctx, s.client, path, req)
+	return err
 }

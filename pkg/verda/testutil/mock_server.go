@@ -18,6 +18,33 @@ const (
 	pathClusters   = "/clusters"
 )
 
+// Mock response constants
+const mockScalingOptionsResponse = `{
+	"min_replica_count": 1,
+	"max_replica_count": 50,
+	"scale_down_policy": {
+		"delay_seconds": 300
+	},
+	"scale_up_policy": {
+		"delay_seconds": 300
+	},
+	"queue_message_ttl_seconds": 500,
+	"concurrent_requests_per_replica": 1,
+	"scaling_triggers": {
+		"queue_load": {
+			"threshold": 0.5
+		},
+		"cpu_utilization": {
+			"enabled": true,
+			"threshold": 80
+		},
+		"gpu_utilization": {
+			"enabled": true,
+			"threshold": 80
+		}
+	}
+}`
+
 // TestClientConfig holds configuration for creating test clients
 type TestClientConfig struct {
 	BaseURL      string
@@ -425,15 +452,37 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleGetContainerDeployments(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/container-deployments":
 		ms.handleCreateContainerDeployment(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetDeploymentScaling(w, r)
+	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleUpdateDeploymentScaling(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleAddEnvironmentVariables(w, r)
+	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleUpdateEnvironmentVariables(w, r)
+	case r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeleteEnvironmentVariables(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/serverless-compute-resources":
 		ms.handleGetServerlessComputeResources(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/secrets":
 		ms.handleGetSecrets(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/file-secrets":
+		ms.handleGetFileSecrets(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/file-secrets":
+		ms.handleCreateFileSecret(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == "/container-registry-credentials":
+		ms.handleGetRegistryCredentials(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/container-registry-credentials":
+		ms.handleCreateRegistryCredentials(w, r)
 	// Serverless Jobs
 	case r.Method == http.MethodGet && r.URL.Path == "/job-deployments":
 		ms.handleGetJobDeployments(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/job-deployments":
 		ms.handleCreateJobDeployment(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleGetJobDeploymentScaling(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleGetJobDeploymentByName(w, r)
 	default:
 		http.NotFound(w, r)
 	}
@@ -1291,11 +1340,11 @@ func (ms *MockServer) handleGetInstanceAvailabilities(w http.ResponseWriter, _ *
 	availabilities := []LocationAvailability{
 		{
 			LocationCode:   LocationFIN01,
-			Availabilities: []string{"1H100.80S.22V", "1V100.6V", "2V100.12V"},
+			Availabilities: []string{"1V100.6V", "8V100.48V"},
 		},
 		{
 			LocationCode:   "NOR-01",
-			Availabilities: []string{"1V100.6V"},
+			Availabilities: []string{"8V100.48V"},
 		},
 	}
 
@@ -1458,79 +1507,173 @@ func (ms *MockServer) handleGetClusterPeriods(w http.ResponseWriter, _ *http.Req
 func (ms *MockServer) handleGetContainerDeployments(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	type ContainerDeployment struct {
-		Name      string `json:"name"`
-		Image     string `json:"image"`
-		Status    string `json:"status"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Replicas  int    `json:"replicas"`
-	}
-
-	deployments := []ContainerDeployment{
+	// Return raw JSON matching the actual API response structure
+	response := `[
 		{
-			Name:      "test-deployment",
-			Image:     "nginx:latest",
-			Status:    "running",
-			CreatedAt: "2024-01-01T00:00:00Z",
-			UpdatedAt: "2024-01-01T00:00:00Z",
-			Replicas:  2,
-		},
-	}
+			"name": "flux",
+			"containers": [
+				{
+					"exposed_port": 8080,
+					"healthcheck": {
+						"enabled": true,
+						"port": 8081,
+						"path": "/health"
+					},
+					"entrypoint_overrides": {
+						"enabled": true,
+						"entrypoint": ["python3", "main.py"],
+						"cmd": ["--port", "8080"]
+					},
+					"env": [
+						{
+							"name": "MY_ENV_VAR",
+							"value_or_reference_to_secret": "my-value",
+							"type": "plain"
+						}
+					],
+					"volume_mounts": [
+						{
+							"type": "scratch",
+							"mount_path": "/data"
+						}
+					],
+					"image": {
+						"image": "registry-1.docker.io/chentex/random-logger:v1.0.1",
+						"last_updated_at": "2025-11-26T16:37:51.230Z"
+					},
+					"name": "random-logger-0"
+				}
+			],
+			"endpoint_base_url": "https://containers.datacrunch.io/flux",
+			"created_at": "2021-08-31T12:00:00.000Z",
+			"compute": {
+				"name": "H100",
+				"size": 1
+			},
+			"container_registry_settings": {
+				"is_private": true,
+				"credentials": {
+					"name": "dockerhub-credentials"
+				}
+			},
+			"is_spot": false
+		}
+	]`
 
-	writeJSON(w, deployments)
+	writeBytes(w, []byte(response))
 }
 
 func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	type ContainerDeployment struct {
-		Name      string `json:"name"`
-		Image     string `json:"image"`
-		Status    string `json:"status"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-		Replicas  int    `json:"replicas"`
-	}
+	// Return raw JSON matching the actual API response structure
+	response := `{
+		"name": "new-deployment",
+		"containers": [
+			{
+				"exposed_port": 80,
+				"image": {
+					"image": "nginx:latest",
+					"last_updated_at": "2024-01-01T00:00:00.000Z"
+				},
+				"name": "nginx-0"
+			}
+		],
+		"endpoint_base_url": "https://containers.datacrunch.io/new-deployment",
+		"created_at": "2024-01-01T00:00:00.000Z",
+		"compute": {
+			"name": "RTX 4500 Ada",
+			"size": 1
+		},
+		"container_registry_settings": {
+			"is_private": false
+		},
+		"is_spot": false
+	}`
 
-	deployment := ContainerDeployment{
-		Name:      "new-deployment",
-		Image:     "nginx:latest",
-		Status:    "pending",
-		CreatedAt: "2024-01-01T00:00:00Z",
-		UpdatedAt: "2024-01-01T00:00:00Z",
-		Replicas:  1,
-	}
+	writeBytes(w, []byte(response))
+}
 
-	writeJSON(w, deployment)
+func (ms *MockServer) handleGetDeploymentScaling(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(mockScalingOptionsResponse))
+}
+
+func (ms *MockServer) handleUpdateDeploymentScaling(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	// Returns the updated scaling options
+	writeBytes(w, []byte(mockScalingOptionsResponse))
+}
+
+func (ms *MockServer) handleAddEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	// Sample request:
+	// {
+	//   "container_name": "flux-0",
+	//   "env": [
+	//     {
+	//       "name": "MY_ENV_VAR",
+	//       "value_or_reference_to_secret": "my-value",
+	//       "type": "plain"
+	//     }
+	//   ]
+	// }
+
+	// Returns success with no body or empty object
+	writeBytes(w, []byte(`{}`))
+}
+
+func (ms *MockServer) handleUpdateEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Sample request:
+	// {
+	//   "container_name": "flux-0",
+	//   "env": [
+	//     {
+	//       "name": "MY_ENV_VAR",
+	//       "value_or_reference_to_secret": "my-value",
+	//       "type": "plain"
+	//     }
+	//   ]
+	// }
+
+	// Returns success with no body or empty object
+	writeBytes(w, []byte(`{}`))
+}
+
+func (ms *MockServer) handleDeleteEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (ms *MockServer) handleGetServerlessComputeResources(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	type ComputeResource struct {
-		Name      string `json:"name"`
-		Type      string `json:"type"`
-		Available bool   `json:"available"`
-		CPU       string `json:"cpu"`
-		Memory    string `json:"memory"`
+		Name        string `json:"name"`
+		Size        string `json:"size"`
+		IsAvailable bool   `json:"is_available"`
 	}
 
 	resources := []ComputeResource{
 		{
-			Name:      "small",
-			Type:      "cpu",
-			Available: true,
-			CPU:       "2",
-			Memory:    "4Gi",
+			Name:        "H100",
+			Size:        "1",
+			IsAvailable: true,
 		},
 		{
-			Name:      "medium",
-			Type:      "cpu",
-			Available: true,
-			CPU:       "4",
-			Memory:    "8Gi",
+			Name:        "A100",
+			Size:        "1",
+			IsAvailable: true,
+		},
+		{
+			Name:        "RTX 4500 Ada",
+			Size:        "1",
+			IsAvailable: false,
 		},
 	}
 
@@ -1541,20 +1684,89 @@ func (ms *MockServer) handleGetSecrets(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	type Secret struct {
-		Name      string `json:"name"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
+		Name       string `json:"name"`
+		CreatedAt  string `json:"created_at"`
+		SecretType string `json:"secret_type"`
 	}
 
 	secrets := []Secret{
 		{
-			Name:      "test-secret",
-			CreatedAt: "2024-01-01T00:00:00Z",
-			UpdatedAt: "2024-01-01T00:00:00Z",
+			Name:       "test-secret",
+			CreatedAt:  "2024-01-01T00:00:00Z",
+			SecretType: "env",
 		},
 	}
 
 	writeJSON(w, secrets)
+}
+
+func (ms *MockServer) handleGetFileSecrets(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	type FileSecret struct {
+		Name       string   `json:"name"`
+		CreatedAt  string   `json:"created_at"`
+		SecretType string   `json:"secret_type"`
+		FileNames  []string `json:"file_names"`
+	}
+
+	secrets := []FileSecret{
+		{
+			Name:       "test-file-secret",
+			CreatedAt:  "2024-01-01T00:00:00Z",
+			SecretType: "file",
+			FileNames:  []string{"config.json", "credentials.txt"},
+		},
+	}
+
+	writeJSON(w, secrets)
+}
+
+func (ms *MockServer) handleCreateFileSecret(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	writeBytes(w, []byte(`{}`))
+}
+
+func (ms *MockServer) handleGetRegistryCredentials(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	type RegistryCredentials struct {
+		Name      string `json:"name"`
+		CreatedAt string `json:"created_at"`
+	}
+
+	credentials := []RegistryCredentials{
+		{
+			Name:      "dockerhub-credentials",
+			CreatedAt: "2024-01-01T00:00:00Z",
+		},
+	}
+
+	writeJSON(w, credentials)
+}
+
+func (ms *MockServer) handleCreateRegistryCredentials(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+
+	// Sample request:
+	// {
+	//   "name": "dockerhub-credentials",
+	//   "type": "dockerhub",
+	//   "username": "JADES-GS-z14-0",
+	//   "access_token": "dckr_pat_EXAMPLE_TOKEN_REPLACE_ME",
+	//   "service_account_key": "{...}",
+	//   "docker_config_json": "{...}",
+	//   "access_key_id": "AKIAEXAMPLE123456",
+	//   "secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+	//   "region": "eu-north-1",
+	//   "ecr_repo": "887841266746.dkr.ecr.eu-north-1.amazonaws.com",
+	//   "scaleway_domain": "rg.nl-ams.scw.cloud",
+	//   "scaleway_uuid": "ea55b6d2-c789-4b31-88b1-f77ba6ff7cd6"
+	// }
+
+	writeBytes(w, []byte(`{}`))
 }
 
 // Serverless Jobs Handlers
@@ -1562,42 +1774,251 @@ func (ms *MockServer) handleGetSecrets(w http.ResponseWriter, _ *http.Request) {
 func (ms *MockServer) handleGetJobDeployments(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	type JobDeploymentShortInfo struct {
-		Name      string `json:"name"`
-		CreatedAt string `json:"created_at"`
-		Compute   string `json:"compute"`
-	}
-
-	jobs := []JobDeploymentShortInfo{
+	// Return raw JSON matching the actual API response structure
+	response := `[
 		{
-			Name:      "test-job",
-			CreatedAt: "2024-01-01T00:00:00Z",
-			Compute:   "small",
-		},
-	}
+			"name": "flux-training",
+			"created_at": "2021-08-31T12:00:00.000Z",
+			"compute": {
+				"name": "H100",
+				"size": 1
+			}
+		}
+	]`
 
-	writeJSON(w, jobs)
+	writeBytes(w, []byte(response))
 }
 
-func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, _ *http.Request) {
+func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	// Parse and validate request body
+	var req map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "invalid JSON"})
+		return
+	}
+
+	// Validate required fields
+	if req["name"] == nil || req["name"] == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "name is required"})
+		return
+	}
+	if req["containers"] == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "containers is required"})
+		return
+	}
+	containers, ok := req["containers"].([]interface{})
+	if !ok || len(containers) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "at least one container is required"})
+		return
+	}
+	// Validate each container has an image
+	for i, c := range containers {
+		container, ok := c.(map[string]interface{})
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			writeJSON(w, map[string]string{"error": "invalid container format"})
+			return
+		}
+		if container["image"] == nil || container["image"] == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			writeJSON(w, map[string]interface{}{"error": "containers[" + string(rune('0'+i)) + "].image is required"})
+			return
+		}
+	}
+	if req["compute"] == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "compute is required"})
+		return
+	}
+	if req["scaling"] == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "scaling is required"})
+		return
+	}
+
 	w.WriteHeader(http.StatusCreated)
 
-	type JobDeployment struct {
-		Name      string `json:"name"`
-		Status    string `json:"status"`
-		CreatedAt string `json:"created_at"`
-		UpdatedAt string `json:"updated_at"`
-	}
+	// Return raw JSON matching the actual API response structure
+	// Sample mock request body:
+	// {
+	//     "name": "flux-training",
+	//     "container_registry_settings": {
+	//       "credentials": {
+	//         "name": "dockerhub-credentials"
+	//       }
+	//     },
+	//     "containers": [
+	//       {
+	//         "image": "registry-1.docker.io/chentex/random-logger:v1.0.1",
+	//         "exposed_port": 8080,
+	//         "healthcheck": {
+	//           "enabled": true,
+	//           "port": 8081,
+	//           "path": "/health"
+	//         },
+	//         "entrypoint_overrides": {
+	//           "enabled": true,
+	//           "entrypoint": ["python3", "main.py"],
+	//           "cmd": ["--port", "8080"]
+	//         },
+	//         "env": [
+	//           {
+	//             "name": "MY_ENV_VAR",
+	//             "value_or_reference_to_secret": "my-value",
+	//             "type": "plain"
+	//           }
+	//         ],
+	//         "volume_mounts": [
+	//           {
+	//             "type": "scratch",
+	//             "mount_path": "/data",
+	//             "secret_name": "my-secret",
+	//             "size_in_mb": 64,
+	//             "volumeId": "fa4a0338-65b2-4819-8450-821190fbaf6d"
+	//           }
+	//         ]
+	//       }
+	//     ],
+	//     "compute": {
+	//       "name": "H100",
+	//       "size": 1
+	//     },
+	//     "scaling": {
+	//       "max_replica_count": 1,
+	//       "queue_message_ttl_seconds": 1,
+	//       "deadline_seconds": 1
+	//     }
+	//   }
 
-	job := JobDeployment{
-		Name:      "new-job",
-		Status:    "pending",
-		CreatedAt: "2024-01-01T00:00:00Z",
-		UpdatedAt: "2024-01-01T00:00:00Z",
+	response := `{
+		"name": "flux-training",
+		"containers": [
+			{
+				"name": "random-logger-0",
+				"image": {
+					"image": "registry-1.docker.io/chentex/random-logger:v1.0.1",
+					"last_updated_at": "2025-11-26T16:37:50.932Z"
+				},
+				"exposed_port": 8080,
+				"healthcheck": {
+					"enabled": true,
+					"port": 8081,
+					"path": "/health"
+				},
+				"entrypoint_overrides": {
+					"enabled": true,
+					"entrypoint": ["python3", "main.py"],
+					"cmd": ["--port", "8080"]
+				},
+				"env": [
+					{
+						"name": "MY_ENV_VAR",
+						"value_or_reference_to_secret": "my-value",
+						"type": "plain"
+					}
+				],
+				"volume_mounts": [
+					{
+						"type": "scratch",
+						"mount_path": "/data",
+						"secret_name": "my-secret",
+						"size_in_mb": 64,
+						"volume_id": "fa4a0338-65b2-4819-8450-821190fbaf6d"
+					}
+				]
+			}
+		],
+		"endpoint_base_url": "https://containers.datacrunch.io/flux-training",
+		"created_at": "2021-08-31T12:00:00.000Z",
+		"compute": {
+			"name": "H100",
+			"size": 1
+		},
+		"container_registry_settings": {
+			"is_private": true,
+			"credentials": {
+				"name": "dockerhub-credentials"
+			}
+		},
+	"scaling": {
+		"max_replica_count": 1,
+		"queue_message_ttl_seconds": 300,
+		"deadline_seconds": 600
 	}
+	}`
 
-	writeJSON(w, job)
+	writeBytes(w, []byte(response))
+}
+
+func (ms *MockServer) handleGetJobDeploymentScaling(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	// Return same response as container deployment scaling (ScalingOptions)
+	writeBytes(w, []byte(mockScalingOptionsResponse))
+}
+
+func (ms *MockServer) handleGetJobDeploymentByName(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Return raw JSON matching the actual API response structure (same as ContainerDeployment)
+	response := `{
+		"name": "flux-training",
+		"containers": [
+			{
+				"name": "random-logger-0",
+				"image": {
+					"image": "registry-1.docker.io/chentex/random-logger:v1.0.1",
+					"last_updated_at": "2025-11-26T16:37:50.932Z"
+				},
+				"exposed_port": 8080,
+				"healthcheck": {
+					"enabled": true,
+					"port": 8081,
+					"path": "/health"
+				},
+				"entrypoint_overrides": {
+					"enabled": true,
+					"entrypoint": ["python3", "main.py"],
+					"cmd": ["--port", "8080"]
+				},
+				"env": [
+					{
+						"name": "MY_ENV_VAR",
+						"value_or_reference_to_secret": "my-value",
+						"type": "plain"
+					}
+				],
+				"volume_mounts": [
+					{
+						"type": "scratch",
+						"mount_path": "/data",
+						"secret_name": "my-secret",
+						"size_in_mb": 64,
+						"volume_id": "fa4a0338-65b2-4819-8450-821190fbaf6d"
+					}
+				]
+			}
+		],
+		"endpoint_base_url": "https://containers.datacrunch.io/flux-training",
+		"created_at": "2021-08-31T12:00:00.000Z",
+		"compute": {
+			"name": "H100",
+			"size": 1
+		},
+		"container_registry_settings": {
+			"is_private": true,
+			"credentials": {
+				"name": "dockerhub-credentials"
+			}
+		}
+	}`
+
+	writeBytes(w, []byte(response))
 }
 
 // Note: CreateTestClient is implemented in test files to avoid circular imports

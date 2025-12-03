@@ -76,11 +76,11 @@ func main() {
 		fmt.Printf("Available locations:\n")
 		for _, location := range locations {
 			status := "unavailable"
-			if location.Available {
+			if location.Code == verda.LocationFIN01 {
 				status = "available"
 			}
 			fmt.Printf("- %s (%s): %s - %s\n",
-				location.Name, location.Code, location.Country, status)
+				location.Name, location.Code, location.CountryCode, status)
 		}
 	}
 

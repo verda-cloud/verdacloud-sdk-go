@@ -6,7 +6,7 @@
 # ============================================================================
 
 .PHONY: help build test test-unit test-integration clean coverage
-.PHONY: lint fmt check setup setup-hooks install-tools
+.PHONY: lint fmt check setup setup-hooks install-tools pre-commit
 .DEFAULT_GOAL := help
 
 # ============================================================================
@@ -224,14 +224,11 @@ update-deps: ## Update all Go dependencies to their latest versions
 # Pre-commit Management
 # ============================================================================
 
-pre-commit-run: ## Manually run all pre-commit hooks on all files
+pre-commit: ## Run all pre-commit hooks on all files (stages modified files first)
+	@echo "→ Staging modified files..."
+	@git add -u
 	@echo "→ Running pre-commit hooks on all files..."
 	@pre-commit run --all-files
-
-pre-commit-update: ## Update pre-commit hooks to their latest versions
-	@echo "→ Updating pre-commit hooks..."
-	@pre-commit autoupdate
-	@echo "✓ Hooks updated!"
 
 # ============================================================================
 # CI/CD Targets
@@ -431,7 +428,7 @@ docker-help: ## Show Docker-specific help
 
 .PHONY: setup install-tools setup-hooks lint fmt check check-security security gosec govulncheck
 .PHONY: build test test-unit test-integration coverage clean clean-all mod-tidy update-deps
-.PHONY: pre-commit-run pre-commit-update ci ci-local
+.PHONY: pre-commit pre-commit-run pre-commit-update ci ci-local
 .PHONY: docker-build docker-start docker-stop docker-restart docker-lint docker-test
 .PHONY: docker-test-integration docker-coverage docker-ci docker-fmt docker-shell
 .PHONY: docker-status docker-clean docker-help docker-security

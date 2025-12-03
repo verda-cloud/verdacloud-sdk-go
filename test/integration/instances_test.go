@@ -15,12 +15,12 @@ import (
 // createTestSSHKey creates a test SSH key and returns its ID
 func createTestSSHKey(t *testing.T, client *verda.Client) string {
 	ctx := context.Background()
-	req := verda.CreateSSHKeyRequest{
+	req := &verda.CreateSSHKeyRequest{
 		Name:      "integration-test-ssh-key-" + time.Now().Format("20060102-150405"),
 		PublicKey: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC81234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890 test@example.com",
 	}
 
-	sshKey, err := client.SSHKeys.Create(ctx, req)
+	sshKey, err := client.SSHKeys.AddSSHKey(ctx, req)
 	if err != nil {
 		t.Fatalf("failed to create test SSH key: %v", err)
 	}
@@ -32,12 +32,12 @@ func createTestSSHKey(t *testing.T, client *verda.Client) string {
 // Returns empty string if startup scripts are not available
 func createTestStartupScript(t *testing.T, client *verda.Client) string {
 	ctx := context.Background()
-	req := verda.CreateStartupScriptRequest{
+	req := &verda.CreateStartupScriptRequest{
 		Name:   "integration-test-script-" + time.Now().Format("20060102-150405"),
 		Script: "#!/bin/bash\n\necho \"Hello from integration test\"\necho \"Test started at: $(date)\" > /tmp/test.log",
 	}
 
-	script, err := client.StartupScripts.Create(ctx, req)
+	script, err := client.StartupScripts.AddStartupScript(ctx, req)
 	if err != nil {
 		// Check if it's a 404 error (not supported on staging)
 		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
@@ -160,7 +160,7 @@ func TestListInstances_Integration(t *testing.T) {
 	}
 
 	// Test instance availability
-	available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")
+	available, err := client.Instances.CheckInstanceTypeAvailability(ctx, "1V100.6V")
 	if err != nil {
 		t.Errorf("failed to check availability: %v", err)
 	}
@@ -218,7 +218,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 
 	// Create instance with minimal configuration
 	input := verda.CreateInstanceRequest{
-		InstanceType: "1V100.6V",
+		InstanceType: "1RTX6000ADA.10V",
 		Image:        "ubuntu-24.04-cuda-12.8-open-docker",
 		SSHKeyIDs:    []string{sshKeyID},
 		LocationCode: verda.LocationFIN01,
@@ -232,7 +232,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 	}
 
 	// Check availability first
-	available, err := client.Instances.IsAvailable(ctx, input.InstanceType, input.IsSpot, input.LocationCode)
+	available, err := client.Instances.CheckInstanceTypeAvailability(ctx, input.InstanceType)
 	if err != nil {
 		t.Fatalf("failed to check instance availability: %v", err)
 	}
@@ -269,7 +269,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 
 		// Cleanup test resources
 		ctx := context.Background()
-		err := client.SSHKeys.Delete(ctx, sshKeyID)
+		err := client.SSHKeys.DeleteSSHKey(ctx, sshKeyID)
 		if err != nil {
 			t.Errorf("failed to delete test SSH key %s: %v", sshKeyID, err)
 		} else {
@@ -278,7 +278,7 @@ func TestCreateAndDeleteInstance_Integration(t *testing.T) {
 
 		// Only try to delete startup script if it was created
 		if scriptID != "" {
-			err = client.StartupScripts.Delete(ctx, scriptID)
+			err = client.StartupScripts.DeleteStartupScript(ctx, scriptID)
 			if err != nil {
 				t.Errorf("failed to delete test startup script %s: %v", scriptID, err)
 			} else {
