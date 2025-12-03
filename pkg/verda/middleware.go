@@ -152,11 +152,6 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 	}
 }
 
-// Deprecated: Use ExponentialBackoffRetryMiddleware
-func RetryMiddleware(maxRetries int, retryDelay time.Duration, logger Logger) RequestMiddleware {
-	return ExponentialBackoffRetryMiddleware(maxRetries, retryDelay, logger)
-}
-
 // shouldRetry decides if we should retry based on status code - never retry auth/client errors
 func shouldRetry(err error) bool {
 	if err == nil {

@@ -46,19 +46,6 @@ func TestStartupScriptsIntegration(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("test deprecated Get method", func(t *testing.T) {
-		ctx := context.Background()
-		scripts, err := client.StartupScripts.Get(ctx)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
-				t.Skip("Startup scripts endpoint not available (404)")
-				return
-			}
-			t.Errorf("failed to get startup scripts with deprecated method: %v", err)
-		}
-		t.Logf("Deprecated Get method returned %d startup scripts", len(scripts))
-	})
 }
 
 // TestCreateStartScript_Integration tests creating a startup script
@@ -70,7 +57,7 @@ func TestCreateStartScript_Integration(t *testing.T) {
 	client := getTestClient(t)
 
 	ctx := context.Background()
-	scriptID, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptRequest{
+	scriptID, err := client.StartupScripts.AddStartupScript(ctx, &verda.CreateStartupScriptRequest{
 		Name:   "My startup script",
 		Script: "#!/bin/bash\n\necho hello world",
 	})
@@ -93,7 +80,7 @@ func TestCreateStartScript_Integration(t *testing.T) {
 	// Cleanup: Delete the start script
 	defer func() {
 		t.Log("Cleaning up test start script...")
-		err := client.StartupScripts.Delete(ctx, scriptID.ID)
+		err := client.StartupScripts.DeleteStartupScript(ctx, scriptID.ID)
 		if err != nil {
 			t.Errorf("failed to delete test start script %s: %v", scriptID.ID, err)
 		} else {
@@ -102,7 +89,7 @@ func TestCreateStartScript_Integration(t *testing.T) {
 	}()
 
 	// Verify the script can be retrieved
-	retrievedScript, err := client.StartupScripts.GetByID(ctx, scriptID.ID)
+	retrievedScript, err := client.StartupScripts.GetStartupScriptByID(ctx, scriptID.ID)
 	if err != nil {
 		t.Errorf("failed to get created startup script: %v", err)
 	} else {
@@ -126,7 +113,7 @@ func TestListStartScripts_Integration(t *testing.T) {
 
 	// Create a start script
 	ctx := context.Background()
-	scriptID, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptRequest{
+	scriptID, err := client.StartupScripts.AddStartupScript(ctx, &verda.CreateStartupScriptRequest{
 		Name:   "My startup script for listing",
 		Script: "#!/bin/bash\n\necho hello world from list test",
 	})
@@ -140,7 +127,7 @@ func TestListStartScripts_Integration(t *testing.T) {
 	}
 	t.Logf("Created start script with ID: %s", scriptID.ID)
 
-	startScripts, err := client.StartupScripts.Get(ctx)
+	startScripts, err := client.StartupScripts.GetAllStartupScripts(ctx)
 	if err != nil {
 		t.Fatalf("failed to list start scripts: %v", err)
 	}
@@ -167,7 +154,7 @@ func TestListStartScripts_Integration(t *testing.T) {
 	// Cleanup
 	defer func() {
 		t.Log("Cleaning up test start script...")
-		err := client.StartupScripts.Delete(ctx, scriptID.ID)
+		err := client.StartupScripts.DeleteStartupScript(ctx, scriptID.ID)
 		if err != nil {
 			t.Errorf("failed to delete test start script %s: %v", scriptID.ID, err)
 		} else {
@@ -204,7 +191,7 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 
 	// Create scripts
 	for _, s := range scripts {
-		scriptID, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptRequest{
+		scriptID, err := client.StartupScripts.AddStartupScript(ctx, &verda.CreateStartupScriptRequest{
 			Name:   s.name,
 			Script: s.script,
 		})
@@ -222,7 +209,7 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 	}
 
 	// Verify all scripts exist in the list
-	allScripts, err := client.StartupScripts.Get(ctx)
+	allScripts, err := client.StartupScripts.GetAllStartupScripts(ctx)
 	if err != nil {
 		t.Fatalf("failed to list startup scripts: %v", err)
 	}
@@ -249,7 +236,7 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 	defer func() {
 		for i, scriptID := range createdScriptIDs {
 			t.Logf("Cleaning up startup script %s (%s)...", scripts[i].name, scriptID)
-			err := client.StartupScripts.Delete(ctx, scriptID)
+			err := client.StartupScripts.DeleteStartupScript(ctx, scriptID)
 			if err != nil {
 				t.Errorf("failed to delete startup script %s: %v", scriptID, err)
 			} else {

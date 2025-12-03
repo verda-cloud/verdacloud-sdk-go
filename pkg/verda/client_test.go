@@ -230,3 +230,99 @@ func TestClientHandleResponse(t *testing.T) {
 		}
 	})
 }
+
+func TestClientMiddleware(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	t.Run("set request middleware", func(t *testing.T) {
+		called := false
+		middleware := func(next RequestHandler) RequestHandler {
+			return func(ctx *RequestContext) error {
+				called = true
+				return next(ctx)
+			}
+		}
+
+		client.SetRequestMiddleware([]RequestMiddleware{middleware})
+		_, _ = client.Balance.Get(context.Background())
+
+		if !called {
+			t.Error("expected request middleware to be called")
+		}
+	})
+
+	t.Run("set response middleware", func(t *testing.T) {
+		called := false
+		middleware := func(next ResponseHandler) ResponseHandler {
+			return func(ctx *ResponseContext) error {
+				called = true
+				return next(ctx)
+			}
+		}
+
+		client.SetResponseMiddleware([]ResponseMiddleware{middleware})
+		_, _ = client.Balance.Get(context.Background())
+
+		if !called {
+			t.Error("expected response middleware to be called")
+		}
+	})
+
+	t.Run("clear request middleware", func(t *testing.T) {
+		called := false
+		middleware := func(next RequestHandler) RequestHandler {
+			return func(ctx *RequestContext) error {
+				called = true
+				return next(ctx)
+			}
+		}
+
+		client.AddRequestMiddleware(middleware)
+		client.ClearRequestMiddleware()
+		_, _ = client.Balance.Get(context.Background())
+
+		if called {
+			t.Error("expected request middleware to not be called after clear")
+		}
+	})
+
+	t.Run("clear response middleware", func(t *testing.T) {
+		called := false
+		middleware := func(next ResponseHandler) ResponseHandler {
+			return func(ctx *ResponseContext) error {
+				called = true
+				return next(ctx)
+			}
+		}
+
+		client.AddResponseMiddleware(middleware)
+		client.ClearResponseMiddleware()
+		_, _ = client.Balance.Get(context.Background())
+
+		if called {
+			t.Error("expected response middleware to not be called after clear")
+		}
+	})
+
+	t.Run("with auth bearer token", func(t *testing.T) {
+		opts := []ClientOption{
+			WithClientID("test_id"),
+			WithClientSecret("test_secret"),
+			WithAuthBearerToken("test_bearer_token"),
+		}
+
+		client, err := NewClient(opts...)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// Just verify that the client was created successfully
+		// The token is stored internally and used for authentication
+		if client == nil {
+			t.Fatal("expected client to be created")
+		}
+	})
+}

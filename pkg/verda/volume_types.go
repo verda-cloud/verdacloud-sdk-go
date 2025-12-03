@@ -15,8 +15,3 @@ func (s *VolumeTypeService) GetAllVolumeTypes(ctx context.Context) ([]VolumeType
 	}
 	return volumeTypes, nil
 }
-
-// Deprecated: Use GetAllVolumeTypes
-func (s *VolumeTypeService) Get(ctx context.Context) ([]VolumeType, error) {
-	return s.GetAllVolumeTypes(ctx)
-}

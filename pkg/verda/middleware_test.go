@@ -416,36 +416,6 @@ func TestExponentialBackoffRetryMiddleware_MaxDelay(t *testing.T) {
 	}
 }
 
-func TestRetryMiddleware_BackwardsCompatibility(t *testing.T) {
-	logger := &NoOpLogger{}
-	attempts := 0
-
-	// Test that the deprecated RetryMiddleware still works
-	middleware := RetryMiddleware(2, 1*time.Millisecond, logger)
-
-	handler := middleware(func(ctx *RequestContext) error {
-		attempts++
-		if attempts < 2 {
-			return &APIError{StatusCode: 503, Message: "Service Unavailable"}
-		}
-		return nil
-	})
-
-	ctx := &RequestContext{
-		Method: "GET",
-		Path:   "/test",
-	}
-
-	err := handler(ctx)
-	if err != nil {
-		t.Errorf("Expected success with deprecated RetryMiddleware, got error: %v", err)
-	}
-
-	if attempts != 2 {
-		t.Errorf("Expected 2 attempts, got %d", attempts)
-	}
-}
-
 func TestAuthenticationMiddleware(t *testing.T) {
 	t.Run("successful authentication", func(t *testing.T) {
 		// Create a properly initialized client with auth service

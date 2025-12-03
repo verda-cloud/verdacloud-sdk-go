@@ -89,23 +89,3 @@ func (s *SSHKeyService) DeleteMultipleSSHKeys(ctx context.Context, keyIDs []stri
 	_, err := deleteRequestWithBody(ctx, s.client, "/ssh-keys", req)
 	return err
 }
-
-// Deprecated: Use GetAllSSHKeys
-func (s *SSHKeyService) Get(ctx context.Context) ([]SSHKey, error) {
-	return s.GetAllSSHKeys(ctx)
-}
-
-// Deprecated: Use GetSSHKeyByID
-func (s *SSHKeyService) GetByID(ctx context.Context, id string) (*SSHKey, error) {
-	return s.GetSSHKeyByID(ctx, id)
-}
-
-// Deprecated: Use AddSSHKey
-func (s *SSHKeyService) Create(ctx context.Context, req CreateSSHKeyRequest) (*SSHKey, error) {
-	return s.AddSSHKey(ctx, &req)
-}
-
-// Deprecated: Use DeleteSSHKey
-func (s *SSHKeyService) Delete(ctx context.Context, id string) error {
-	return s.DeleteSSHKey(ctx, id)
-}

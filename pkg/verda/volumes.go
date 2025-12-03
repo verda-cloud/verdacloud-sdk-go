@@ -43,8 +43,8 @@ func (s *VolumeService) GetVolume(ctx context.Context, id string) (*Volume, erro
 }
 
 func (s *VolumeService) CreateVolume(ctx context.Context, req VolumeCreateRequest) (string, error) {
-	if req.Location == "" {
-		req.Location = LocationFIN01
+	if req.LocationCode == "" {
+		req.LocationCode = LocationFIN01
 	}
 
 	return s.createVolumeWithPlainTextResponse(ctx, req)
@@ -131,54 +131,4 @@ func (s *VolumeService) RenameVolume(ctx context.Context, volumeID string, req V
 	path := fmt.Sprintf("/volumes/%s/rename", volumeID)
 	_, err := postRequestNoResult(ctx, s.client, path, req)
 	return err
-}
-
-// Deprecated: Use ListVolumes instead
-func (s *VolumeService) Get(ctx context.Context) ([]Volume, error) {
-	return s.ListVolumes(ctx)
-}
-
-// Deprecated: Use ListVolumesByStatus instead
-func (s *VolumeService) GetByStatus(ctx context.Context, status string) ([]Volume, error) {
-	return s.ListVolumesByStatus(ctx, status)
-}
-
-// Deprecated: Use GetVolume instead
-func (s *VolumeService) GetByID(ctx context.Context, id string) (*Volume, error) {
-	return s.GetVolume(ctx, id)
-}
-
-// Deprecated: Use CreateVolume instead
-func (s *VolumeService) Create(ctx context.Context, req VolumeCreateRequest) (string, error) {
-	return s.CreateVolume(ctx, req)
-}
-
-// Deprecated: Use DeleteVolume instead
-func (s *VolumeService) Delete(ctx context.Context, id string, force bool) error {
-	return s.DeleteVolume(ctx, id, force)
-}
-
-// Deprecated: Use AttachVolume instead
-func (s *VolumeService) Attach(ctx context.Context, volumeID string, req VolumeAttachRequest) error {
-	return s.AttachVolume(ctx, volumeID, req)
-}
-
-// Deprecated: Use DetachVolume instead
-func (s *VolumeService) Detach(ctx context.Context, volumeID string, req VolumeDetachRequest) error {
-	return s.DetachVolume(ctx, volumeID, req)
-}
-
-// Deprecated: Use CloneVolume instead
-func (s *VolumeService) Clone(ctx context.Context, volumeID string, req VolumeCloneRequest) (string, error) {
-	return s.CloneVolume(ctx, volumeID, req)
-}
-
-// Deprecated: Use ResizeVolume instead
-func (s *VolumeService) Resize(ctx context.Context, volumeID string, req VolumeResizeRequest) error {
-	return s.ResizeVolume(ctx, volumeID, req)
-}
-
-// Deprecated: Use RenameVolume instead
-func (s *VolumeService) Rename(ctx context.Context, volumeID string, req VolumeRenameRequest) error {
-	return s.RenameVolume(ctx, volumeID, req)
 }
