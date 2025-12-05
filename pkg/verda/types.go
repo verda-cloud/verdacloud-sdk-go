@@ -478,7 +478,6 @@ type CreateDeploymentRequest struct {
 // Note: In requests, image is a string; in responses, image is an object
 type CreateDeploymentContainer struct {
 	Image               string            `json:"image"`
-	Name                string            `json:"name,omitempty"`
 	ExposedPort         int               `json:"exposed_port,omitempty"`
 	Healthcheck         map[string]any    `json:"healthcheck,omitempty"`
 	EntrypointOverrides map[string]any    `json:"entrypoint_overrides,omitempty"`
