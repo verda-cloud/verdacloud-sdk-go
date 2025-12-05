@@ -80,19 +80,19 @@ func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName
 	return err
 }
 
-func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, jobName string) (*ScalingOptions, error) {
+func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, jobName string) (*ContainerScalingOptions, error) {
 	if jobName == "" {
 		return nil, fmt.Errorf("jobName is required")
 	}
 	path := fmt.Sprintf("/job-deployments/%s/scaling", jobName)
-	scaling, _, err := getRequest[ScalingOptions](ctx, s.client, path)
+	scaling, _, err := getRequest[ContainerScalingOptions](ctx, s.client, path)
 	if err != nil {
 		return nil, err
 	}
 	return &scaling, nil
 }
 
-func (s *ServerlessJobsService) UpdateJobDeploymentScaling(ctx context.Context, jobName string, req *UpdateScalingOptionsRequest) (*ScalingOptions, error) {
+func (s *ServerlessJobsService) UpdateJobDeploymentScaling(ctx context.Context, jobName string, req *UpdateScalingOptionsRequest) (*ContainerScalingOptions, error) {
 	if jobName == "" {
 		return nil, fmt.Errorf("jobName is required")
 	}
@@ -100,7 +100,7 @@ func (s *ServerlessJobsService) UpdateJobDeploymentScaling(ctx context.Context, 
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 	path := fmt.Sprintf("/job-deployments/%s/scaling", jobName)
-	scaling, _, err := patchRequest[ScalingOptions](ctx, s.client, path, req)
+	scaling, _, err := patchRequest[ContainerScalingOptions](ctx, s.client, path, req)
 	if err != nil {
 		return nil, err
 	}

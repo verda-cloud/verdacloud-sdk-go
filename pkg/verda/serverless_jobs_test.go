@@ -66,24 +66,24 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateJobDeploymentRequest{
 			Name: "flux-training",
-			ContainerRegistrySettings: map[string]any{
-				"credentials": map[string]any{
-					"name": "dockerhub-credentials",
+			ContainerRegistrySettings: &ContainerRegistrySettings{
+				Credentials: &RegistryCredentialsRef{
+					Name: "dockerhub-credentials",
 				},
 			},
 			Containers: []CreateDeploymentContainer{
 				{
 					Image:       "registry-1.docker.io/chentex/random-logger:v1.0.1",
 					ExposedPort: 8080,
-					Healthcheck: map[string]any{
-						"enabled": true,
-						"port":    8081,
-						"path":    "/health",
+					Healthcheck: &ContainerHealthcheck{
+						Enabled: true,
+						Port:    8081,
+						Path:    "/health",
 					},
-					EntrypointOverrides: map[string]any{
-						"enabled":    true,
-						"entrypoint": []string{"python3", "main.py"},
-						"cmd":        []string{"--port", "8080"},
+					EntrypointOverrides: &ContainerEntrypointOverrides{
+						Enabled:    true,
+						Entrypoint: []string{"python3", "main.py"},
+						Cmd:        []string{"--port", "8080"},
 					},
 					Env: []ContainerEnvVar{
 						{
@@ -92,25 +92,24 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 							Type:                     "plain",
 						},
 					},
-					VolumeMounts: []map[string]any{
+					VolumeMounts: []ContainerVolumeMount{
 						{
-							"type":        "scratch",
-							"mount_path":  "/data",
-							"secret_name": "my-secret",
-							"size_in_mb":  64,
-							"volumeId":    "fa4a0338-65b2-4819-8450-821190fbaf6d",
+							Type:       "scratch",
+							MountPath:  "/data",
+							SecretName: "my-secret",
+							SizeInMB:   64,
+							VolumeID:   "fa4a0338-65b2-4819-8450-821190fbaf6d",
 						},
 					},
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count":         1,
-				"queue_message_ttl_seconds": 300,
-				"deadline_seconds":          600,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
 			},
 		}
 
@@ -149,12 +148,12 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 					Image: "registry-1.docker.io/python:3.9",
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count": 1,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: 1,
 			},
 		}
 
@@ -186,12 +185,12 @@ func TestServerlessJobsService_DeleteJobDeployment(t *testing.T) {
 					Image: "registry-1.docker.io/python:3.9",
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count": 1,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: 1,
 			},
 		}
 
@@ -222,12 +221,12 @@ func TestServerlessJobsService_GetJobDeploymentStatus(t *testing.T) {
 					Image: "registry-1.docker.io/python:3.9",
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count": 1,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: 1,
 			},
 		}
 
@@ -258,12 +257,12 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 					Image: "registry-1.docker.io/python:3.9",
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count": 1,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: 1,
 			},
 		}
 
