@@ -59,7 +59,7 @@ func TestContainerDeploymentsService_GetDeployments(t *testing.T) {
 			if len(container.VolumeMounts) == 0 {
 				t.Error("expected volume_mounts to be set")
 			}
-			if container.Image == nil {
+			if container.Image.Image == "" {
 				t.Error("expected image to be set")
 			}
 		}
@@ -77,25 +77,25 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		req := &CreateDeploymentRequest{
 			Name:   "llm-inference",
 			IsSpot: false,
-			ContainerRegistrySettings: map[string]any{
-				"is_private": true,
-				"credentials": map[string]any{
-					"name": "dockerhub-credentials",
+			ContainerRegistrySettings: ContainerRegistrySettings{
+				IsPrivate: true,
+				Credentials: &RegistryCredentialsRef{
+					Name: "dockerhub-credentials",
 				},
 			},
 			Containers: []CreateDeploymentContainer{
 				{
 					Image:       "registry-1.docker.io/chentex/random-logger:v1.0.1",
 					ExposedPort: 8080,
-					Healthcheck: map[string]any{
-						"enabled": true,
-						"port":    8081,
-						"path":    "/health",
+					Healthcheck: &ContainerHealthcheck{
+						Enabled: true,
+						Port:    8081,
+						Path:    "/health",
 					},
-					EntrypointOverrides: map[string]any{
-						"enabled":    true,
-						"entrypoint": []string{"python3", "main.py"},
-						"cmd":        []string{"--port", "8080"},
+					EntrypointOverrides: &ContainerEntrypointOverrides{
+						Enabled:    true,
+						Entrypoint: []string{"python3", "main.py"},
+						Cmd:        []string{"--port", "8080"},
 					},
 					Env: []ContainerEnvVar{
 						{
@@ -104,41 +104,29 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 							Type:                     "plain",
 						},
 					},
-					VolumeMounts: []map[string]any{
+					VolumeMounts: []ContainerVolumeMount{
 						{
-							"type":       "scratch",
-							"mount_path": "/data",
+							Type:      "scratch",
+							MountPath: "/data",
 						},
 					},
 				},
 			},
-			Compute: map[string]any{
-				"name": "H100",
-				"size": 1,
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"min_replica_count": 1,
-				"max_replica_count": 1,
-				"scale_down_policy": map[string]any{
-					"delay_seconds": 300,
-				},
-				"scale_up_policy": map[string]any{
-					"delay_seconds": 300,
-				},
-				"queue_message_ttl_seconds":       300,
-				"concurrent_requests_per_replica": 1,
-				"scaling_triggers": map[string]any{
-					"queue_load": map[string]any{
-						"threshold": 0.5,
-					},
-					"cpu_utilization": map[string]any{
-						"enabled":   true,
-						"threshold": 80,
-					},
-					"gpu_utilization": map[string]any{
-						"enabled":   true,
-						"threshold": 80,
-					},
+			Scaling: ContainerScalingOptions{
+				MinReplicaCount:              1,
+				MaxReplicaCount:              1,
+				ScaleDownPolicy:              &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:                &ScalingPolicy{DelaySeconds: 300},
+				QueueMessageTTLSeconds:       300,
+				ConcurrentRequestsPerReplica: 1,
+				ScalingTriggers: &ScalingTriggers{
+					QueueLoad:      &QueueLoadTrigger{Threshold: 0.5},
+					CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
+					GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 				},
 			},
 		}
@@ -179,24 +167,12 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		}
 	})
 
-	t.Run("validation - missing container_registry_settings", func(t *testing.T) {
-		ctx := context.Background()
-		req := &CreateDeploymentRequest{
-			Name:                      "test",
-			ContainerRegistrySettings: nil,
-		}
-		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
-		if err == nil {
-			t.Error("expected error for missing container_registry_settings")
-		}
-	})
-
 	t.Run("validation - missing compute", func(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateDeploymentRequest{
 			Name:                      "test",
-			ContainerRegistrySettings: map[string]any{"is_private": false},
-			Compute:                   nil,
+			ContainerRegistrySettings: ContainerRegistrySettings{IsPrivate: false},
+			Compute:                   ContainerCompute{},
 		}
 		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
 		if err == nil {
@@ -208,9 +184,9 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateDeploymentRequest{
 			Name:                      "test",
-			ContainerRegistrySettings: map[string]any{"is_private": false},
-			Compute:                   map[string]any{"name": "H100", "size": 1},
-			Scaling:                   nil,
+			ContainerRegistrySettings: ContainerRegistrySettings{IsPrivate: false},
+			Compute:                   ContainerCompute{Name: "H100", Size: 1},
+			Scaling:                   ContainerScalingOptions{},
 		}
 		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
 		if err == nil {
@@ -222,9 +198,9 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateDeploymentRequest{
 			Name:                      "test",
-			ContainerRegistrySettings: map[string]any{"is_private": false},
-			Compute:                   map[string]any{"name": "H100", "size": 1},
-			Scaling:                   map[string]any{"max_replica_count": 1},
+			ContainerRegistrySettings: ContainerRegistrySettings{IsPrivate: false},
+			Compute:                   ContainerCompute{Name: "H100", Size: 1},
+			Scaling:                   ContainerScalingOptions{MaxReplicaCount: 1},
 			Containers:                []CreateDeploymentContainer{},
 		}
 		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
@@ -237,9 +213,9 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateDeploymentRequest{
 			Name:                      "test",
-			ContainerRegistrySettings: map[string]any{"is_private": false},
-			Compute:                   map[string]any{"name": "H100", "size": 1},
-			Scaling:                   map[string]any{"max_replica_count": 1},
+			ContainerRegistrySettings: ContainerRegistrySettings{IsPrivate: false},
+			Compute:                   ContainerCompute{Name: "H100", Size: 1},
+			Scaling:                   ContainerScalingOptions{MaxReplicaCount: 1},
 			Containers:                []CreateDeploymentContainer{{Image: "", ExposedPort: 8080}},
 		}
 		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
@@ -252,9 +228,9 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 		ctx := context.Background()
 		req := &CreateDeploymentRequest{
 			Name:                      "test",
-			ContainerRegistrySettings: map[string]any{"is_private": false},
-			Compute:                   map[string]any{"name": "H100", "size": 1},
-			Scaling:                   map[string]any{"max_replica_count": 1},
+			ContainerRegistrySettings: ContainerRegistrySettings{IsPrivate: false},
+			Compute:                   ContainerCompute{Name: "H100", Size: 1},
+			Scaling:                   ContainerScalingOptions{MaxReplicaCount: 1},
 			Containers:                []CreateDeploymentContainer{{Image: "nginx:latest", ExposedPort: 0}},
 		}
 		_, err := client.ContainerDeployments.CreateDeployment(ctx, req)
@@ -280,9 +256,10 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 
 	t.Run("validation - empty deployment name", func(t *testing.T) {
 		ctx := context.Background()
+		maxReplicas := 2
 		req := &UpdateDeploymentRequest{
-			Scaling: map[string]any{
-				"max_replica_count": 2,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: maxReplicas,
 			},
 		}
 		_, err := client.ContainerDeployments.UpdateDeployment(ctx, "", req)
@@ -293,9 +270,10 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 
 	t.Run("partial update - scaling only", func(t *testing.T) {
 		ctx := context.Background()
+		maxReplicas := 3
 		req := &UpdateDeploymentRequest{
-			Scaling: map[string]any{
-				"max_replica_count": 3,
+			Scaling: &ContainerScalingOptions{
+				MaxReplicaCount: maxReplicas,
 			},
 		}
 		// This should not fail validation - partial updates are allowed

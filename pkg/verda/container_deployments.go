@@ -51,14 +51,11 @@ func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req 
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	if req.ContainerRegistrySettings == nil {
-		return nil, fmt.Errorf("container_registry_settings is required")
-	}
-	if req.Compute == nil {
+	if req.Compute.Name == "" {
 		return nil, fmt.Errorf("compute is required")
 	}
-	if req.Scaling == nil {
-		return nil, fmt.Errorf("scaling is required")
+	if req.Scaling.MaxReplicaCount == 0 {
+		return nil, fmt.Errorf("scaling.max_replica_count is required")
 	}
 	if len(req.Containers) == 0 {
 		return nil, fmt.Errorf("at least one container is required")
@@ -166,19 +163,19 @@ func (s *ContainerDeploymentsService) PurgeDeploymentQueue(ctx context.Context, 
 	return err
 }
 
-func (s *ContainerDeploymentsService) GetDeploymentScaling(ctx context.Context, deploymentName string) (*ScalingOptions, error) {
+func (s *ContainerDeploymentsService) GetDeploymentScaling(ctx context.Context, deploymentName string) (*ContainerScalingOptions, error) {
 	if deploymentName == "" {
 		return nil, fmt.Errorf("deploymentName is required")
 	}
 	path := fmt.Sprintf("/container-deployments/%s/scaling", deploymentName)
-	scaling, _, err := getRequest[ScalingOptions](ctx, s.client, path)
+	scaling, _, err := getRequest[ContainerScalingOptions](ctx, s.client, path)
 	if err != nil {
 		return nil, err
 	}
 	return &scaling, nil
 }
 
-func (s *ContainerDeploymentsService) UpdateDeploymentScaling(ctx context.Context, deploymentName string, req *UpdateScalingOptionsRequest) (*ScalingOptions, error) {
+func (s *ContainerDeploymentsService) UpdateDeploymentScaling(ctx context.Context, deploymentName string, req *UpdateScalingOptionsRequest) (*ContainerScalingOptions, error) {
 	if deploymentName == "" {
 		return nil, fmt.Errorf("deploymentName is required")
 	}
@@ -186,7 +183,7 @@ func (s *ContainerDeploymentsService) UpdateDeploymentScaling(ctx context.Contex
 		return nil, fmt.Errorf("request cannot be nil")
 	}
 	path := fmt.Sprintf("/container-deployments/%s/scaling", deploymentName)
-	scaling, _, err := patchRequest[ScalingOptions](ctx, s.client, path, req)
+	scaling, _, err := patchRequest[ContainerScalingOptions](ctx, s.client, path, req)
 	if err != nil {
 		return nil, err
 	}
