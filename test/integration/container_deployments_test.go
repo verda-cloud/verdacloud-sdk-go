@@ -77,35 +77,35 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		req := &verda.CreateDeploymentRequest{
 			Name:   depName,
 			IsSpot: false,
-			Compute: map[string]any{
-				"name": "RTX 4500 Ada",
-				"size": 1,
+			Compute: verda.ContainerCompute{
+				Name: "RTX 4500 Ada",
+				Size: 1,
 			},
-			ContainerRegistrySettings: map[string]any{
-				"is_private": false,
+			ContainerRegistrySettings: verda.ContainerRegistrySettings{
+				IsPrivate: false,
 			},
-			Scaling: map[string]any{
-				"min_replica_count": 1,
-				"max_replica_count": 1,
-				"scale_down_policy": map[string]any{
-					"delay_seconds": 300,
+			Scaling: verda.ContainerScalingOptions{
+				MinReplicaCount: 1,
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &verda.ScalingPolicy{
+					DelaySeconds: 300,
 				},
-				"scale_up_policy": map[string]any{
-					"delay_seconds": 300,
+				ScaleUpPolicy: &verda.ScalingPolicy{
+					DelaySeconds: 300,
 				},
-				"queue_message_ttl_seconds":       300,
-				"concurrent_requests_per_replica": 1,
-				"scaling_triggers": map[string]any{
-					"queue_load": map[string]any{
-						"threshold": 0.5,
+				QueueMessageTTLSeconds:       300,
+				ConcurrentRequestsPerReplica: 1,
+				ScalingTriggers: &verda.ScalingTriggers{
+					QueueLoad: &verda.QueueLoadTrigger{
+						Threshold: 0.5,
 					},
-					"cpu_utilization": map[string]any{
-						"enabled":   true,
-						"threshold": 80,
+					CPUUtilization: &verda.UtilizationTrigger{
+						Enabled:   true,
+						Threshold: 80,
 					},
-					"gpu_utilization": map[string]any{
-						"enabled":   true,
-						"threshold": 80,
+					GPUUtilization: &verda.UtilizationTrigger{
+						Enabled:   true,
+						Threshold: 80,
 					},
 				},
 			},
@@ -114,14 +114,14 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 					// Note: Don't set Name - API will auto-generate from image
 					Image:       "registry-1.docker.io/chentex/random-logger:v1.0.1",
 					ExposedPort: 8080,
-					Healthcheck: map[string]any{
-						"enabled": true,
-						"port":    8081,
-						"path":    "/health",
+					Healthcheck: &verda.ContainerHealthcheck{
+						Enabled: true,
+						Port:    8081,
+						Path:    "/health",
 					},
-					EntrypointOverrides: map[string]any{
-						"enabled": true,
-						"cmd":     []string{"10", "300"},
+					EntrypointOverrides: &verda.ContainerEntrypointOverrides{
+						Enabled: true,
+						Cmd:     []string{"10", "300"},
 					},
 					Env: []verda.ContainerEnvVar{
 						{
@@ -130,10 +130,10 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 							ValueOrReferenceToSecret: "initial-value",
 						},
 					},
-					VolumeMounts: []map[string]any{
+					VolumeMounts: []verda.ContainerVolumeMount{
 						{
-							"type":       "scratch",
-							"mount_path": "/data",
+							Type:      "scratch",
+							MountPath: "/data",
 						},
 					},
 				},

@@ -63,24 +63,25 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 	t.Run("1. CREATE job deployment", func(t *testing.T) {
 		req := &verda.CreateJobDeploymentRequest{
 			Name: jobName,
-			ContainerRegistrySettings: map[string]any{
-				"credentials": map[string]any{
-					"name": "dockerhub-credentials",
+			ContainerRegistrySettings: &verda.ContainerRegistrySettings{
+				IsPrivate: true,
+				Credentials: &verda.RegistryCredentialsRef{
+					Name: "dockerhub-credentials",
 				},
 			},
 			Containers: []verda.CreateDeploymentContainer{
 				{
 					Image:       "registry-1.docker.io/chentex/random-logger:v1.0.1",
 					ExposedPort: 8080,
-					Healthcheck: map[string]any{
-						"enabled": true,
-						"port":    8081,
-						"path":    "/health",
+					Healthcheck: &verda.ContainerHealthcheck{
+						Enabled: true,
+						Port:    8081,
+						Path:    "/health",
 					},
-					EntrypointOverrides: map[string]any{
-						"enabled":    true,
-						"entrypoint": []string{"python3", "main.py"},
-						"cmd":        []string{"--port", "8080"},
+					EntrypointOverrides: &verda.ContainerEntrypointOverrides{
+						Enabled:    true,
+						Entrypoint: []string{"python3", "main.py"},
+						Cmd:        []string{"--port", "8080"},
 					},
 					Env: []verda.ContainerEnvVar{
 						{
@@ -89,25 +90,24 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 							Type:                     "plain",
 						},
 					},
-					VolumeMounts: []map[string]any{
+					VolumeMounts: []verda.ContainerVolumeMount{
 						{
-							"type":        "scratch",
-							"mount_path":  "/data",
-							"secret_name": "my-secret",
-							"size_in_mb":  64,
-							"volumeId":    "fa4a0338-65b2-4819-8450-821190fbaf6d",
+							Type:       "scratch",
+							MountPath:  "/data",
+							SecretName: "my-secret",
+							SizeInMB:   64,
+							VolumeID:   "fa4a0338-65b2-4819-8450-821190fbaf6d",
 						},
 					},
 				},
 			},
-			Compute: map[string]any{
-				"name": "RTX 4500 Ada",
-				"size": 1,
+			Compute: &verda.ContainerCompute{
+				Name: "RTX 4500 Ada",
+				Size: 1,
 			},
-			Scaling: map[string]any{
-				"max_replica_count":         1,
-				"queue_message_ttl_seconds": 300, // API requires this field to be present
-				"deadline_seconds":          600,
+			Scaling: &verda.ContainerScalingOptions{
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300, // API requires this field to be present
 			},
 		}
 
@@ -481,10 +481,9 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 		// Update the job deployment using UpdateJobDeployment (PATCH)
 		updateReq := &verda.UpdateJobDeploymentRequest{
-			Scaling: map[string]any{
-				"max_replica_count":         4,
-				"queue_message_ttl_seconds": 1200,
-				"deadline_seconds":          600,
+			Scaling: &verda.ContainerScalingOptions{
+				MaxReplicaCount:        4,
+				QueueMessageTTLSeconds: 1200,
 			},
 		}
 
