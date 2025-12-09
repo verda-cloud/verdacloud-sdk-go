@@ -276,10 +276,21 @@ const (
 )
 
 // Instance status constants
+// Instance status constants
 const (
-	StatusRunning = "RUNNING"
-	StatusOffline = "OFFLINE"
-	StatusPending = "PENDING"
+	StatusNew          = "new"
+	StatusOrdered      = "ordered"
+	StatusProvisioning = "provisioning"
+	StatusValidating   = "validating"
+	StatusRunning      = "running"
+	StatusOffline      = "offline"
+	StatusPending      = "pending"
+	StatusDiscontinued = "discontinued"
+	StatusUnknown      = "unknown"
+	StatusNotFound     = "notfound"
+	StatusError        = "error"
+	StatusDeleting     = "deleting"
+	StatusNoCapacity   = "no_capacity"
 )
 
 // Default location

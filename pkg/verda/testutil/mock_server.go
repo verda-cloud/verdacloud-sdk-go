@@ -310,9 +310,10 @@ type ClusterImage struct {
 	Available   bool   `json:"available"`
 }
 
+// Instance status constants - must match pkg/verda/types.go values
 const (
-	StatusRunning = "RUNNING"
-	StatusPending = "PENDING"
+	StatusRunning = "running"
+	StatusPending = "pending"
 	LocationFIN01 = "FIN-01"
 	pathInstances = "/instances"
 	// nolint:gosec // G101: This is a URL path, not a credential
