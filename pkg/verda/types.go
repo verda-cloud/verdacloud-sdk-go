@@ -759,7 +759,7 @@ type CreateJobDeploymentRequest struct {
 	ContainerRegistrySettings *ContainerRegistrySettings  `json:"container_registry_settings,omitempty"`
 	Containers                []CreateDeploymentContainer `json:"containers"`
 	Compute                   *ContainerCompute           `json:"compute,omitempty"`
-	Scaling                   *ContainerScalingOptions    `json:"scaling,omitempty"`
+	Scaling                   *JobScalingOptions          `json:"scaling,omitempty"`
 }
 
 // UpdateJobDeploymentRequest represents a request to update a job deployment
@@ -768,7 +768,7 @@ type UpdateJobDeploymentRequest struct {
 	ContainerRegistrySettings *ContainerRegistrySettings  `json:"container_registry_settings,omitempty"`
 	Containers                []CreateDeploymentContainer `json:"containers,omitempty"`
 	Compute                   *ContainerCompute           `json:"compute,omitempty"`
-	Scaling                   *ContainerScalingOptions    `json:"scaling,omitempty"`
+	Scaling                   *JobScalingOptions          `json:"scaling,omitempty"`
 }
 
 // JobScalingOptions represents scaling configuration for a job deployment

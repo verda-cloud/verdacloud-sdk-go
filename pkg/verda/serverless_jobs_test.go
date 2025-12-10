@@ -107,7 +107,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 				Name: "H100",
 				Size: 1,
 			},
-			Scaling: &ContainerScalingOptions{
+			Scaling: &JobScalingOptions{
 				MaxReplicaCount:        1,
 				QueueMessageTTLSeconds: 300,
 			},
@@ -152,7 +152,7 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 				Name: "H100",
 				Size: 1,
 			},
-			Scaling: &ContainerScalingOptions{
+			Scaling: &JobScalingOptions{
 				MaxReplicaCount: 1,
 			},
 		}
@@ -189,7 +189,7 @@ func TestServerlessJobsService_DeleteJobDeployment(t *testing.T) {
 				Name: "H100",
 				Size: 1,
 			},
-			Scaling: &ContainerScalingOptions{
+			Scaling: &JobScalingOptions{
 				MaxReplicaCount: 1,
 			},
 		}
@@ -225,7 +225,7 @@ func TestServerlessJobsService_GetJobDeploymentStatus(t *testing.T) {
 				Name: "H100",
 				Size: 1,
 			},
-			Scaling: &ContainerScalingOptions{
+			Scaling: &JobScalingOptions{
 				MaxReplicaCount: 1,
 			},
 		}
@@ -261,7 +261,7 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 				Name: "H100",
 				Size: 1,
 			},
-			Scaling: &ContainerScalingOptions{
+			Scaling: &JobScalingOptions{
 				MaxReplicaCount: 1,
 			},
 		}
