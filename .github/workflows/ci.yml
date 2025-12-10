@@ -126,6 +126,29 @@ jobs:
             exit 1
           fi
 
+  # Vulnerability scanning with govulncheck
+  vuln-scan:
+    name: Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go (with security fixes for crypto/x509)
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.24.11"
+          cache: true
+
+      - name: Add Go bin to PATH
+        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Run govulncheck
+        run: govulncheck ./...
+
   # Integration tests (runs on PRs and after merge, skips if secrets unavailable)
   integration-test:
     name: Integration Tests
@@ -167,7 +190,7 @@ jobs:
   ci-success:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
-    needs: [lint, test, build, format, mod-tidy, integration-test]
+    needs: [lint, test, build, format, mod-tidy, vuln-scan, integration-test]
     steps:
       - name: Success
         run: echo "All CI checks passed successfully!"
