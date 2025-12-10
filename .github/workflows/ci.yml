@@ -134,10 +134,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go (latest patch version with security fixes)
+      - name: Set up Go (with security fixes for crypto/x509)
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
+          go-version: "1.24.11"
           cache: true
 
       - name: Add Go bin to PATH
