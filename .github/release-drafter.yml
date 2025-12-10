@@ -1,0 +1,26 @@
+name-template: "v$NEXT_PATCH_VERSION"
+tag-template: "v$NEXT_PATCH_VERSION"
+
+template: |
+  # 📝 Release Notes
+
+  ## 🚀 Summary
+  <!-- Summary goes here -->
+
+  ## ⚠️ BREAKING CHANGES
+  <!-- Breaking changes go here -->
+
+  ## ✨ API Improvements
+  <!-- API improvements go here -->
+
+  ## 🏗️ Type System
+  <!-- Type system notes go here -->
+
+  ## 🧪 Testing
+  <!-- Testing updates go here -->
+
+  ## 🔧 Other Changes
+  <!-- Misc changes go here -->
+
+  ## 🔍 Full Changelog
+  https://github.com/$OWNER/$REPO/compare/$PREVIOUS_TAG...$NEXT_TAG
