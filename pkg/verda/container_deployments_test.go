@@ -308,7 +308,7 @@ func TestContainerDeploymentsService_GetServerlessComputeResources(t *testing.T)
 			if resource.Name == "" {
 				t.Error("expected resource to have a Name")
 			}
-			if resource.Size == "" {
+			if resource.Size == 0 {
 				t.Error("expected resource to have a Size")
 			}
 		}
@@ -326,7 +326,7 @@ func TestContainerDeploymentsService_GetServerlessComputeResources(t *testing.T)
 				if resource.Name == "" {
 					t.Errorf("resource %d missing Name", i)
 				}
-				if resource.Size == "" {
+				if resource.Size == 0 {
 					t.Errorf("resource %d missing Size", i)
 				}
 			}
