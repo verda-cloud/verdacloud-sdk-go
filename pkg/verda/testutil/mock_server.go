@@ -1656,24 +1656,24 @@ func (ms *MockServer) handleGetServerlessComputeResources(w http.ResponseWriter,
 
 	type ComputeResource struct {
 		Name        string `json:"name"`
-		Size        string `json:"size"`
+		Size        int    `json:"size"`
 		IsAvailable bool   `json:"is_available"`
 	}
 
 	resources := []ComputeResource{
 		{
 			Name:        "H100",
-			Size:        "1",
+			Size:        1,
 			IsAvailable: true,
 		},
 		{
 			Name:        "A100",
-			Size:        "1",
+			Size:        1,
 			IsAvailable: true,
 		},
 		{
 			Name:        "RTX 4500 Ada",
-			Size:        "1",
+			Size:        1,
 			IsAvailable: false,
 		},
 	}

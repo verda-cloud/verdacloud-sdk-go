@@ -142,6 +142,8 @@ type Volume struct {
 	Status     string    `json:"status"`
 	CreatedAt  time.Time `json:"created_at"`
 	InstanceID *string   `json:"instance_id"`
+	Location   string    `json:"location"`
+	Contract   string    `json:"contract,omitempty"`
 }
 
 // VolumeType represents available volume type specifications
@@ -616,7 +618,7 @@ type DeleteEnvironmentVariablesRequest struct {
 // ComputeResource represents available compute resources
 type ComputeResource struct {
 	Name        string `json:"name"`
-	Size        string `json:"size"`
+	Size        int    `json:"size"`
 	IsAvailable bool   `json:"is_available"`
 }
 
