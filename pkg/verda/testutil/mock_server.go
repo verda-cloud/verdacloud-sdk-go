@@ -463,6 +463,8 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleUpdateEnvironmentVariables(w, r)
 	case r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleDeleteEnvironmentVariables(w, r)
+	case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/container-deployments/") && !strings.HasSuffix(r.URL.Path, "/scaling") && !strings.HasSuffix(r.URL.Path, "/environment-variables"):
+		ms.handleUpdateContainerDeployment(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/serverless-compute-resources":
 		ms.handleGetServerlessComputeResources(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/secrets":
@@ -1585,6 +1587,66 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *
 		"created_at": "2024-01-01T00:00:00.000Z",
 		"compute": {
 			"name": "RTX 4500 Ada",
+			"size": 1
+		},
+		"container_registry_settings": {
+			"is_private": false
+		},
+		"is_spot": false
+	}`
+
+	writeBytes(w, []byte(response))
+}
+
+func (ms *MockServer) handleUpdateContainerDeployment(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse request body to validate structure
+	var req map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "invalid JSON"})
+		return
+	}
+
+	// Validate containers have required name field (like the real API)
+	if containers, ok := req["containers"].([]interface{}); ok && len(containers) > 0 {
+		for i, c := range containers {
+			container, ok := c.(map[string]interface{})
+			if !ok {
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(w, map[string]string{"error": "invalid container format"})
+				return
+			}
+			// Check if name is missing or empty
+			name, hasName := container["name"]
+			if !hasName || name == nil || name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(w, map[string]interface{}{
+					"message": "containers." + string(rune('0'+i)) + ".name should not be null or undefined",
+				})
+				return
+			}
+		}
+	}
+
+	// Return updated deployment response
+	response := `{
+		"name": "test-deployment",
+		"containers": [
+			{
+				"name": "updated-container",
+				"image": {
+					"image": "nginx:latest",
+					"last_updated_at": "2024-01-01T00:00:00.000Z"
+				},
+				"exposed_port": 8080
+			}
+		],
+		"endpoint_base_url": "https://containers.datacrunch.io/test-deployment",
+		"created_at": "2024-01-01T00:00:00.000Z",
+		"compute": {
+			"name": "H100",
 			"size": 1
 		},
 		"container_registry_settings": {
