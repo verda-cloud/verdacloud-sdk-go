@@ -283,6 +283,44 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 			t.Error("UpdateDeployment should allow partial updates without containers")
 		}
 	})
+
+	t.Run("container update - with name", func(t *testing.T) {
+		ctx := context.Background()
+		req := &UpdateDeploymentRequest{
+			Containers: []CreateDeploymentContainer{
+				{
+					Name:        "my-container",
+					Image:       "nginx:latest",
+					ExposedPort: 8080,
+				},
+			},
+		}
+		deployment, err := client.ContainerDeployments.UpdateDeployment(ctx, "test-deployment", req)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+		if deployment == nil {
+			t.Fatal("expected deployment, got nil")
+		}
+	})
+
+	t.Run("validation - updating container without name", func(t *testing.T) {
+		ctx := context.Background()
+		req := &UpdateDeploymentRequest{
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:latest",
+					ExposedPort: 8080,
+					// Name is missing - API requires it for updates
+				},
+			},
+		}
+		// Should fail - API requires container name for updates
+		_, err := client.ContainerDeployments.UpdateDeployment(ctx, "test-deployment", req)
+		if err == nil {
+			t.Error("expected error when container name is missing")
+		}
+	})
 }
 
 func TestContainerDeploymentsService_GetServerlessComputeResources(t *testing.T) {

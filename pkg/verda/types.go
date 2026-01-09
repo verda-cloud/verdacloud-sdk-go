@@ -493,6 +493,7 @@ type CreateDeploymentRequest struct {
 // CreateDeploymentContainer represents a container configuration for create/update requests
 // Note: In requests, image is a string; in responses, image is an object
 type CreateDeploymentContainer struct {
+	Name                string                        `json:"name,omitempty"`
 	Image               string                        `json:"image"`
 	ExposedPort         int                           `json:"exposed_port,omitempty"`
 	Healthcheck         *ContainerHealthcheck         `json:"healthcheck,omitempty"`
