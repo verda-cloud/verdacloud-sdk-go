@@ -157,10 +157,13 @@ func FindAvailableClusterType(ctx context.Context, t *testing.T, client *verda.C
 	// Build a map of available cluster types by location
 	availableMap := make(map[string]map[string]bool) // clusterType -> locationCode -> available
 	for _, a := range availabilities {
-		if _, ok := availableMap[a.ClusterType]; !ok {
-			availableMap[a.ClusterType] = make(map[string]bool)
+		// Each availability entry has location_code and list of available cluster types
+		for _, clusterType := range a.Availabilities {
+			if _, ok := availableMap[clusterType]; !ok {
+				availableMap[clusterType] = make(map[string]bool)
+			}
+			availableMap[clusterType][a.LocationCode] = true
 		}
-		availableMap[a.ClusterType][a.LocationCode] = a.Available
 	}
 
 	// Get cluster images

@@ -102,8 +102,8 @@ func main() {
 		fmt.Printf("Found %d cluster types:\n", len(clusterTypes))
 		for i, ct := range clusterTypes {
 			if i < 5 { // Show first 5
-				fmt.Printf("- %s: $%.2f/hr (%s)\n",
-					ct.ClusterType, ct.PricePerHour.Float64(), ct.Description)
+				fmt.Printf("- %s (%s): $%.2f/hr - %s\n",
+					ct.ClusterType, ct.Model, ct.PricePerHour.Float64(), ct.Name)
 			}
 		}
 	}
@@ -116,11 +116,11 @@ func main() {
 	} else {
 		fmt.Printf("Cluster availability at %s:\n", verda.LocationFIN03)
 		for _, avail := range clusterAvailabilities {
-			status := "unavailable"
-			if avail.Available {
-				status = "available"
+			fmt.Printf("- Location %s: %d cluster types available\n",
+				avail.LocationCode, len(avail.Availabilities))
+			for _, clusterType := range avail.Availabilities {
+				fmt.Printf("  - %s\n", clusterType)
 			}
-			fmt.Printf("- %s: %s\n", avail.ClusterType, status)
 		}
 	}
 
@@ -132,7 +132,7 @@ func main() {
 	} else {
 		fmt.Printf("Available cluster images:\n")
 		for _, img := range clusterImages {
-			fmt.Printf("- %s: %s (v%s)\n", img.Name, img.Description, img.Version)
+			fmt.Printf("- %s (%s): %s\n", img.Name, img.ImageType, img.Category)
 		}
 	}
 
@@ -184,7 +184,7 @@ func main() {
 
 				// Cleanup (uncomment to delete after testing)
 				// fmt.Println("\n=== Cleaning up cluster ===")
-				// err = client.Clusters.Discontinue(ctx, clusterResp.ID)
+				// err = client.Clusters.Discontinue(ctx, []string{clusterResp.ID})
 				// if err != nil {
 				//     log.Printf("Error discontinuing cluster: %v", err)
 				// } else {

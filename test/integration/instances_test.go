@@ -64,7 +64,7 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 	}
 
 	// Try to delete
-	if err := client.Instances.Delete(ctx, instanceID, nil); err != nil {
+	if err := client.Instances.Delete(ctx, nil, instanceID); err != nil {
 		t.Logf("   ⚠️  Delete failed: %v, trying discontinue...", err)
 		if err := client.Instances.Discontinue(ctx, instanceID); err != nil {
 			t.Logf("   ⚠️  Discontinue also failed: %v", err)

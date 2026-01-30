@@ -63,6 +63,10 @@ func TestClusterService_Create(t *testing.T) {
 			Hostname:    "test-cluster",
 			Description: "Test cluster",
 			SSHKeyIDs:   []string{"key_123"},
+			SharedVolume: ClusterSharedVolumeSpec{
+				Name: "test-volume",
+				Size: 1000,
+			},
 		}
 
 		ctx := context.Background()
@@ -82,21 +86,27 @@ func TestClusterService_Create(t *testing.T) {
 
 	t.Run("create cluster with full config", func(t *testing.T) {
 		startupScriptID := "script_123"
-		coupon := "TEST_COUPON"
+		autoRenewal := true
+		turnToPayAsYouGo := false
 
 		req := CreateClusterRequest{
-			ClusterType:     "8V100.48V",
-			Image:           "ubuntu-22.04-cuda-12.0",
-			Hostname:        "test-cluster-full",
-			Description:     "Test cluster with full config",
-			SSHKeyIDs:       []string{"key_123", "key_456"},
-			LocationCode:    LocationFIN03,
-			Contract:        "hourly",
-			Pricing:         "on-demand",
-			StartupScriptID: &startupScriptID,
-			SharedVolumes:   []string{"vol_123"},
-			ExistingVolumes: []string{"vol_456"},
-			Coupon:          &coupon,
+			ClusterType:          "8V100.48V",
+			Image:                "ubuntu-22.04-cuda-12.0",
+			Hostname:             "test-cluster-full",
+			Description:          "Test cluster with full config",
+			SSHKeyIDs:            []string{"key_123", "key_456"},
+			LocationCode:         LocationFIN03,
+			Contract:             "PAY_AS_YOU_GO",
+			StartupScriptID:      &startupScriptID,
+			AutoRenewalExtension: &autoRenewal,
+			TurnToPayAsYouGo:     &turnToPayAsYouGo,
+			SharedVolume: ClusterSharedVolumeSpec{
+				Name: "cluster-volume",
+				Size: 5000,
+			},
+			ExistingVolumes: []ClusterExistingVolume{
+				{ID: "vol_456"},
+			},
 		}
 
 		ctx := context.Background()
@@ -111,39 +121,15 @@ func TestClusterService_Create(t *testing.T) {
 	})
 }
 
-func TestClusterService_Action(t *testing.T) {
+func TestClusterService_Discontinue(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
 	client := NewTestClient(mockServer)
 
-	t.Run("action on single cluster", func(t *testing.T) {
+	t.Run("discontinue single cluster", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Clusters.Action(ctx, "cluster_123", ClusterActionDiscontinue)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
-	t.Run("action on multiple clusters", func(t *testing.T) {
-		ctx := context.Background()
-		clusterIDs := []string{"cluster_123", "cluster_456"}
-		err := client.Clusters.Action(ctx, clusterIDs, ClusterActionDiscontinue)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-}
-
-func TestClusterService_ConvenienceMethods(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(mockServer)
-
-	t.Run("discontinue cluster", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.Clusters.Discontinue(ctx, "cluster_123")
+		err := client.Clusters.Discontinue(ctx, []string{"cluster_123"})
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -175,6 +161,34 @@ func TestClusterService_GetClusterTypes(t *testing.T) {
 		if len(clusterTypes) == 0 {
 			t.Error("expected at least one cluster type")
 		}
+
+		// Verify structure matches API documentation
+		for _, ct := range clusterTypes {
+			if ct.ID == "" {
+				t.Error("expected non-empty ID")
+			}
+			if ct.Model == "" {
+				t.Error("expected non-empty Model")
+			}
+			if ct.Name == "" {
+				t.Error("expected non-empty Name")
+			}
+			if ct.ClusterType == "" {
+				t.Error("expected non-empty ClusterType")
+			}
+			if ct.Currency == "" {
+				t.Error("expected non-empty Currency")
+			}
+			if ct.Manufacturer == "" {
+				t.Error("expected non-empty Manufacturer")
+			}
+			if len(ct.NodeDetails) == 0 {
+				t.Error("expected at least one node detail")
+			}
+			if len(ct.SupportedOS) == 0 {
+				t.Error("expected at least one supported OS")
+			}
+		}
 	})
 
 	t.Run("get cluster types with USD currency", func(t *testing.T) {
@@ -205,6 +219,16 @@ func TestClusterService_GetAvailabilities(t *testing.T) {
 
 		if len(availabilities) == 0 {
 			t.Error("expected at least one availability entry")
+		}
+
+		// Verify structure matches API documentation
+		for _, avail := range availabilities {
+			if avail.LocationCode == "" {
+				t.Error("expected non-empty LocationCode")
+			}
+			if len(avail.Availabilities) == 0 {
+				t.Error("expected at least one available cluster type")
+			}
 		}
 	})
 
@@ -265,6 +289,26 @@ func TestClusterService_GetImages(t *testing.T) {
 
 		if len(images) == 0 {
 			t.Error("expected at least one cluster image")
+		}
+
+		// Verify structure matches API documentation
+		for _, img := range images {
+			if img.ID == "" {
+				t.Error("expected non-empty ID")
+			}
+			if img.ImageType == "" {
+				t.Error("expected non-empty ImageType")
+			}
+			if img.Name == "" {
+				t.Error("expected non-empty Name")
+			}
+			if img.Category == "" {
+				t.Error("expected non-empty Category")
+			}
+			if len(img.Details) == 0 {
+				t.Error("expected at least one detail")
+			}
+			// IsDefault and IsCluster are booleans, no validation needed
 		}
 	})
 }

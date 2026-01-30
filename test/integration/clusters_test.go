@@ -28,33 +28,10 @@ func cleanupCluster(t *testing.T, client *verda.Client, clusterID string) {
 	}
 	t.Logf("   Current status: %s", cluster.Status)
 
-	// If running, shutdown first
-	if cluster.Status == verda.StatusRunning {
-		t.Log("   Shutting down...")
-		if err := client.Clusters.Shutdown(ctx, clusterID); err != nil {
-			t.Logf("   ⚠️  Shutdown failed: %v", err)
-		} else {
-			// Wait for shutdown
-			time.Sleep(30 * time.Second)
-		}
-	}
-
-	// If provisioning, wait a bit
-	if cluster.Status == verda.StatusPending || cluster.Status == "provisioning" {
-		t.Log("   Cluster is provisioning, waiting...")
-		time.Sleep(30 * time.Second)
-	}
-
-	// Try to discontinue (preferred for clusters)
-	if err := client.Clusters.Discontinue(ctx, clusterID); err != nil {
-		t.Logf("   ⚠️  Discontinue failed: %v, trying delete...", err)
-		if err := client.Clusters.Delete(ctx, clusterID); err != nil {
-			t.Logf("   ⚠️  Delete also failed: %v", err)
-		} else {
-			t.Log("   ✅ Deleted successfully")
-			// Wait for deletion to complete
-			time.Sleep(15 * time.Second)
-		}
+	// Note: Only discontinue action is allowed for clusters
+	// API does not support shutdown or delete actions
+	if err := client.Clusters.Discontinue(ctx, []string{clusterID}); err != nil {
+		t.Logf("   ⚠️  Discontinue failed: %v", err)
 	} else {
 		t.Log("   ✅ Discontinued successfully")
 		// Wait for discontinue to complete
@@ -281,15 +258,15 @@ func TestClusterTypes_Integration(t *testing.T) {
 		t.Logf("⚠️  Could not get availabilities: %v", err)
 	} else {
 		t.Logf("✅ Found %d availability entries:", len(availabilities))
-		availableCount := 0
 		for _, a := range availabilities {
-			if a.Available {
-				availableCount++
-				t.Logf("   ✅ %s at %s - AVAILABLE", a.ClusterType, a.LocationCode)
+			if len(a.Availabilities) > 0 {
+				t.Logf("   ✅ %s - %d cluster types available", a.LocationCode, len(a.Availabilities))
+				for _, ct := range a.Availabilities {
+					t.Logf("      - %s", ct)
+				}
+			} else {
+				t.Logf("   ⚠️  %s - No clusters available", a.LocationCode)
 			}
-		}
-		if availableCount == 0 {
-			t.Log("   ⚠️  No clusters currently available")
 		}
 	}
 
@@ -300,7 +277,7 @@ func TestClusterTypes_Integration(t *testing.T) {
 	} else {
 		t.Logf("✅ Found %d cluster images:", len(images))
 		for _, img := range images {
-			t.Logf("   - %s: %s", img.Name, img.Description)
+			t.Logf("   - %s (%s): %v", img.Name, img.ImageType, img.Details)
 		}
 	}
 }

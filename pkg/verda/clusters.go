@@ -41,55 +41,24 @@ func (s *ClusterService) Create(ctx context.Context, req CreateClusterRequest) (
 	return &response, nil
 }
 
-// Action performs cluster lifecycle operations
-func (s *ClusterService) Action(ctx context.Context, idList any, action string) error {
-	req := ClusterActionRequest{
-		IDList: idList,
-		Action: action,
+// Discontinue discontinues one or more clusters
+// Note: Only discontinue action is allowed for clusters.
+// Important: Local OS storage will be deleted. Shared volumes will be detached and should be deleted manually.
+func (s *ClusterService) Discontinue(ctx context.Context, clusterIDs []string) error {
+	actions := make([]ClusterActionItem, len(clusterIDs))
+	for i, id := range clusterIDs {
+		actions[i] = ClusterActionItem{
+			Action: ClusterActionDiscontinue,
+			ID:     id,
+		}
+	}
+
+	req := ClusterActionsRequest{
+		Actions: actions,
 	}
 
 	_, _, err := putRequest[any](ctx, s.client, "/clusters", req)
 	return err
-}
-
-// Boot boots a cluster
-func (s *ClusterService) Boot(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionBoot)
-}
-
-// Start starts a cluster
-func (s *ClusterService) Start(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionStart)
-}
-
-// Shutdown gracefully shuts down a cluster
-func (s *ClusterService) Shutdown(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionShutdown)
-}
-
-// ForceShutdown forcefully shuts down a cluster
-func (s *ClusterService) ForceShutdown(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionForceShutdown)
-}
-
-// Delete deletes a cluster
-func (s *ClusterService) Delete(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionDelete)
-}
-
-// DeleteStuck deletes a stuck cluster
-func (s *ClusterService) DeleteStuck(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionDeleteStuck)
-}
-
-// Discontinue discontinues a cluster
-func (s *ClusterService) Discontinue(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionDiscontinue)
-}
-
-// Hibernate hibernates a cluster - must be shut down first
-func (s *ClusterService) Hibernate(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionHibernate)
 }
 
 func (s *ClusterService) GetClusterTypes(ctx context.Context, currency string) ([]ClusterType, error) {

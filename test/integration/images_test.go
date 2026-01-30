@@ -49,8 +49,8 @@ func TestImagesIntegration(t *testing.T) {
 		// Log cluster image details
 		if len(clusterImages) > 0 {
 			for _, img := range clusterImages {
-				t.Logf("Cluster Image: %s (v%s) - Available: %v, Description: %s",
-					img.Name, img.Version, img.Available, img.Description)
+				t.Logf("Cluster Image: %s (%s) - Default: %v, Category: %s, Details: %v",
+					img.Name, img.ImageType, img.IsDefault, img.Category, img.Details)
 			}
 		}
 

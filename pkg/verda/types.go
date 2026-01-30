@@ -32,26 +32,29 @@ type InstanceStorage struct {
 // Instance represents a Verda instance
 type Instance struct {
 	ID              string          `json:"id"`
-	InstanceType    string          `json:"instance_type"`
-	Image           string          `json:"image"`
-	PricePerHour    FlexibleFloat   `json:"price_per_hour"`
-	Hostname        string          `json:"hostname"`
-	Description     string          `json:"description"`
 	IP              *string         `json:"ip"`
 	Status          string          `json:"status"`
 	CreatedAt       time.Time       `json:"created_at"`
-	SSHKeyIDs       []string        `json:"ssh_key_ids"`
 	CPU             InstanceCPU     `json:"cpu"`
 	GPU             InstanceGPU     `json:"gpu"`
+	GPUMemory       InstanceMemory  `json:"gpu_memory"`
 	Memory          InstanceMemory  `json:"memory"`
 	Storage         InstanceStorage `json:"storage"`
-	OSVolumeID      *string         `json:"os_volume_id"`
-	GPUMemory       InstanceMemory  `json:"gpu_memory"`
+	Hostname        string          `json:"hostname"`
+	Description     string          `json:"description"`
 	Location        string          `json:"location"`
+	PricePerHour    FlexibleFloat   `json:"price_per_hour"`
 	IsSpot          bool            `json:"is_spot"`
+	InstanceType    string          `json:"instance_type"`
+	Image           string          `json:"image"`
+	OSName          string          `json:"os_name"`
 	StartupScriptID *string         `json:"startup_script_id"`
+	SSHKeyIDs       []string        `json:"ssh_key_ids"`
+	OSVolumeID      *string         `json:"os_volume_id"`
+	JupyterToken    string          `json:"jupyter_token"`
 	Contract        string          `json:"contract"`
 	Pricing         string          `json:"pricing"`
+	VolumeIDs       []string        `json:"volume_ids"`
 }
 
 // CreateInstanceRequest represents the request to create an instance
@@ -123,8 +126,8 @@ type OSVolumeCreateRequest struct {
 
 // InstanceActionRequest represents an action to perform on instances
 type InstanceActionRequest struct {
-	ID        string   `json:"id"`
 	Action    string   `json:"action"`
+	ID        []string `json:"id"`
 	VolumeIDs []string `json:"volume_ids,omitempty"`
 }
 
@@ -345,43 +348,75 @@ const (
 	VolumeActionClone  = "clone"
 )
 
+// ClusterWorkerNode represents a worker node in a cluster
+type ClusterWorkerNode struct {
+	ID        string `json:"id"`
+	Hostname  string `json:"hostname"`
+	PublicIP  string `json:"public_ip"`
+	PrivateIP string `json:"private_ip"`
+	Status    string `json:"status"`
+}
+
+// ClusterSharedVolume represents a shared volume attached to a cluster
+type ClusterSharedVolume struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	MountPoint      string `json:"mount_point"`
+	SizeInGigabytes int    `json:"size_in_gigabytes"`
+}
+
 // Cluster represents a Verda cluster
 type Cluster struct {
-	ID              string          `json:"id"`
-	ClusterType     string          `json:"cluster_type"`
-	Image           string          `json:"image"`
-	PricePerHour    FlexibleFloat   `json:"price_per_hour"`
-	Hostname        string          `json:"hostname"`
-	Description     string          `json:"description"`
-	IP              *string         `json:"ip"`
-	Status          string          `json:"status"`
-	CreatedAt       time.Time       `json:"created_at"`
-	SSHKeyIDs       []string        `json:"ssh_key_ids"`
-	CPU             InstanceCPU     `json:"cpu"`
-	GPU             InstanceGPU     `json:"gpu"`
-	Memory          InstanceMemory  `json:"memory"`
-	Storage         InstanceStorage `json:"storage"`
-	GPUMemory       InstanceMemory  `json:"gpu_memory"`
-	Location        string          `json:"location"`
-	StartupScriptID *string         `json:"startup_script_id"`
-	Contract        string          `json:"contract"`
-	Pricing         string          `json:"pricing"`
+	ID                   string                `json:"id"`
+	IP                   *string               `json:"ip"`
+	Status               string                `json:"status"`
+	CreatedAt            time.Time             `json:"created_at"`
+	CPU                  InstanceCPU           `json:"cpu"`
+	GPU                  InstanceGPU           `json:"gpu"`
+	GPUMemory            InstanceMemory        `json:"gpu_memory"`
+	Memory               InstanceMemory        `json:"memory"`
+	Hostname             string                `json:"hostname"`
+	Description          string                `json:"description"`
+	Location             string                `json:"location"`
+	PricePerHour         FlexibleFloat         `json:"price_per_hour"`
+	ClusterType          string                `json:"cluster_type"`
+	Image                string                `json:"image"`
+	OSName               string                `json:"os_name"`
+	SSHKeyIDs            []string              `json:"ssh_key_ids"`
+	Contract             string                `json:"contract"`
+	StartupScriptID      *string               `json:"startup_script_id,omitempty"`
+	AutoRenewalExtension *bool                 `json:"auto_rental_extension,omitempty"`
+	TurnToPayAsYouGo     *bool                 `json:"turn_to_pay_as_you_go,omitempty"`
+	LongTermPeriod       *string               `json:"long_term_period,omitempty"`
+	WorkerNodes          []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
+	SharedVolumes        []ClusterSharedVolume `json:"shared_volumes,omitempty"`
+}
+
+// ClusterSharedVolumeSpec represents the shared volume specification for cluster creation
+type ClusterSharedVolumeSpec struct {
+	Name string `json:"name"`
+	Size int    `json:"size"` // Size in GB
+}
+
+// ClusterExistingVolume represents an existing volume to attach to a cluster
+type ClusterExistingVolume struct {
+	ID string `json:"id"`
 }
 
 // CreateClusterRequest represents the request to create a cluster
 type CreateClusterRequest struct {
-	ClusterType     string   `json:"cluster_type"`
-	Image           string   `json:"image"`
-	Hostname        string   `json:"hostname"`
-	Description     string   `json:"description,omitempty"`
-	SSHKeyIDs       []string `json:"ssh_key_ids"`
-	LocationCode    string   `json:"location_code,omitempty"`
-	Contract        string   `json:"contract,omitempty"`
-	Pricing         string   `json:"pricing,omitempty"`
-	StartupScriptID *string  `json:"startup_script_id,omitempty"`
-	SharedVolumes   []string `json:"shared_volumes,omitempty"`
-	ExistingVolumes []string `json:"existing_volumes,omitempty"`
-	Coupon          *string  `json:"coupon,omitempty"`
+	ClusterType          string                  `json:"cluster_type"`
+	Image                string                  `json:"image"`
+	Hostname             string                  `json:"hostname"`
+	Description          string                  `json:"description"`
+	SSHKeyIDs            []string                `json:"ssh_key_ids"`
+	LocationCode         string                  `json:"location_code,omitempty"`
+	Contract             string                  `json:"contract,omitempty"`
+	StartupScriptID      *string                 `json:"startup_script_id,omitempty"`
+	AutoRenewalExtension *bool                   `json:"auto_rental_extension,omitempty"`
+	TurnToPayAsYouGo     *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
+	SharedVolume         ClusterSharedVolumeSpec `json:"shared_volume"`
+	ExistingVolumes      []ClusterExistingVolume `json:"existing_volumes,omitempty"`
 }
 
 // CreateClusterResponse represents the response from creating a cluster
@@ -389,51 +424,54 @@ type CreateClusterResponse struct {
 	ID string `json:"id"`
 }
 
-// ClusterActionRequest represents an action to perform on clusters
-type ClusterActionRequest struct {
-	IDList any    `json:"id_list"` // Can be string or []string
-	Action string `json:"action"`
+// ClusterActionItem represents a single cluster action
+type ClusterActionItem struct {
+	Action string `json:"action"` // Must be "discontinue"
+	ID     string `json:"id"`
 }
 
-// ClusterAvailability represents cluster availability information
+// ClusterActionsRequest represents a request to perform actions on clusters
+type ClusterActionsRequest struct {
+	Actions []ClusterActionItem `json:"actions"`
+}
+
+// ClusterAvailability represents cluster availability information by location
 type ClusterAvailability struct {
-	ClusterType  string `json:"cluster_type"`
-	LocationCode string `json:"location_code"`
-	Available    bool   `json:"available"`
+	LocationCode   string   `json:"location_code"`
+	Availabilities []string `json:"availabilities"`
 }
 
 // ClusterType represents a cluster configuration type
 type ClusterType struct {
-	ClusterType  string          `json:"cluster_type"`
-	Description  string          `json:"description"`
-	PricePerHour FlexibleFloat   `json:"price_per_hour"`
-	CPU          InstanceCPU     `json:"cpu"`
-	GPU          InstanceGPU     `json:"gpu"`
-	Memory       InstanceMemory  `json:"memory"`
-	Storage      InstanceStorage `json:"storage"`
-	GPUMemory    InstanceMemory  `json:"gpu_memory"`
-	Manufacturer string          `json:"manufacturer"`
-	Available    bool            `json:"available"`
+	ID           string         `json:"id"`
+	Model        string         `json:"model"`
+	Name         string         `json:"name"`
+	ClusterType  string         `json:"cluster_type"`
+	CPU          InstanceCPU    `json:"cpu"`
+	GPU          InstanceGPU    `json:"gpu"`
+	GPUMemory    InstanceMemory `json:"gpu_memory"`
+	Memory       InstanceMemory `json:"memory"`
+	PricePerHour FlexibleFloat  `json:"price_per_hour"`
+	Currency     string         `json:"currency"`
+	Manufacturer string         `json:"manufacturer"`
+	NodeDetails  []interface{}  `json:"node_details"`
+	SupportedOS  []string       `json:"supported_os"`
 }
 
 // ClusterImage represents an OS image for clusters
 type ClusterImage struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Available   bool   `json:"available"`
+	ID        string   `json:"id"`
+	ImageType string   `json:"image_type"`
+	Name      string   `json:"name"`
+	IsDefault bool     `json:"is_default"`
+	Details   []string `json:"details"`
+	Category  string   `json:"category"`
+	IsCluster bool     `json:"is_cluster"`
 }
 
 // Cluster action constants
 const (
-	ClusterActionBoot          = "boot"
-	ClusterActionStart         = "start"
-	ClusterActionShutdown      = "shutdown"
-	ClusterActionDelete        = "delete"
-	ClusterActionDiscontinue   = "discontinue"
-	ClusterActionHibernate     = "hibernate"
-	ClusterActionForceShutdown = "force_shutdown"
-	ClusterActionDeleteStuck   = "delete_stuck"
+	ClusterActionDiscontinue = "discontinue"
 )
 
 // Container Deployment Types
