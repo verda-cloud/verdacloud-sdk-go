@@ -135,7 +135,11 @@ func (s *ContainerDeploymentsService) UpdateDeployment(ctx context.Context, depl
 }
 
 // DeleteDeployment removes a deployment with timeout in milliseconds (0-300000ms)
-// If timeoutMs <= 0, uses the API default of 60000ms (60 seconds)
+// timeoutMs behavior:
+//   - 0: Skip waiting (returns immediately)
+//   - Negative (e.g., -1): Use API default of 60000ms (omit query parameter)
+//   - 1-300000: Wait specified milliseconds
+//   - >300000: Capped at 300000ms
 func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, deploymentName string, timeoutMs int) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
@@ -143,26 +147,29 @@ func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, depl
 
 	path := fmt.Sprintf("/container-deployments/%s", deploymentName)
 
-	// Use default timeout of 60000ms if not specified
-	// Valid range: 0-300000ms
-	timeout := timeoutMs
-	if timeout <= 0 {
-		timeout = 60000 // default 60 seconds
-	} else if timeout > 300000 {
-		timeout = 300000 // max 300 seconds
+	// Handle timeout parameter based on API specification
+	// - Negative values: omit timeout parameter (API uses default 60000ms)
+	// - 0: skip waiting (return immediately)
+	// - 1-300000: explicit timeout value
+	// - >300000: cap at maximum 300000ms
+	if timeoutMs >= 0 {
+		timeout := timeoutMs
+		if timeout > 300000 {
+			timeout = 300000 // cap at max 300 seconds
+		}
+		params := url.Values{}
+		params.Set("timeout", fmt.Sprintf("%d", timeout))
+		path += "?" + params.Encode()
 	}
-
-	params := url.Values{}
-	params.Set("timeout", fmt.Sprintf("%d", timeout))
-	path += "?" + params.Encode()
+	// If timeoutMs < 0, don't add timeout parameter (use API default)
 
 	_, err := deleteRequestNoResult(ctx, s.client, path)
 	return err
 }
 
-func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, deploymentName string) (*DeploymentStatus, error) {
+func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, deploymentName string) (*ContainerDeploymentStatus, error) {
 	path := fmt.Sprintf("/container-deployments/%s/status", deploymentName)
-	status, _, err := getRequest[DeploymentStatus](ctx, s.client, path)
+	status, _, err := getRequest[ContainerDeploymentStatus](ctx, s.client, path)
 	if err != nil {
 		return nil, err
 	}

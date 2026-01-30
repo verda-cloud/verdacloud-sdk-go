@@ -481,7 +481,7 @@ type ContainerDeployment struct {
 	Name                      string                     `json:"name"`
 	Containers                []DeploymentContainer      `json:"containers"`
 	EndpointBaseURL           string                     `json:"endpoint_base_url"`
-	CreatedAt                 time.Time                  `json:"created_at"`
+	CreatedAt                 string                     `json:"created_at"`
 	Compute                   *ContainerCompute          `json:"compute,omitempty"`
 	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
 	IsSpot                    bool                       `json:"is_spot"`
@@ -496,7 +496,7 @@ type TargetNode struct {
 // ContainerRegistrySettings represents registry authentication settings
 type ContainerRegistrySettings struct {
 	IsPrivate   bool                    `json:"is_private"`
-	Credentials *RegistryCredentialsRef `json:"credentials,omitempty"`
+	Credentials *RegistryCredentialsRef `json:"credentials"`
 }
 
 // RegistryCredentialsRef references registry credentials by name
@@ -507,25 +507,25 @@ type RegistryCredentialsRef struct {
 // DeploymentContainer represents a container configuration in a deployment response
 type DeploymentContainer struct {
 	Image               ContainerImage                `json:"image"`
-	Name                string                        `json:"name,omitempty"`
-	ExposedPort         int                           `json:"exposed_port,omitempty"`
+	Name                string                        `json:"name"`
+	ExposedPort         int                           `json:"exposed_port"`
 	Healthcheck         *ContainerHealthcheck         `json:"healthcheck,omitempty"`
 	EntrypointOverrides *ContainerEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
-	Env                 []ContainerEnvVar             `json:"env,omitempty"`
-	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts,omitempty"`
+	Env                 []ContainerEnvVar             `json:"env"`
+	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts"`
 	AutoUpdate          *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
 }
 
 type ContainerImage struct {
-	Image         string    `json:"image"`
-	LastUpdatedAt time.Time `json:"last_updated_at,omitempty"`
+	Image         string `json:"image"`
+	LastUpdatedAt string `json:"last_updated_at,omitempty"`
 }
 
 // ContainerEnvVar represents an environment variable with type
 type ContainerEnvVar struct {
 	Type                     string `json:"type"` // "plain" or "secret"
 	Name                     string `json:"name"`
-	ValueOrReferenceToSecret string `json:"value_or_reference_to_secret,omitempty"`
+	ValueOrReferenceToSecret string `json:"value_or_reference_to_secret"`
 }
 
 // DeploymentScalingOptions represents scaling configuration for container deployment
@@ -573,64 +573,70 @@ type UpdateDeploymentRequest struct {
 	Containers                []CreateDeploymentContainer `json:"containers,omitempty"`
 }
 
-// DeploymentStatus represents the status of a deployment
-type DeploymentStatus struct {
-	Status            string `json:"status"`
-	DesiredReplicas   int    `json:"desired_replicas,omitempty"`
-	CurrentReplicas   int    `json:"current_replicas,omitempty"`
-	AvailableReplicas int    `json:"available_replicas,omitempty"`
-	UpdatedAt         string `json:"updated_at,omitempty"`
+// ContainerDeploymentStatus represents the status of a container deployment
+// Returned by GET /v1/container-deployments/{deployment_name}/status
+type ContainerDeploymentStatus struct {
+	Status string `json:"status"` // enum: initializing, healthy, degraded, unhealthy, paused, quota_reached, image_pulling, version_updating, terminating
 }
 
-// ContainerScalingOptions represents scaling configuration for container deployments
-// Used by both GET and PATCH /container-deployments/{name}/scaling
+// ContainerScalingOptions represents scaling configuration returned by GET /container-deployments/{name}/scaling
+// All fields are required in the response
 type ContainerScalingOptions struct {
-	MinReplicaCount              int              `json:"min_replica_count,omitempty"`
-	MaxReplicaCount              int              `json:"max_replica_count,omitempty"`
-	ScaleDownPolicy              *ScalingPolicy   `json:"scale_down_policy,omitempty"`
-	ScaleUpPolicy                *ScalingPolicy   `json:"scale_up_policy,omitempty"`
-	QueueMessageTTLSeconds       int              `json:"queue_message_ttl_seconds,omitempty"`
-	ConcurrentRequestsPerReplica int              `json:"concurrent_requests_per_replica,omitempty"`
-	ScalingTriggers              *ScalingTriggers `json:"scaling_triggers,omitempty"`
+	MinReplicaCount              int              `json:"min_replica_count"`
+	MaxReplicaCount              int              `json:"max_replica_count"`
+	ScaleDownPolicy              *ScalingPolicy   `json:"scale_down_policy"`
+	ScaleUpPolicy                *ScalingPolicy   `json:"scale_up_policy"`
+	QueueMessageTTLSeconds       int              `json:"queue_message_ttl_seconds"`
+	ConcurrentRequestsPerReplica int              `json:"concurrent_requests_per_replica"`
+	ScalingTriggers              *ScalingTriggers `json:"scaling_triggers"`
 }
 
 // ScalingPolicy represents scale up/down policy configuration
 type ScalingPolicy struct {
-	DelaySeconds int `json:"delay_seconds,omitempty"`
+	DelaySeconds int `json:"delay_seconds"`
 }
 
 // ScalingTriggers represents the various scaling triggers
 type ScalingTriggers struct {
-	QueueLoad      *QueueLoadTrigger   `json:"queue_load,omitempty"`
-	CPUUtilization *UtilizationTrigger `json:"cpu_utilization,omitempty"`
-	GPUUtilization *UtilizationTrigger `json:"gpu_utilization,omitempty"`
+	QueueLoad      *QueueLoadTrigger   `json:"queue_load"`
+	CPUUtilization *UtilizationTrigger `json:"cpu_utilization"`
+	GPUUtilization *UtilizationTrigger `json:"gpu_utilization"`
 }
 
 // QueueLoadTrigger represents queue load based scaling trigger
 type QueueLoadTrigger struct {
-	Threshold float64 `json:"threshold,omitempty"`
+	Threshold float64 `json:"threshold"`
 }
 
 // UtilizationTrigger represents CPU/GPU utilization based scaling trigger
 type UtilizationTrigger struct {
-	Enabled   bool `json:"enabled,omitempty"`
-	Threshold int  `json:"threshold,omitempty"`
+	Enabled   bool `json:"enabled"`
+	Threshold int  `json:"threshold"`
 }
 
-// UpdateScalingOptionsRequest is an alias for ContainerScalingOptions used for PATCH requests
+// UpdateScalingOptionsRequest represents a PATCH request to update scaling options
 // All fields are optional for partial updates
-type UpdateScalingOptionsRequest = ContainerScalingOptions
+type UpdateScalingOptionsRequest struct {
+	MinReplicaCount              *int             `json:"min_replica_count,omitempty"`
+	MaxReplicaCount              *int             `json:"max_replica_count,omitempty"`
+	ScaleDownPolicy              *ScalingPolicy   `json:"scale_down_policy,omitempty"`
+	ScaleUpPolicy                *ScalingPolicy   `json:"scale_up_policy,omitempty"`
+	QueueMessageTTLSeconds       *int             `json:"queue_message_ttl_seconds,omitempty"`
+	ConcurrentRequestsPerReplica *int             `json:"concurrent_requests_per_replica,omitempty"`
+	ScalingTriggers              *ScalingTriggers `json:"scaling_triggers,omitempty"`
+}
 
 // DeploymentReplicas represents replica information for a deployment
+// Returned by GET /v1/container-deployments/{deployment_name}/replicas
 type DeploymentReplicas struct {
-	Replicas []ReplicaInfo `json:"replicas"`
+	List []ReplicaInfo `json:"list"`
 }
 
 // ReplicaInfo represents information about a single replica
 type ReplicaInfo struct {
-	Name   string `json:"name"`
-	Status string `json:"status"`
-	Node   string `json:"node,omitempty"`
+	ID        string `json:"id"`         // Replica ID
+	Status    string `json:"status"`     // Replica status (e.g., "running")
+	StartedAt string `json:"started_at"` // ISO 8601 timestamp when replica started
 }
 
 // EnvironmentVariablesRequest represents a request to add/update environment variables
@@ -671,10 +677,9 @@ type ContainerAutoUpdate struct {
 }
 
 // DeleteEnvironmentVariablesRequest represents a request to delete environment variables
-// Uses the same format as add/update but only the Name field is required
 type DeleteEnvironmentVariablesRequest struct {
-	ContainerName string            `json:"container_name"`
-	Env           []ContainerEnvVar `json:"env"`
+	ContainerName string   `json:"container_name"`
+	Env           []string `json:"env"`
 }
 
 // ComputeResource represents available compute resources
@@ -702,7 +707,7 @@ type FileSecret struct {
 	Name       string   `json:"name"`
 	CreatedAt  string   `json:"created_at"`
 	SecretType string   `json:"secret_type"`
-	FileNames  []string `json:"file_names,omitempty"`
+	FileNames  []string `json:"file_names"`
 }
 
 // CreateFileSecretRequest represents a request to create a fileset secret
@@ -745,7 +750,7 @@ type CreateRegistryCredentialsRequest struct {
 type JobDeploymentShortInfo struct {
 	Name      string            `json:"name"`
 	CreatedAt string            `json:"created_at"`
-	Compute   *ContainerCompute `json:"compute,omitempty"`
+	Compute   *ContainerCompute `json:"compute"`
 }
 
 // JobDeployment represents a complete serverless job deployment
@@ -753,10 +758,10 @@ type JobDeploymentShortInfo struct {
 type JobDeployment struct {
 	Name                      string                     `json:"name"`
 	Containers                []DeploymentContainer      `json:"containers"`
-	EndpointBaseURL           string                     `json:"endpoint_base_url,omitempty"`
-	CreatedAt                 string                     `json:"created_at,omitempty"`
-	Compute                   *ContainerCompute          `json:"compute,omitempty"`
-	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
+	EndpointBaseURL           string                     `json:"endpoint_base_url"`
+	CreatedAt                 string                     `json:"created_at"`
+	Compute                   *ContainerCompute          `json:"compute"`
+	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings"`
 	Scaling                   *JobScalingOptions         `json:"scaling,omitempty"`
 }
 
@@ -787,11 +792,9 @@ type JobScalingOptions struct {
 }
 
 // JobDeploymentStatus represents the status of a job deployment
+// Status values: "paused", "terminating", "running"
 type JobDeploymentStatus struct {
-	Status        string `json:"status"`
-	ActiveJobs    int    `json:"active_jobs,omitempty"`
-	SucceededJobs int    `json:"succeeded_jobs,omitempty"`
-	FailedJobs    int    `json:"failed_jobs,omitempty"`
+	Status string `json:"status"`
 }
 
 // FlexibleFloat is a custom type that can unmarshal both string and float64 values

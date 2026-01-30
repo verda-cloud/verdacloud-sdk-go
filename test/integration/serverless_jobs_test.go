@@ -228,8 +228,7 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ Failed to get job deployment status: %v", err)
 		}
-		t.Logf("✅ Job deployment status: %s, active: %d, succeeded: %d, failed: %d",
-			status.Status, status.ActiveJobs, status.SucceededJobs, status.FailedJobs)
+		t.Logf("✅ Job deployment status: %s", status.Status)
 	})
 
 	// ==========================================
@@ -259,9 +258,11 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - job deployment was not created")
 		}
 
+		maxReplicas := 2
+		queueTTL := 600
 		updateReq := &verda.UpdateScalingOptionsRequest{
-			MaxReplicaCount:        2,
-			QueueMessageTTLSeconds: 600,
+			MaxReplicaCount:        &maxReplicas,
+			QueueMessageTTLSeconds: &queueTTL,
 		}
 
 		scaling, err := client.ServerlessJobs.UpdateJobDeploymentScaling(ctx, jobName, updateReq)
@@ -408,10 +409,8 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 		deleteReq := &verda.DeleteEnvironmentVariablesRequest{
 			ContainerName: containerName,
-			Env: []verda.ContainerEnvVar{
-				{
-					Name: "NEW_VAR_2",
-				},
+			Env: []string{
+				"NEW_VAR_2",
 			},
 		}
 
@@ -456,9 +455,11 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 		}
 
 		// Update scaling via the dedicated scaling endpoint
+		maxReplicas := 3
+		queueTTL := 900
 		updateReq := &verda.UpdateScalingOptionsRequest{
-			MaxReplicaCount:        3,
-			QueueMessageTTLSeconds: 900,
+			MaxReplicaCount:        &maxReplicas,
+			QueueMessageTTLSeconds: &queueTTL,
 		}
 
 		scaling, err := client.ServerlessJobs.UpdateJobDeploymentScaling(ctx, jobName, updateReq)

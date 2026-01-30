@@ -96,15 +96,26 @@ func (s *ServerlessJobsService) UpdateJobDeployment(ctx context.Context, jobName
 	return &job, nil
 }
 
-// DeleteJobDeployment removes a job with optional timeout in milliseconds
+// DeleteJobDeployment removes a job with timeout in milliseconds (0-300000ms)
+// timeoutMs behavior:
+//   - 0: Skip waiting (returns immediately)
+//   - Negative (e.g., -1): Use API default of 60000ms (omit query parameter)
+//   - 1-300000: Wait specified milliseconds
+//   - >300000: Capped at 300000ms
 func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName string, timeoutMs int) error {
 	path := fmt.Sprintf("/job-deployments/%s", jobName)
 
-	if timeoutMs > 0 {
+	// Handle timeout parameter based on API specification
+	if timeoutMs >= 0 {
+		timeout := timeoutMs
+		if timeout > 300000 {
+			timeout = 300000 // cap at max 300 seconds
+		}
 		params := url.Values{}
-		params.Set("timeout", fmt.Sprintf("%d", timeoutMs))
+		params.Set("timeout", fmt.Sprintf("%d", timeout))
 		path += "?" + params.Encode()
 	}
+	// If timeoutMs < 0, don't add timeout parameter (use API default)
 
 	_, err := deleteRequestNoResult(ctx, s.client, path)
 	return err

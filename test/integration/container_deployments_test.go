@@ -254,8 +254,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		if err != nil {
 			t.Fatalf("❌ Failed to get deployment status: %v", err)
 		}
-		t.Logf("✅ Deployment status: %s, replicas - desired: %d, current: %d, available: %d",
-			status.Status, status.DesiredReplicas, status.CurrentReplicas, status.AvailableReplicas)
+		t.Logf("✅ Deployment status: %s", status.Status)
 	})
 
 	// ==========================================
@@ -285,10 +284,13 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
+		maxReplicas := 2
+		minReplicas := 0
+		queueTTL := 600
 		updateReq := &verda.UpdateScalingOptionsRequest{
-			MaxReplicaCount:        2,
-			MinReplicaCount:        0,
-			QueueMessageTTLSeconds: 600,
+			MaxReplicaCount:        &maxReplicas,
+			MinReplicaCount:        &minReplicas,
+			QueueMessageTTLSeconds: &queueTTL,
 		}
 
 		scaling, err := client.ContainerDeployments.UpdateDeploymentScaling(ctx, depName, updateReq)
@@ -435,10 +437,8 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 		deleteReq := &verda.DeleteEnvironmentVariablesRequest{
 			ContainerName: containerName,
-			Env: []verda.ContainerEnvVar{
-				{
-					Name: "NEW_VAR_2",
-				},
+			Env: []string{
+				"NEW_VAR_2",
 			},
 		}
 
@@ -485,17 +485,21 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		// Note: For full deployment updates with containers, the API may require specific container formats.
 		// Here we just update scaling via the dedicated scaling endpoint which we tested in steps 5-7.
 		// This step demonstrates that full deployment update works for scaling configuration.
+		minReplicas := 1
+		maxReplicas := 3
+		queueTTL := 900
+		concurrentReq := 2
 		updateReq := &verda.UpdateScalingOptionsRequest{
-			MinReplicaCount: 1,
-			MaxReplicaCount: 3,
+			MinReplicaCount: &minReplicas,
+			MaxReplicaCount: &maxReplicas,
 			ScaleDownPolicy: &verda.ScalingPolicy{
 				DelaySeconds: 600,
 			},
 			ScaleUpPolicy: &verda.ScalingPolicy{
 				DelaySeconds: 120,
 			},
-			QueueMessageTTLSeconds:       900,
-			ConcurrentRequestsPerReplica: 2,
+			QueueMessageTTLSeconds:       &queueTTL,
+			ConcurrentRequestsPerReplica: &concurrentReq,
 			ScalingTriggers: &verda.ScalingTriggers{
 				QueueLoad: &verda.QueueLoadTrigger{
 					Threshold: 1.5,
@@ -578,9 +582,9 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Logf("⚠️  GetDeploymentReplicas: %v", err)
 		} else {
-			t.Logf("✅ Found %d replicas", len(replicas.Replicas))
-			for _, r := range replicas.Replicas {
-				t.Logf("   - Replica: %s, Status: %s", r.Name, r.Status)
+			t.Logf("✅ Found %d replicas", len(replicas.List))
+			for _, r := range replicas.List {
+				t.Logf("   - Replica ID: %s, Status: %s, Started: %s", r.ID, r.Status, r.StartedAt)
 			}
 		}
 	})
