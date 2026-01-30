@@ -124,7 +124,7 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 				QueueMessageTTLSeconds:       300,
 				ConcurrentRequestsPerReplica: 1,
 				ScalingTriggers: &ScalingTriggers{
-					QueueLoad:      &QueueLoadTrigger{Threshold: 0.5},
+					QueueLoad:      &QueueLoadTrigger{Threshold: 1}, // Must be >= 1
 					CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 					GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 				},

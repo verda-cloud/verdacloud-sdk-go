@@ -202,7 +202,7 @@ func TestVolumeService_CreateVolume(t *testing.T) {
 	t.Run("create volume", func(t *testing.T) {
 		req := VolumeCreateRequest{
 			Type:         VolumeTypeNVMe,
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 			Size:         100,
 			Name:         "New Test Volume",
 		}
@@ -357,7 +357,7 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 	t.Run("clone volume", func(t *testing.T) {
 		req := VolumeCloneRequest{
 			Name:         "Cloned Volume",
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 		}
 
 		ctx := context.Background()
@@ -466,7 +466,7 @@ func TestVolumeService_ErrorHandling(t *testing.T) {
 
 		req := VolumeCreateRequest{
 			Type:         VolumeTypeNVMe,
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 			Size:         0, // Invalid size
 			Name:         "Invalid Volume",
 		}

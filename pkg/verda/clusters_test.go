@@ -90,7 +90,7 @@ func TestClusterService_Create(t *testing.T) {
 			Hostname:        "test-cluster-full",
 			Description:     "Test cluster with full config",
 			SSHKeyIDs:       []string{"key_123", "key_456"},
-			LocationCode:    LocationFIN01,
+			LocationCode:    LocationFIN03,
 			Contract:        "hourly",
 			Pricing:         "on-demand",
 			StartupScriptID: &startupScriptID,
@@ -210,7 +210,7 @@ func TestClusterService_GetAvailabilities(t *testing.T) {
 
 	t.Run("get cluster availabilities for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		availabilities, err := client.Clusters.GetAvailabilities(ctx, LocationFIN01)
+		availabilities, err := client.Clusters.GetAvailabilities(ctx, LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -240,7 +240,7 @@ func TestClusterService_CheckClusterTypeAvailability(t *testing.T) {
 
 	t.Run("check cluster type availability for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		available, err := client.Clusters.CheckClusterTypeAvailability(ctx, "8V100.48V", LocationFIN01)
+		available, err := client.Clusters.CheckClusterTypeAvailability(ctx, "8V100.48V", LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

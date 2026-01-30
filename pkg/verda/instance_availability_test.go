@@ -38,7 +38,7 @@ func TestInstanceAvailabilityService_GetAllAvailabilities(t *testing.T) {
 
 	t.Run("get availabilities for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, false, "FIN-01")
+		availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, false, LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -62,7 +62,7 @@ func TestInstanceAvailabilityService_GetAllAvailabilities(t *testing.T) {
 
 	t.Run("get spot availabilities for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, true, "FIN-01")
+		availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, true, LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -139,7 +139,7 @@ func TestInstanceAvailabilityService_GetInstanceTypeAvailability(t *testing.T) {
 
 	t.Run("check availability for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1V100.6V", false, "FIN-01")
+		available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1V100.6V", false, LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -150,7 +150,7 @@ func TestInstanceAvailabilityService_GetInstanceTypeAvailability(t *testing.T) {
 
 	t.Run("check availability with all parameters", func(t *testing.T) {
 		ctx := context.Background()
-		available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1H100.80S.22V", true, "FIN-01")
+		available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1H100.80S.22V", true, LocationFIN03)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

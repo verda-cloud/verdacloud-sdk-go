@@ -19,26 +19,8 @@ func (s *ServerlessJobsService) GetJobDeployments(ctx context.Context) ([]JobDep
 }
 
 func (s *ServerlessJobsService) CreateJobDeployment(ctx context.Context, req *CreateJobDeploymentRequest) (*JobDeployment, error) {
-	// Validate required fields for create
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if req.Compute == nil {
-		return nil, fmt.Errorf("compute is required")
-	}
-	if req.Scaling == nil {
-		return nil, fmt.Errorf("scaling is required")
-	}
-	if len(req.Containers) == 0 {
-		return nil, fmt.Errorf("at least one container is required")
-	}
-	for i, c := range req.Containers {
-		if c.Image == "" {
-			return nil, fmt.Errorf("containers[%d].image is required", i)
-		}
+	if err := validateCreateJobDeploymentRequest(req); err != nil {
+		return nil, err
 	}
 
 	job, _, err := postRequest[JobDeployment](ctx, s.client, "/job-deployments", req)
@@ -46,6 +28,54 @@ func (s *ServerlessJobsService) CreateJobDeployment(ctx context.Context, req *Cr
 		return nil, err
 	}
 	return &job, nil
+}
+
+// validateCreateJobDeploymentRequest validates all required fields for job deployment creation
+func validateCreateJobDeploymentRequest(req *CreateJobDeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+
+	// Basic required fields
+	if req.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if req.Compute == nil {
+		return fmt.Errorf("compute is required")
+	}
+	if req.Compute.Name == "" {
+		return fmt.Errorf("compute.name is required")
+	}
+
+	// Container validation
+	if len(req.Containers) == 0 {
+		return fmt.Errorf("at least one container is required")
+	}
+	for i, c := range req.Containers {
+		if c.Image == "" {
+			return fmt.Errorf("containers[%d].image is required", i)
+		}
+		// Check for "latest" tag - API does not allow it
+		if isLatestTag(c.Image) {
+			return fmt.Errorf("containers[%d].image: 'latest' tag is not allowed, please specify a specific version tag (e.g., alpine:3.19)", i)
+		}
+	}
+
+	// Scaling validation
+	if req.Scaling == nil {
+		return fmt.Errorf("scaling is required")
+	}
+	if req.Scaling.MaxReplicaCount == 0 {
+		return fmt.Errorf("scaling.max_replica_count is required")
+	}
+	if req.Scaling.DeadlineSeconds == 0 {
+		return fmt.Errorf("scaling.deadline_seconds is required (job timeout in seconds)")
+	}
+	if req.Scaling.QueueMessageTTLSeconds == 0 {
+		return fmt.Errorf("scaling.queue_message_ttl_seconds is required")
+	}
+
+	return nil
 }
 
 func (s *ServerlessJobsService) GetJobDeploymentByName(ctx context.Context, jobName string) (*JobDeployment, error) {

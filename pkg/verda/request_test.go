@@ -161,7 +161,7 @@ func TestServiceIntegration(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(balance)
 		case "/locations":
 			locations := []Location{
-				{Code: "FIN-01", Name: "Finland 1", CountryCode: "FI"},
+				{Code: "FIN-03", Name: "Finland 1", CountryCode: "FI"},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(locations)

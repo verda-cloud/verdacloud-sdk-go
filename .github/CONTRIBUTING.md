@@ -554,3 +554,30 @@ By contributing, you agree that your contributions will be licensed under the MI
 ---
 
 **Thank you for contributing!** 🎉
+
+## Release Workflow
+
+This project tracks changes in [CHANGELOG.md](../../CHANGELOG.md).
+
+### 1. Development (Unreleased)
+When merging PRs, ensure significant changes are added to the `[Unreleased]` section of `CHANGELOG.md`.
+
+### 2. Creating a Release
+To cut a new release (e.g., `v1.2.3`):
+
+1. **Run the release script:**
+   ```bash
+   make release VERSION=v1.2.3
+   ```
+   This moves "Unreleased" changes to a new `[v1.2.3]` section.
+
+2. **Verify CHANGELOG.md:**
+   Check that the entries look correct.
+
+3. **Commit and Tag:**
+   ```bash
+   git add CHANGELOG.md
+   git commit -m "chore: release v1.2.3"
+   git tag v1.2.3
+   git push origin main v1.2.3
+   ```

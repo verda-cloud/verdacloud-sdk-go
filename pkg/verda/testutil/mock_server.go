@@ -81,9 +81,7 @@ type Instance struct {
 	GPUMemory       map[string]interface{} `json:"gpu_memory"`
 	Location        string                 `json:"location"`
 	IsSpot          bool                   `json:"is_spot"`
-	OSName          string                 `json:"os_name"`
 	StartupScriptID *string                `json:"startup_script_id"`
-	JupyterToken    *string                `json:"jupyter_token"`
 	Contract        string                 `json:"contract"`
 	Pricing         string                 `json:"pricing"`
 }
@@ -258,7 +256,6 @@ type Cluster struct {
 	Storage         map[string]interface{} `json:"storage"`
 	GPUMemory       map[string]interface{} `json:"gpu_memory"`
 	Location        string                 `json:"location"`
-	OSName          string                 `json:"os_name"`
 	StartupScriptID *string                `json:"startup_script_id"`
 	Contract        string                 `json:"contract"`
 	Pricing         string                 `json:"pricing"`
@@ -314,7 +311,7 @@ type ClusterImage struct {
 const (
 	StatusRunning = "running"
 	StatusPending = "pending"
-	LocationFIN01 = "FIN-01"
+	LocationFIN03 = "FIN-03"
 	pathInstances = "/instances"
 	// nolint:gosec // G101: This is a URL path, not a credential
 	pathOAuth2Token = "/oauth2/token"
@@ -561,9 +558,8 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 			Memory:       map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
 			Storage:      map[string]interface{}{"description": "100GB SSD"},
 			GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Location:     LocationFIN01,
+			Location:     LocationFIN03,
 			IsSpot:       false,
-			OSName:       "test-instance-os",
 			Contract:     "PAY_AS_YOU_GO",
 			Pricing:      "FIXED_PRICE",
 		},
@@ -599,9 +595,8 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		Memory:       map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
 		Storage:      map[string]interface{}{"description": "100GB SSD"},
 		GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Location:     LocationFIN01,
+		Location:     LocationFIN03,
 		IsSpot:       false,
-		OSName:       instanceID + "-os",
 		Contract:     "PAY_AS_YOU_GO",
 		Pricing:      "FIXED_PRICE",
 	}
@@ -621,7 +616,7 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 	// Use LocationCode if provided, otherwise default
 	location := req.LocationCode
 	if location == "" {
-		location = LocationFIN01
+		location = LocationFIN03
 	}
 
 	// Use Contract and Pricing if provided, otherwise use defaults
@@ -652,7 +647,6 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 		GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
 		Location:     location,
 		IsSpot:       req.IsSpot,
-		OSName:       "inst_new_123-os",
 		Contract:     contract,
 		Pricing:      pricing,
 	}
@@ -704,7 +698,7 @@ func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request)
 
 	locations := []Location{
 		{
-			Code:        LocationFIN01,
+			Code:        LocationFIN03,
 			Name:        "Finland 01",
 			Country:     "Finland",
 			CountryCode: "FI",
@@ -1001,8 +995,7 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 			Storage:      map[string]interface{}{"description": "1TB SSD"},
 			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-			Location:     LocationFIN01,
-			OSName:       "test-cluster-os",
+			Location:     LocationFIN03,
 			Contract:     "PAY_AS_YOU_GO",
 			Pricing:      "FIXED_PRICE",
 		},
@@ -1037,8 +1030,7 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 		Storage:      map[string]interface{}{"description": "1TB SSD"},
 		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-		Location:     LocationFIN01,
-		OSName:       clusterID + "-os",
+		Location:     LocationFIN03,
 		Contract:     "PAY_AS_YOU_GO",
 		Pricing:      "FIXED_PRICE",
 	}
@@ -1102,7 +1094,7 @@ func (ms *MockServer) handleGetClusterAvailabilities(w http.ResponseWriter, _ *h
 	availabilities := []ClusterAvailability{
 		{
 			ClusterType:  "8V100.48V",
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 			Available:    true,
 		},
 	}
@@ -1342,7 +1334,7 @@ func (ms *MockServer) handleGetInstanceAvailabilities(w http.ResponseWriter, _ *
 
 	availabilities := []LocationAvailability{
 		{
-			LocationCode:   LocationFIN01,
+			LocationCode:   LocationFIN03,
 			Availabilities: []string{"1V100.6V", "8V100.48V"},
 		},
 		{

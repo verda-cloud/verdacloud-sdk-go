@@ -201,8 +201,8 @@ func TestLocationService_Get(t *testing.T) {
 		}
 
 		location := locations[0]
-		if location.Code != LocationFIN01 {
-			t.Errorf("expected location code '%s', got '%s'", LocationFIN01, location.Code)
+		if location.Code != LocationFIN03 {
+			t.Errorf("expected location code '%s', got '%s'", LocationFIN03, location.Code)
 		}
 
 		if location.Name != "Finland 01" {

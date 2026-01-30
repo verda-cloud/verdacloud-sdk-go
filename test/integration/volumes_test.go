@@ -150,7 +150,7 @@ func TestCreateVolume_Integration(t *testing.T) {
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 		Type:         verda.VolumeTypeNVMe,
-		LocationCode: verda.LocationFIN01,
+		LocationCode: verda.LocationFIN03,
 		Size:         50,
 		Name:         "integration-test-volume",
 	})
@@ -255,7 +255,7 @@ func TestVolumeLifecycle_Integration(t *testing.T) {
 	for _, config := range volumeConfigs {
 		volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 			Type:         config.volumeType,
-			LocationCode: verda.LocationFIN01,
+			LocationCode: verda.LocationFIN03,
 			Size:         config.size,
 			Name:         config.name,
 		})
@@ -340,7 +340,7 @@ func TestVolumeRename_Integration(t *testing.T) {
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 		Type:         verda.VolumeTypeNVMe,
-		LocationCode: verda.LocationFIN01,
+		LocationCode: verda.LocationFIN03,
 		Size:         50,
 		Name:         "test-volume-rename-original",
 	})
@@ -401,7 +401,7 @@ func TestVolumeResize_Integration(t *testing.T) {
 	ctx := context.Background()
 	volumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 		Type:         verda.VolumeTypeNVMe,
-		LocationCode: verda.LocationFIN01,
+		LocationCode: verda.LocationFIN03,
 		Size:         50,
 		Name:         "test-volume-resize",
 	})
@@ -462,7 +462,7 @@ func TestVolumeClone_Integration(t *testing.T) {
 	ctx := context.Background()
 	originalVolumeID, err := client.Volumes.CreateVolume(ctx, verda.VolumeCreateRequest{
 		Type:         verda.VolumeTypeNVMe,
-		LocationCode: verda.LocationFIN01,
+		LocationCode: verda.LocationFIN03,
 		Size:         50,
 		Name:         "test-volume-original",
 	})
@@ -488,7 +488,7 @@ func TestVolumeClone_Integration(t *testing.T) {
 	// Clone the volume
 	clonedVolumeID, err := client.Volumes.CloneVolume(ctx, originalVolumeID, verda.VolumeCloneRequest{
 		Name:         "test-volume-cloned",
-		LocationCode: verda.LocationFIN01,
+		LocationCode: verda.LocationFIN03,
 	})
 
 	if err != nil {

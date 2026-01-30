@@ -112,7 +112,7 @@ newInstance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
     Image:        "ubuntu-24.04-cuda-12.8-open-docker",
     Hostname:     "my-gpu-box",
     SSHKeyIDs:    []string{"ssh_key_id"},
-    LocationCode: verda.LocationFIN01,
+    LocationCode: verda.LocationFIN03,
 })
 
 // Control instances

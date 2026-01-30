@@ -44,29 +44,8 @@ func (s *ContainerDeploymentsService) GetDeploymentsForProject(ctx context.Conte
 }
 
 func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req *CreateDeploymentRequest) (*ContainerDeployment, error) {
-	// Validate required fields for create
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if req.Compute.Name == "" {
-		return nil, fmt.Errorf("compute is required")
-	}
-	if req.Scaling.MaxReplicaCount == 0 {
-		return nil, fmt.Errorf("scaling.max_replica_count is required")
-	}
-	if len(req.Containers) == 0 {
-		return nil, fmt.Errorf("at least one container is required")
-	}
-	for i, c := range req.Containers {
-		if c.Image == "" {
-			return nil, fmt.Errorf("containers[%d].image is required", i)
-		}
-		if c.ExposedPort == 0 {
-			return nil, fmt.Errorf("containers[%d].exposed_port is required", i)
-		}
+	if err := validateCreateDeploymentRequest(req); err != nil {
+		return nil, err
 	}
 
 	deployment, _, err := postRequest[ContainerDeployment](ctx, s.client, "/container-deployments", req)
@@ -74,6 +53,57 @@ func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req 
 		return nil, err
 	}
 	return &deployment, nil
+}
+
+// validateCreateDeploymentRequest validates all required fields for container deployment creation
+func validateCreateDeploymentRequest(req *CreateDeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+
+	// Basic required fields
+	if req.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if req.Compute.Name == "" {
+		return fmt.Errorf("compute.name is required")
+	}
+
+	// Container validation
+	if len(req.Containers) == 0 {
+		return fmt.Errorf("at least one container is required")
+	}
+	for i, c := range req.Containers {
+		if c.Image == "" {
+			return fmt.Errorf("containers[%d].image is required", i)
+		}
+		// Check for "latest" tag - API does not allow it
+		if isLatestTag(c.Image) {
+			return fmt.Errorf("containers[%d].image: 'latest' tag is not allowed, please specify a specific version tag (e.g., nginx:1.25.3)", i)
+		}
+		if c.ExposedPort == 0 {
+			return fmt.Errorf("containers[%d].exposed_port is required", i)
+		}
+	}
+
+	// Scaling validation
+	if req.Scaling.MaxReplicaCount == 0 {
+		return fmt.Errorf("scaling.max_replica_count is required")
+	}
+	if req.Scaling.ScaleDownPolicy == nil {
+		return fmt.Errorf("scaling.scale_down_policy is required")
+	}
+	if req.Scaling.ScaleUpPolicy == nil {
+		return fmt.Errorf("scaling.scale_up_policy is required")
+	}
+	if req.Scaling.ScalingTriggers == nil {
+		return fmt.Errorf("scaling.scaling_triggers is required")
+	}
+	if req.Scaling.ScalingTriggers.QueueLoad != nil && req.Scaling.ScalingTriggers.QueueLoad.Threshold < 1 {
+		return fmt.Errorf("scaling.scaling_triggers.queue_load.threshold must be >= 1")
+	}
+
+	return nil
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentByName(ctx context.Context, deploymentName string) (*ContainerDeployment, error) {

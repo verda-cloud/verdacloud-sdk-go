@@ -76,7 +76,7 @@ func main() {
 		fmt.Printf("Available locations:\n")
 		for _, location := range locations {
 			status := "unavailable"
-			if location.Code == verda.LocationFIN01 {
+			if location.Code == verda.LocationFIN03 {
 				status = "available"
 			}
 			fmt.Printf("- %s (%s): %s - %s\n",
@@ -102,7 +102,7 @@ func main() {
 			Hostname:     "test-instance",
 			Description:  "Test instance from Go SDK",
 			SSHKeyIDs:    []string{}, // Add your SSH key IDs here
-			LocationCode: verda.LocationFIN01,
+			LocationCode: verda.LocationFIN03,
 			Contract:     "PAY_AS_YOU_GO",
 			Pricing:      "FIXED_PRICE",
 		})

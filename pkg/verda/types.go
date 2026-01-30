@@ -49,9 +49,7 @@ type Instance struct {
 	GPUMemory       InstanceMemory  `json:"gpu_memory"`
 	Location        string          `json:"location"`
 	IsSpot          bool            `json:"is_spot"`
-	OSName          string          `json:"os_name"`
 	StartupScriptID *string         `json:"startup_script_id"`
-	JupyterToken    *string         `json:"jupyter_token"`
 	Contract        string          `json:"contract"`
 	Pricing         string          `json:"pricing"`
 }
@@ -297,7 +295,7 @@ const (
 
 // Default location
 const (
-	LocationFIN01 = "FIN-01"
+	LocationFIN03 = "FIN-03"
 )
 
 // Volume type constants
@@ -346,7 +344,6 @@ type Cluster struct {
 	Storage         InstanceStorage `json:"storage"`
 	GPUMemory       InstanceMemory  `json:"gpu_memory"`
 	Location        string          `json:"location"`
-	OSName          string          `json:"os_name"`
 	StartupScriptID *string         `json:"startup_script_id"`
 	Contract        string          `json:"contract"`
 	Pricing         string          `json:"pricing"`
@@ -410,7 +407,14 @@ type ClusterImage struct {
 
 // Cluster action constants
 const (
-	ClusterActionDiscontinue = "discontinue"
+	ClusterActionBoot          = "boot"
+	ClusterActionStart         = "start"
+	ClusterActionShutdown      = "shutdown"
+	ClusterActionDelete        = "delete"
+	ClusterActionDiscontinue   = "discontinue"
+	ClusterActionHibernate     = "hibernate"
+	ClusterActionForceShutdown = "force_shutdown"
+	ClusterActionDeleteStuck   = "delete_stuck"
 )
 
 // Container Deployment Types
@@ -618,9 +622,9 @@ type DeleteEnvironmentVariablesRequest struct {
 
 // ComputeResource represents available compute resources
 type ComputeResource struct {
-	Name        string `json:"name"`
-	Size        int    `json:"size"`
-	IsAvailable bool   `json:"is_available"`
+	Name        string      `json:"name"`
+	Size        interface{} `json:"size"` // Can be string or number depending on API version
+	IsAvailable bool        `json:"is_available"`
 }
 
 // Secret represents a secret used in deployments
@@ -697,62 +701,6 @@ type JobDeployment struct {
 	Compute                   *ContainerCompute          `json:"compute,omitempty"`
 	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
 	Scaling                   *JobScalingOptions         `json:"scaling,omitempty"`
-}
-
-// JobContainerRegistrySettings represents registry settings for job deployments
-type JobContainerRegistrySettings struct {
-	Credentials *JobRegistryCredentials `json:"credentials,omitempty"`
-}
-
-// JobRegistryCredentials references registry credentials by name
-type JobRegistryCredentials struct {
-	Name string `json:"name"`
-}
-
-// JobContainer represents a container configuration in a job deployment
-type JobContainer struct {
-	Image               string                  `json:"image"`
-	ExposedPort         int                     `json:"exposed_port,omitempty"`
-	Healthcheck         *JobHealthcheck         `json:"healthcheck,omitempty"`
-	EntrypointOverrides *JobEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
-	Env                 []JobEnvVar             `json:"env,omitempty"`
-	VolumeMounts        []JobVolumeMount        `json:"volume_mounts,omitempty"`
-}
-
-// JobHealthcheck represents health check configuration for jobs
-type JobHealthcheck struct {
-	Enabled bool   `json:"enabled"`
-	Port    int    `json:"port,omitempty"`
-	Path    string `json:"path,omitempty"`
-}
-
-// JobEntrypointOverrides allows overriding container entrypoint and cmd for jobs
-type JobEntrypointOverrides struct {
-	Enabled    bool     `json:"enabled"`
-	Entrypoint []string `json:"entrypoint,omitempty"`
-	Cmd        []string `json:"cmd,omitempty"`
-}
-
-// JobEnvVar represents an environment variable for job containers
-type JobEnvVar struct {
-	Name                     string `json:"name"`
-	ValueOrReferenceToSecret string `json:"value_or_reference_to_secret"`
-	Type                     string `json:"type"` // "plain" or "secret"
-}
-
-// JobVolumeMount represents a volume mount for job containers
-type JobVolumeMount struct {
-	Type       string `json:"type"` // "scratch", "secret", etc.
-	MountPath  string `json:"mount_path"`
-	SecretName string `json:"secret_name,omitempty"`
-	SizeInMB   int    `json:"size_in_mb,omitempty"`
-	VolumeID   string `json:"volumeId,omitempty"`
-}
-
-// JobCompute represents compute resources for job deployments
-type JobCompute struct {
-	Name string `json:"name"` // e.g., "H100", "A100"
-	Size int    `json:"size"` // Number of GPUs
 }
 
 // CreateJobDeploymentRequest represents a request to create a new job deployment

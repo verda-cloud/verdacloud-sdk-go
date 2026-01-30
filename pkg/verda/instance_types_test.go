@@ -196,7 +196,7 @@ func TestInstanceTypesService_GetByInstanceType(t *testing.T) {
 
 	t.Run("get instance type with all parameters", func(t *testing.T) {
 		ctx := context.Background()
-		instanceType, err := client.InstanceTypes.GetByInstanceType(ctx, "1H100.80S.22V", true, "FIN-01", "usd")
+		instanceType, err := client.InstanceTypes.GetByInstanceType(ctx, "1H100.80S.22V", true, LocationFIN03, "usd")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

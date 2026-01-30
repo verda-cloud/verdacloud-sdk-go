@@ -221,6 +221,13 @@ update-deps: ## Update all Go dependencies to their latest versions
 	@echo "✓ Dependencies updated!"
 
 # ============================================================================
+# Release Management
+# ============================================================================
+
+release: ## Prepare a new release by updating CHANGELOG.md (usage: make release VERSION=v1.0.0)
+	@scripts/release.sh $(VERSION)
+
+# ============================================================================
 # Pre-commit Management
 # ============================================================================
 

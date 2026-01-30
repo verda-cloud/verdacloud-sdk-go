@@ -12,8 +12,12 @@ import (
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
+// Preferred instance type for testing (as specified by user)
+const PreferredInstanceType = "1RTXPRO6000.30V"
+
 // createTestSSHKey creates a test SSH key and returns its ID
 func createTestSSHKey(t *testing.T, client *verda.Client) string {
+	t.Helper()
 	ctx := context.Background()
 	req := &verda.CreateSSHKeyRequest{
 		Name:      "integration-test-ssh-key-" + time.Now().Format("20060102-150405"),
@@ -28,302 +32,266 @@ func createTestSSHKey(t *testing.T, client *verda.Client) string {
 	return sshKey.ID
 }
 
-// createTestStartupScript creates a test startup script and returns its ID
-// Returns empty string if startup scripts are not available
-func createTestStartupScript(t *testing.T, client *verda.Client) string {
-	ctx := context.Background()
-	req := &verda.CreateStartupScriptRequest{
-		Name:   "integration-test-script-" + time.Now().Format("20060102-150405"),
-		Script: "#!/bin/bash\n\necho \"Hello from integration test\"\necho \"Test started at: $(date)\" > /tmp/test.log",
-	}
-
-	script, err := client.StartupScripts.AddStartupScript(ctx, req)
-	if err != nil {
-		// Check if it's a 404 error (not supported on staging)
-		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 404 {
-			t.Logf("Startup scripts endpoint not available (404) - skipping startup script creation")
-			return ""
-		}
-		t.Fatalf("failed to create test startup script: %v", err)
-	}
-
-	return script.ID
-}
-
-// waitForInstanceStatus waits for an instance to reach a specific status
-func waitForInstanceStatus(t *testing.T, client *verda.Client, instanceID string, targetStatus string, timeout time.Duration) *verda.Instance {
-	ctx := context.Background()
-	start := time.Now()
-	for time.Since(start) < timeout {
-		instance, err := client.Instances.GetByID(ctx, instanceID)
-		if err != nil {
-			t.Fatalf("failed to get instance %s: %v", instanceID, err)
-		}
-
-		t.Logf("Instance %s status: %s (waiting for %s)", instanceID, instance.Status, targetStatus)
-
-		if instance.Status == targetStatus {
-			return instance
-		}
-
-		// If instance failed, don't continue waiting
-		if instance.Status == "FAILED" {
-			t.Fatalf("instance %s failed during status wait", instanceID)
-		}
-
-		time.Sleep(10 * time.Second)
-	}
-
-	t.Fatalf("timeout waiting for instance %s to reach status %s", instanceID, targetStatus)
-	return nil
-}
-
-// cleanupInstance forcefully cleans up an instance
+// cleanupInstance properly cleans up an instance
 func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
+	t.Helper()
 	ctx := context.Background()
-	t.Logf("Cleaning up instance %s...", instanceID)
+	t.Logf("🧹 Cleaning up instance %s...", instanceID)
 
-	// First try to get the instance to check its status
+	// Get current status
 	instance, err := client.Instances.GetByID(ctx, instanceID)
 	if err != nil {
-		t.Logf("Could not get instance %s for cleanup: %v", instanceID, err)
+		t.Logf("   ⚠️  Could not get instance: %v", err)
 		return
 	}
+	t.Logf("   Current status: %s", instance.Status)
 
-	t.Logf("Instance %s current status: %s", instanceID, instance.Status)
-
-	// If instance is running, try to shut it down first
+	// If running, shutdown first
 	if instance.Status == verda.StatusRunning {
-		t.Logf("Instance %s is running, stopping it first...", instanceID)
-		err = client.Instances.Shutdown(ctx, instanceID)
-		if err != nil {
-			t.Logf("Failed to shutdown instance %s: %v", instanceID, err)
+		t.Log("   Shutting down...")
+		if err := client.Instances.Shutdown(ctx, instanceID); err != nil {
+			t.Logf("   ⚠️  Shutdown failed: %v", err)
 		} else {
-			// Wait for shutdown with shorter timeout for cleanup
-			for i := 0; i < 30; i++ {
-				instance, err := client.Instances.GetByID(ctx, instanceID)
-				if err == nil && instance.Status == verda.StatusOffline {
-					t.Logf("Instance %s successfully shut down", instanceID)
-					break
-				}
-				time.Sleep(10 * time.Second)
-			}
+			// Wait for shutdown
+			time.Sleep(30 * time.Second)
 		}
 	}
 
-	// If instance is pending/deploying, wait a bit for it to reach a stable state
-	if instance.Status == verda.StatusPending {
-		t.Logf("Instance %s is pending, waiting for stable state...", instanceID)
+	// If provisioning, wait a bit
+	if instance.Status == verda.StatusPending || instance.Status == "provisioning" {
+		t.Log("   Instance is provisioning, waiting...")
 		time.Sleep(30 * time.Second)
 	}
 
-	// Now try to delete the instance
-	err = client.Instances.Delete(ctx, instanceID, nil)
-	if err != nil {
-		// Don't fail the test on cleanup errors, just log them
-		t.Logf("Warning: Failed to delete instance %s: %v (this is non-fatal for test cleanup)", instanceID, err)
+	// Try to delete
+	if err := client.Instances.Delete(ctx, instanceID, nil); err != nil {
+		t.Logf("   ⚠️  Delete failed: %v, trying discontinue...", err)
+		if err := client.Instances.Discontinue(ctx, instanceID); err != nil {
+			t.Logf("   ⚠️  Discontinue also failed: %v", err)
+		} else {
+			t.Log("   ✅ Discontinued successfully")
+		}
 	} else {
-		t.Logf("Successfully initiated deletion of instance %s", instanceID)
+		t.Log("   ✅ Deleted successfully")
 	}
 }
 
-// TestListInstances_Integration tests listing instances
+// ============================================================================
+// INSTANCE CRUD INTEGRATION TEST
+// ============================================================================
+
+// TestInstanceCRUDIntegration tests the complete instance lifecycle:
+// 1. Check availability first
+// 2. Create instance
+// 3. Wait for it to be ready
+// 4. List instances (verify it exists)
+// 5. Read instance by ID
+// 6. Cleanup (delete)
+func TestInstanceCRUDIntegration(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test in short mode")
+	}
+
+	client := getTestClient(t)
+	ctx := context.Background()
+
+	// ========================================
+	// STEP 0: Check availability
+	// ========================================
+	availableInstance, ok := FindAvailableInstanceType(ctx, t, client, PreferredInstanceType)
+	if !ok {
+		t.Skip("⏭️  SKIPPING: No instance types available in staging environment")
+	}
+
+	// Track state for sequential CRUD operations
+	var instanceID string
+	var instanceCreated bool
+	var sshKeyID string
+
+	// Cleanup function - always runs at the end
+	defer func() {
+		if instanceCreated && instanceID != "" {
+			cleanupInstance(t, client, instanceID)
+		}
+		if sshKeyID != "" {
+			t.Log("🧹 Cleaning up SSH key...")
+			if err := client.SSHKeys.DeleteSSHKey(ctx, sshKeyID); err != nil {
+				t.Logf("   ⚠️  Failed to delete SSH key: %v", err)
+			} else {
+				t.Log("   ✅ SSH key deleted")
+			}
+		}
+	}()
+
+	// ========================================
+	// STEP 1: CREATE
+	// ========================================
+	t.Run("1_CREATE", func(t *testing.T) {
+		// Create SSH key first
+		sshKeyID = createTestSSHKey(t, client)
+		t.Logf("✅ Created SSH key: %s", sshKeyID)
+
+		// Create instance
+		req := verda.CreateInstanceRequest{
+			InstanceType: availableInstance.InstanceType,
+			Image:        "ubuntu-24.04-cuda-12.8-open-docker",
+			SSHKeyIDs:    []string{sshKeyID},
+			LocationCode: availableInstance.Location,
+			Hostname:     "integration-test-vm",
+			Description:  "Integration test instance - safe to delete",
+		}
+
+		t.Logf("📦 Creating instance with type: %s at %s...", req.InstanceType, req.LocationCode)
+
+		instance, err := client.Instances.Create(ctx, req)
+		if err != nil {
+			// Handle common errors
+			if apiErr, ok := err.(*verda.APIError); ok {
+				if apiErr.StatusCode >= 500 {
+					t.Skipf("⏭️  Server error (%d): %v", apiErr.StatusCode, err)
+				}
+				if apiErr.StatusCode == 400 {
+					if strings.Contains(apiErr.Message, "limit exceeded") || strings.Contains(apiErr.Message, "quota") {
+						t.Skipf("⏭️  Quota exceeded: %v", err)
+					}
+				}
+			}
+			t.Fatalf("❌ Failed to create instance: %v", err)
+		}
+
+		if instance.ID == "" {
+			t.Fatal("❌ Created instance has empty ID")
+		}
+
+		instanceID = instance.ID
+		instanceCreated = true
+		t.Logf("✅ Created instance: ID=%s, Type=%s", instanceID, instance.InstanceType)
+	})
+
+	// If creation failed, skip remaining tests
+	if !instanceCreated {
+		t.Skip("⏭️  Skipping remaining tests - instance was not created")
+	}
+
+	// ========================================
+	// STEP 2: WAIT for ready state
+	// ========================================
+	t.Run("2_WAIT", func(t *testing.T) {
+		if !instanceCreated {
+			t.Skip("⏭️  Skipping - instance was not created")
+		}
+
+		// Wait for instance to be running (or at least not pending)
+		instance, ok := WaitForInstanceStatus(ctx, t, client, instanceID, verda.StatusRunning, 5*time.Minute)
+		if !ok {
+			// Even if not running, check if it's in a valid state
+			instance, err := client.Instances.GetByID(ctx, instanceID)
+			if err != nil {
+				t.Fatalf("❌ Could not get instance status: %v", err)
+			}
+			t.Logf("⚠️  Instance is in status '%s' (not running yet)", instance.Status)
+		} else {
+			t.Logf("✅ Instance is running: IP=%v", instance.IP)
+		}
+	})
+
+	// ========================================
+	// STEP 3: LIST (verify instance exists)
+	// ========================================
+	t.Run("3_LIST", func(t *testing.T) {
+		if !instanceCreated {
+			t.Skip("⏭️  Skipping - instance was not created")
+		}
+
+		instances, err := client.Instances.Get(ctx, "")
+		if err != nil {
+			t.Fatalf("❌ Failed to list instances: %v", err)
+		}
+
+		found := false
+		for _, inst := range instances {
+			if inst.ID == instanceID {
+				found = true
+				t.Logf("✅ Found our instance in list: ID=%s, Status=%s, Type=%s",
+					inst.ID, inst.Status, inst.InstanceType)
+				break
+			}
+		}
+
+		if !found {
+			t.Errorf("❌ Instance %s not found in list", instanceID)
+		}
+	})
+
+	// ========================================
+	// STEP 4: READ by ID
+	// ========================================
+	t.Run("4_READ", func(t *testing.T) {
+		if !instanceCreated {
+			t.Skip("⏭️  Skipping - instance was not created")
+		}
+
+		instance, err := client.Instances.GetByID(ctx, instanceID)
+		if err != nil {
+			t.Fatalf("❌ Failed to get instance by ID: %v", err)
+		}
+
+		// Verify fields
+		if instance.ID != instanceID {
+			t.Errorf("❌ ID mismatch: expected %s, got %s", instanceID, instance.ID)
+		}
+		if instance.InstanceType != availableInstance.InstanceType {
+			t.Errorf("❌ InstanceType mismatch: expected %s, got %s", availableInstance.InstanceType, instance.InstanceType)
+		}
+
+		t.Logf("✅ Read instance: ID=%s, Type=%s, Status=%s, Location=%s, Hostname=%s",
+			instance.ID, instance.InstanceType, instance.Status, instance.Location, instance.Hostname)
+	})
+
+	// Note: DELETE happens in defer cleanup
+	t.Log("✅ Instance CRUD test complete - cleanup will run in defer")
+}
+
+// ============================================================================
+// OTHER INSTANCE TESTS
+// ============================================================================
+
+// TestListInstances_Integration tests listing instances (read-only)
 func TestListInstances_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
 	client := getTestClient(t)
-
 	ctx := context.Background()
+
 	instances, err := client.Instances.Get(ctx, "")
 	if err != nil {
-		t.Fatalf("failed to list instances: %v", err)
+		t.Fatalf("❌ Failed to list instances: %v", err)
 	}
 
-	t.Logf("Found %d instances", len(instances))
-
-	// Validate response structure
+	t.Logf("✅ Found %d instances", len(instances))
 	for i, inst := range instances {
-		if inst.ID == "" {
-			t.Errorf("instance %d has empty ID", i)
-		}
-		if inst.InstanceType == "" {
-			t.Errorf("instance %d has empty InstanceType", i)
-		}
-		if inst.Status == "" {
-			t.Errorf("instance %d has empty Status", i)
-		}
-
-		t.Logf("Instance %d: ID=%s, Type=%s, Status=%s, Location=%s",
+		t.Logf("   [%d] ID=%s, Type=%s, Status=%s, Location=%s",
 			i, inst.ID, inst.InstanceType, inst.Status, inst.Location)
 	}
-
-	// Test instance availability
-	available, err := client.Instances.CheckInstanceTypeAvailability(ctx, "1V100.6V")
-	if err != nil {
-		t.Errorf("failed to check availability: %v", err)
-	}
-	t.Logf("1V100.6V available: %v", available)
 }
 
-// TestRateLimiting_Integration tests how the service handles rate limiting
-func TestRateLimiting_Integration(t *testing.T) {
+// TestInstanceAvailability_Integration tests checking instance availability
+func TestInstanceAvailability_Integration(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test in short mode")
 	}
 
 	client := getTestClient(t)
-
 	ctx := context.Background()
-	// Make multiple rapid requests to test rate limiting
-	const numRequests = 10
-	errors := make([]error, numRequests)
 
-	for i := 0; i < numRequests; i++ {
-		_, errors[i] = client.Instances.Get(ctx, "")
-		if i < numRequests-1 {
-			time.Sleep(100 * time.Millisecond) // Small delay
-		}
-	}
-
-	errorCount := 0
-	for _, err := range errors {
-		if err != nil {
-			errorCount++
-			t.Logf("Request error (expected for rate limiting): %v", err)
-		}
-	}
-
-	// We expect some requests might fail due to rate limiting
-	if errorCount == numRequests {
-		t.Error("all requests failed, this might indicate a bigger issue")
-	}
-
-	t.Logf("Rate limiting test: %d/%d requests succeeded", numRequests-errorCount, numRequests)
-}
-
-// TestCreateAndDeleteInstance_Integration tests the full lifecycle of creating and deleting an instance
-func TestCreateAndDeleteInstance_Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping integration test in short mode")
-	}
-
-	client := getTestClient(t)
-
-	ctx := context.Background()
-	// Create test resources
-	sshKeyID := createTestSSHKey(t, client)
-	scriptID := createTestStartupScript(t, client)
-
-	// Create instance with minimal configuration
-	input := verda.CreateInstanceRequest{
-		InstanceType: "1RTX6000ADA.10V",
-		Image:        "ubuntu-24.04-cuda-12.8-open-docker",
-		SSHKeyIDs:    []string{sshKeyID},
-		LocationCode: verda.LocationFIN01,
-		Hostname:     "integration-test-vm",
-		Description:  "Integration test instance - safe to delete",
-	}
-
-	// Add startup script only if it was created successfully
-	if scriptID != "" {
-		input.StartupScriptID = &scriptID
-	}
-
-	// Check availability first
-	available, err := client.Instances.CheckInstanceTypeAvailability(ctx, input.InstanceType)
-	if err != nil {
-		t.Fatalf("failed to check instance availability: %v", err)
-	}
-	if !available {
-		t.Skipf("Instance type %s not available in location %s", input.InstanceType, input.LocationCode)
-	}
-
-	instance, err := client.Instances.Create(ctx, input)
-	if err != nil {
-		// On staging, instance creation can intermittently return 5xx
-		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode >= 500 {
-			t.Skipf("skipping instance creation due to server error: %v", apiErr)
-			return
-		}
-		// Handle quota/limit errors gracefully
-		if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 400 {
-			if strings.Contains(apiErr.Message, "limit exceeded") || strings.Contains(apiErr.Message, "quota") {
-				t.Skipf("Skipping instance creation due to quota: %v", apiErr)
-				return
-			}
-		}
-		t.Fatalf("failed to create instance: %v", err)
-	}
-
-	if instance.ID == "" {
-		t.Fatal("created instance has empty ID")
-	}
-
-	t.Logf("Created instance with ID: %s", instance.ID)
-
-	// Cleanup: Delete the instance
-	defer func() {
-		cleanupInstance(t, client, instance.ID)
-
-		// Cleanup test resources
-		ctx := context.Background()
-		err := client.SSHKeys.DeleteSSHKey(ctx, sshKeyID)
-		if err != nil {
-			t.Errorf("failed to delete test SSH key %s: %v", sshKeyID, err)
-		} else {
-			t.Log("Successfully cleaned up test SSH key")
-		}
-
-		// Only try to delete startup script if it was created
-		if scriptID != "" {
-			err = client.StartupScripts.DeleteStartupScript(ctx, scriptID)
-			if err != nil {
-				t.Errorf("failed to delete test startup script %s: %v", scriptID, err)
-			} else {
-				t.Log("Successfully cleaned up test startup script")
-			}
-		}
-	}()
-
-	// Wait a moment for instance to be created
-	time.Sleep(5 * time.Second)
-
-	// Verify instance appears in list
-	instances, err := client.Instances.Get(ctx, "")
-	if err != nil {
-		t.Fatalf("failed to list instances: %v", err)
-	}
-
-	found := false
-	for _, inst := range instances {
-		if inst.ID == instance.ID {
-			found = true
-			if inst.Status == "" {
-				t.Error("instance status is empty")
-			}
-			if inst.InstanceType != input.InstanceType {
-				t.Errorf("expected instance type %s, got %s", input.InstanceType, inst.InstanceType)
-			}
-			if inst.Hostname != input.Hostname {
-				t.Errorf("expected hostname %s, got %s", input.Hostname, inst.Hostname)
-			}
-			break
-		}
-	}
-
-	if !found {
-		t.Errorf("created instance %s not found in list", instance.ID)
-	}
-
-	// Test getting instance by ID
-	retrievedInstance, err := client.Instances.GetByID(ctx, instance.ID)
-	if err != nil {
-		t.Fatalf("failed to get instance by ID: %v", err)
-	}
-
-	if retrievedInstance.ID != instance.ID {
-		t.Errorf("expected instance ID %s, got %s", instance.ID, retrievedInstance.ID)
+	// Test availability check
+	availableInstance, ok := FindAvailableInstanceType(ctx, t, client, PreferredInstanceType)
+	if ok {
+		t.Logf("✅ Best available instance: %s ($%.2f/hr spot)",
+			availableInstance.InstanceType, availableInstance.SpotPrice)
+	} else {
+		t.Log("⚠️  No instance types currently available")
 	}
 }

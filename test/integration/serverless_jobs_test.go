@@ -105,7 +105,7 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 				Name: "RTX 4500 Ada",
 				Size: 1,
 			},
-			Scaling: &verda.ContainerScalingOptions{
+			Scaling: &verda.JobScalingOptions{
 				MaxReplicaCount:        1,
 				QueueMessageTTLSeconds: 300, // API requires this field to be present
 			},
@@ -481,7 +481,7 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 		// Update the job deployment using UpdateJobDeployment (PATCH)
 		updateReq := &verda.UpdateJobDeploymentRequest{
-			Scaling: &verda.ContainerScalingOptions{
+			Scaling: &verda.JobScalingOptions{
 				MaxReplicaCount:        4,
 				QueueMessageTTLSeconds: 1200,
 			},
