@@ -49,6 +49,11 @@ tmp/
 
 # AI Coder
 .cursor/
+.claude/
+
+# backup files
+*.bak*
+*.bck*
 
 # AI-generated temporary documentation
 *_ANALYSIS.md

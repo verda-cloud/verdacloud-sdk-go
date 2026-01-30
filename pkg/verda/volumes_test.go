@@ -277,7 +277,8 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
 		action, _ := actionReq["action"].(string)
-		if action == VolumeActionAttach {
+		switch action {
+		case VolumeActionAttach:
 			instanceID, _ := actionReq["instance_id"].(string)
 			if instanceID == "" {
 				w.WriteHeader(http.StatusBadRequest)
@@ -285,7 +286,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-		} else if action == VolumeActionDetach {
+		case VolumeActionDetach:
 			instanceID, _ := actionReq["instance_id"].(string)
 			if instanceID == "" {
 				w.WriteHeader(http.StatusBadRequest)
@@ -293,7 +294,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-		} else if action == VolumeActionClone {
+		case VolumeActionClone:
 			name, _ := actionReq["name"].(string)
 			if name == "" {
 				w.WriteHeader(http.StatusBadRequest)
@@ -304,7 +305,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`["vol_cloned_456"]`))
-		} else if action == VolumeActionResize {
+		case VolumeActionResize:
 			size, _ := actionReq["size"].(float64)
 			if size <= 0 {
 				w.WriteHeader(http.StatusBadRequest)
@@ -312,7 +313,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-		} else if action == VolumeActionRename {
+		case VolumeActionRename:
 			name, _ := actionReq["name"].(string)
 			if name == "" {
 				w.WriteHeader(http.StatusBadRequest)
@@ -320,7 +321,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-		} else {
+		default:
 			w.WriteHeader(http.StatusBadRequest)
 			_, _ = w.Write([]byte("unknown action"))
 		}

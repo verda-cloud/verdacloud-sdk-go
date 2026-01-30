@@ -9,12 +9,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - feat(workflow): Establish changelog and automated release workflow
 - feat(clusters): Integrate with cluster APIs
+- feat(example): Add comprehensive cluster API usage examples
 
 ### Fixed
 - fix(serverless-jobs): Fix serverless job validation
+- fix(volumes): Migrate volume operations to PUT-based API (attach, detach, clone, resize, rename)
+- fix(volumes): Fix CloneVolume to handle array response format
+- fix(linter): Enable staticcheck for test files (ensure local/CI consistency)
+- fix(test): Convert if-else chain to switch statement in volumes_test.go
+- fix(types): Fix format specifiers after ComputeResource.Size type change (int)
 
 ### Changed
 - refactor(instances): Remove legacy support for instance
+- refactor(Makefile): Streamline development workflow (25 → 12 targets, -260 lines)
+  - Single `setup` target: smart detection, installs only missing tools
+  - `lint` and `fmt` kept for CI only (pre-commit handles locally)
+  - Remove redundant targets: install-tools, setup-hooks, gosec, govulncheck, check, check-security, test, ci-local, clean-all
+  - Remove unused Docker targets (200+ lines)
+- refactor(CI): Fix workflow to install golangci-lint directly (removed make install-tools)
+- test(integration): Add resource cleanup timers (2-15s based on resource type)
 - test(integration): Improve integration tests
 
 ### Removed
