@@ -176,6 +176,8 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 	else \
 		echo "  Using production API: https://api.verda.com/v1"; \
 	fi
+	@echo "→ Checking resource availability..."
+	@scripts/check_availability.sh
 	@mkdir -p build
 	@go test -tags=integration -v -timeout=10m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
 	@go test -tags=integration -v -timeout=10m ./test/integration

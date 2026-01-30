@@ -74,7 +74,7 @@ log_step() {
 # Get access token
 get_access_token() {
     log_info "Getting access token..."
-    
+
     TOKEN_RESPONSE=$(curl -s -X POST "$BASE_URL/oauth2/token" \
         -H "Content-Type: application/json" \
         -d "{
@@ -82,15 +82,15 @@ get_access_token() {
             \"client_secret\": \"$CLIENT_SECRET\",
             \"grant_type\": \"client_credentials\"
         }")
-    
+
     ACCESS_TOKEN=$(echo "$TOKEN_RESPONSE" | grep -o '"access_token":"[^"]*' | cut -d'"' -f4)
-    
+
     if [ -z "$ACCESS_TOKEN" ]; then
         log_error "Failed to get access token"
         echo "Response: $TOKEN_RESPONSE"
         exit 1
     fi
-    
+
     log_success "Got access token: ${ACCESS_TOKEN:0:20}..."
 }
 
@@ -119,24 +119,24 @@ api_delete() {
 
 find_cheapest_available_instance() {
     log_step "🔍 Finding Cheapest Available Instance Type"
-    
+
     log_info "Getting instance types..."
     INSTANCE_TYPES=$(api_get "/instance-types?currency=usd")
-    
+
     # Parse and sort by spot price
     SORTED_TYPES=$(echo "$INSTANCE_TYPES" | jq -r '.[] | "\(.spot_price_per_hour)|\(.instance_type)"' | sort -t'|' -k1 -n)
-    
+
     CHEAPEST_INSTANCE=""
     CHEAPEST_PRICE=""
-    
+
     while IFS='|' read -r price instance_type; do
         [ -z "$instance_type" ] && continue
-        
+
         log_info "Checking availability for $instance_type (\$${price}/hr)..."
-        
+
         AVAIL=$(api_get "/instance-availability?instance_type=$instance_type")
         IS_AVAILABLE=$(echo "$AVAIL" | jq -r '.[0].is_available // false')
-        
+
         if [ "$IS_AVAILABLE" = "true" ]; then
             CHEAPEST_INSTANCE="$instance_type"
             CHEAPEST_PRICE="$price"
@@ -144,12 +144,12 @@ find_cheapest_available_instance() {
             break
         fi
     done <<< "$SORTED_TYPES"
-    
+
     if [ -z "$CHEAPEST_INSTANCE" ]; then
         log_warning "No instance types currently available"
         return 1
     fi
-    
+
     echo "$CHEAPEST_INSTANCE|$CHEAPEST_PRICE"
 }
 
@@ -159,61 +159,61 @@ wait_for_instance() {
     local TIMEOUT="${3:-600}"
     local POLL_INTERVAL=10
     local ELAPSED=0
-    
+
     log_info "Waiting for instance $INSTANCE_ID to reach status '$TARGET_STATUS' (timeout: ${TIMEOUT}s)..."
-    
+
     while [ $ELAPSED -lt $TIMEOUT ]; do
         INSTANCE=$(api_get "/instances/$INSTANCE_ID")
         CURRENT_STATUS=$(echo "$INSTANCE" | jq -r '.status')
-        
+
         log_info "  Current status: $CURRENT_STATUS (${ELAPSED}s elapsed)"
-        
+
         if [ "$CURRENT_STATUS" = "$TARGET_STATUS" ]; then
             log_success "Instance reached target status '$TARGET_STATUS'"
             return 0
         fi
-        
+
         if [ "$CURRENT_STATUS" = "FAILED" ] || [ "$CURRENT_STATUS" = "failed" ]; then
             log_error "Instance failed!"
             return 1
         fi
-        
+
         sleep $POLL_INTERVAL
         ELAPSED=$((ELAPSED + POLL_INTERVAL))
     done
-    
+
     log_error "Timeout waiting for instance to reach '$TARGET_STATUS'"
     return 1
 }
 
 test_instance_crud() {
     log_step "🖥️  Testing Instance CRUD Operations"
-    
+
     # Find cheapest available
     RESULT=$(find_cheapest_available_instance)
     if [ $? -ne 0 ]; then
         log_warning "Skipping instance test - no availability"
         return 0
     fi
-    
+
     INSTANCE_TYPE=$(echo "$RESULT" | cut -d'|' -f1)
     PRICE=$(echo "$RESULT" | cut -d'|' -f2)
-    
+
     log_info "Using instance type: $INSTANCE_TYPE (\$${PRICE}/hr)"
-    
+
     # Get SSH keys
     SSH_KEYS=$(api_get "/ssh-keys")
     SSH_KEY_ID=$(echo "$SSH_KEYS" | jq -r '.[0].id // empty')
-    
+
     if [ -z "$SSH_KEY_ID" ]; then
         log_warning "No SSH keys found. Creating test requires SSH key."
         return 0
     fi
-    
+
     # Create instance
     INSTANCE_NAME="sdk-test-$(date +%s)"
     log_info "Creating instance: $INSTANCE_NAME"
-    
+
     CREATE_RESPONSE=$(api_post "/instances" "{
         \"instance_type\": \"$INSTANCE_TYPE\",
         \"hostname\": \"$INSTANCE_NAME\",
@@ -221,17 +221,17 @@ test_instance_crud() {
         \"description\": \"SDK integration test\",
         \"location_code\": \"FIN-03\"
     }")
-    
+
     INSTANCE_ID=$(echo "$CREATE_RESPONSE" | jq -r '.id // empty')
-    
+
     if [ -z "$INSTANCE_ID" ]; then
         log_error "Failed to create instance"
         echo "$CREATE_RESPONSE"
         return 1
     fi
-    
+
     log_success "Created instance: $INSTANCE_ID"
-    
+
     # Cleanup function
     cleanup_instance() {
         log_info "Cleaning up instance $INSTANCE_ID..."
@@ -239,23 +239,23 @@ test_instance_crud() {
         log_success "Instance deleted"
     }
     trap cleanup_instance EXIT
-    
+
     # Wait for running status
     if wait_for_instance "$INSTANCE_ID" "running" 600; then
         log_success "Instance is running!"
-        
+
         # List instances
         log_info "Listing instances..."
         INSTANCES=$(api_get "/instances")
         INSTANCE_COUNT=$(echo "$INSTANCES" | jq 'length')
         log_success "Found $INSTANCE_COUNT instances"
-        
+
         # Get instance details
         log_info "Getting instance details..."
         DETAILS=$(api_get "/instances/$INSTANCE_ID")
         log_success "Instance details retrieved"
     fi
-    
+
     # Cleanup happens via trap
     log_success "Instance CRUD test complete!"
 }
@@ -266,33 +266,33 @@ test_instance_crud() {
 
 find_cheapest_available_cluster() {
     log_step "🔍 Finding Cheapest Available Cluster Type"
-    
+
     log_info "Getting cluster types..."
     CLUSTER_TYPES=$(api_get "/cluster-types?currency=usd")
-    
+
     log_info "Getting cluster availability..."
     AVAILABILITIES=$(api_get "/cluster-availability")
-    
+
     # Find cheapest available
     CHEAPEST_CLUSTER=""
     CHEAPEST_PRICE=999999
     CHEAPEST_LOCATION=""
-    
+
     for row in $(echo "$CLUSTER_TYPES" | jq -r '.[] | @base64'); do
         _jq() {
             echo "${row}" | base64 --decode | jq -r "${1}"
         }
-        
+
         CLUSTER_TYPE=$(_jq '.cluster_type')
         PRICE=$(_jq '.price_per_hour')
-        
+
         # Check if this cluster type is available
         IS_AVAILABLE=$(echo "$AVAILABILITIES" | jq -r --arg ct "$CLUSTER_TYPE" '.[] | select(.cluster_type == $ct and .available == true) | .location_code' | head -1)
-        
+
         if [ -n "$IS_AVAILABLE" ]; then
             PRICE_INT=$(echo "$PRICE * 100" | bc | cut -d'.' -f1)
             CHEAPEST_INT=$(echo "$CHEAPEST_PRICE * 100" | bc | cut -d'.' -f1)
-            
+
             if [ "$PRICE_INT" -lt "$CHEAPEST_INT" ]; then
                 CHEAPEST_CLUSTER="$CLUSTER_TYPE"
                 CHEAPEST_PRICE="$PRICE"
@@ -301,12 +301,12 @@ find_cheapest_available_cluster() {
             fi
         fi
     done
-    
+
     if [ -z "$CHEAPEST_CLUSTER" ]; then
         log_warning "No cluster types currently available"
         return 1
     fi
-    
+
     log_success "Cheapest available: $CHEAPEST_CLUSTER at $CHEAPEST_LOCATION (\$${CHEAPEST_PRICE}/hr)"
     echo "$CHEAPEST_CLUSTER|$CHEAPEST_PRICE|$CHEAPEST_LOCATION"
 }
@@ -317,72 +317,72 @@ wait_for_cluster() {
     local TIMEOUT="${3:-900}"
     local POLL_INTERVAL=15
     local ELAPSED=0
-    
+
     log_info "Waiting for cluster $CLUSTER_ID to reach status '$TARGET_STATUS' (timeout: ${TIMEOUT}s)..."
-    
+
     while [ $ELAPSED -lt $TIMEOUT ]; do
         CLUSTER=$(api_get "/clusters/$CLUSTER_ID")
         CURRENT_STATUS=$(echo "$CLUSTER" | jq -r '.status')
-        
+
         log_info "  Current status: $CURRENT_STATUS (${ELAPSED}s elapsed)"
-        
+
         if [ "$CURRENT_STATUS" = "$TARGET_STATUS" ]; then
             log_success "Cluster reached target status '$TARGET_STATUS'"
             return 0
         fi
-        
+
         if [ "$CURRENT_STATUS" = "FAILED" ] || [ "$CURRENT_STATUS" = "failed" ]; then
             log_error "Cluster failed!"
             return 1
         fi
-        
+
         sleep $POLL_INTERVAL
         ELAPSED=$((ELAPSED + POLL_INTERVAL))
     done
-    
+
     log_error "Timeout waiting for cluster to reach '$TARGET_STATUS'"
     return 1
 }
 
 test_cluster_crud() {
     log_step "🗄️  Testing Cluster CRUD Operations"
-    
+
     # Find cheapest available
     RESULT=$(find_cheapest_available_cluster)
     if [ $? -ne 0 ]; then
         log_warning "Skipping cluster test - no availability"
         return 0
     fi
-    
+
     CLUSTER_TYPE=$(echo "$RESULT" | cut -d'|' -f1)
     PRICE=$(echo "$RESULT" | cut -d'|' -f2)
     LOCATION=$(echo "$RESULT" | cut -d'|' -f3)
-    
+
     log_info "Using cluster type: $CLUSTER_TYPE at $LOCATION (\$${PRICE}/hr)"
-    
+
     # Get cluster images
     log_info "Getting cluster images..."
     IMAGES=$(api_get "/images/cluster")
     IMAGE_NAME=$(echo "$IMAGES" | jq -r '.[0].name // empty')
-    
+
     if [ -z "$IMAGE_NAME" ]; then
         log_warning "No cluster images found"
         return 0
     fi
-    
+
     # Get SSH keys
     SSH_KEYS=$(api_get "/ssh-keys")
     SSH_KEY_ID=$(echo "$SSH_KEYS" | jq -r '.[0].id // empty')
-    
+
     if [ -z "$SSH_KEY_ID" ]; then
         log_warning "No SSH keys found. Creating cluster requires SSH key."
         return 0
     fi
-    
+
     # Create cluster
     CLUSTER_NAME="sdk-test-$(date +%s)"
     log_info "Creating cluster: $CLUSTER_NAME"
-    
+
     CREATE_RESPONSE=$(api_post "/clusters" "{
         \"cluster_type\": \"$CLUSTER_TYPE\",
         \"hostname\": \"$CLUSTER_NAME\",
@@ -391,17 +391,17 @@ test_cluster_crud() {
         \"description\": \"SDK integration test\",
         \"location_code\": \"$LOCATION\"
     }")
-    
+
     CLUSTER_ID=$(echo "$CREATE_RESPONSE" | jq -r '.id // empty')
-    
+
     if [ -z "$CLUSTER_ID" ]; then
         log_error "Failed to create cluster"
         echo "$CREATE_RESPONSE"
         return 1
     fi
-    
+
     log_success "Created cluster: $CLUSTER_ID"
-    
+
     # Cleanup function
     cleanup_cluster() {
         log_info "Cleaning up cluster $CLUSTER_ID..."
@@ -412,18 +412,18 @@ test_cluster_crud() {
         log_success "Cluster deleted"
     }
     trap cleanup_cluster EXIT
-    
+
     # Wait for running status
     if wait_for_cluster "$CLUSTER_ID" "running" 900; then
         log_success "Cluster is running!"
-        
+
         # List clusters
         log_info "Listing clusters..."
         CLUSTERS=$(api_get "/clusters")
         CLUSTER_COUNT=$(echo "$CLUSTERS" | jq 'length')
         log_success "Found $CLUSTER_COUNT clusters"
     fi
-    
+
     # Cleanup happens via trap
     log_success "Cluster CRUD test complete!"
 }
@@ -434,27 +434,27 @@ test_cluster_crud() {
 
 find_available_container_compute() {
     log_step "🔍 Finding Available Container Compute"
-    
+
     log_info "Getting serverless compute resources..."
     RESOURCES=$(api_get "/serverless-compute-resources")
-    
+
     # Find first available
     for row in $(echo "$RESOURCES" | jq -r '.[] | @base64'); do
         _jq() {
             echo "${row}" | base64 --decode | jq -r "${1}"
         }
-        
+
         NAME=$(_jq '.name')
         IS_AVAILABLE=$(_jq '.is_available')
         SIZE=$(_jq '.size')
-        
+
         if [ "$IS_AVAILABLE" = "true" ]; then
             log_success "Found available: $NAME (size: $SIZE)"
             echo "$NAME"
             return 0
         fi
     done
-    
+
     log_warning "No container compute resources available"
     return 1
 }
@@ -465,49 +465,49 @@ wait_for_container() {
     local TIMEOUT="${3:-300}"
     local POLL_INTERVAL=10
     local ELAPSED=0
-    
+
     log_info "Waiting for container $DEPLOYMENT_NAME to reach status '$TARGET_STATUS' (timeout: ${TIMEOUT}s)..."
-    
+
     while [ $ELAPSED -lt $TIMEOUT ]; do
         DEPLOYMENT=$(api_get "/container-deployments/$DEPLOYMENT_NAME")
         CURRENT_STATUS=$(echo "$DEPLOYMENT" | jq -r '.status // "unknown"')
-        
+
         log_info "  Current status: $CURRENT_STATUS (${ELAPSED}s elapsed)"
-        
+
         if [ "$CURRENT_STATUS" = "$TARGET_STATUS" ]; then
             log_success "Container reached target status '$TARGET_STATUS'"
             return 0
         fi
-        
+
         if [ "$CURRENT_STATUS" = "FAILED" ] || [ "$CURRENT_STATUS" = "failed" ]; then
             log_error "Container deployment failed!"
             return 1
         fi
-        
+
         sleep $POLL_INTERVAL
         ELAPSED=$((ELAPSED + POLL_INTERVAL))
     done
-    
+
     log_error "Timeout waiting for container to reach '$TARGET_STATUS'"
     return 1
 }
 
 test_container_crud() {
     log_step "📦 Testing Container Deployment CRUD Operations"
-    
+
     # Find available compute
     COMPUTE_NAME=$(find_available_container_compute)
     if [ $? -ne 0 ]; then
         log_warning "Skipping container test - no availability"
         return 0
     fi
-    
+
     log_info "Using compute: $COMPUTE_NAME"
-    
+
     # Create container deployment
     DEPLOYMENT_NAME="sdk-test-$(date +%s)"
     log_info "Creating container deployment: $DEPLOYMENT_NAME"
-    
+
     CREATE_RESPONSE=$(api_post "/container-deployments" "{
         \"name\": \"$DEPLOYMENT_NAME\",
         \"isSpot\": false,
@@ -550,7 +550,7 @@ test_container_crud() {
             }
         ]
     }")
-    
+
     # Check for error
     ERROR=$(echo "$CREATE_RESPONSE" | jq -r '.message // empty')
     if [ -n "$ERROR" ]; then
@@ -558,9 +558,9 @@ test_container_crud() {
         echo "$CREATE_RESPONSE"
         return 1
     fi
-    
+
     log_success "Created container deployment: $DEPLOYMENT_NAME"
-    
+
     # Cleanup function
     cleanup_container() {
         log_info "Cleaning up container deployment $DEPLOYMENT_NAME..."
@@ -568,21 +568,21 @@ test_container_crud() {
         log_success "Container deployment deleted"
     }
     trap cleanup_container EXIT
-    
+
     # Wait for deployment to be ready
     sleep 10
-    
+
     # List deployments
     log_info "Listing container deployments..."
     DEPLOYMENTS=$(api_get "/container-deployments")
     DEPLOYMENT_COUNT=$(echo "$DEPLOYMENTS" | jq 'length')
     log_success "Found $DEPLOYMENT_COUNT container deployments"
-    
+
     # Get deployment details
     log_info "Getting deployment details..."
     DETAILS=$(api_get "/container-deployments/$DEPLOYMENT_NAME")
     log_success "Deployment details retrieved"
-    
+
     # Cleanup happens via trap
     log_success "Container CRUD test complete!"
 }
@@ -593,20 +593,20 @@ test_container_crud() {
 
 test_job_crud() {
     log_step "⚡ Testing Serverless Job CRUD Operations"
-    
+
     # Find available compute
     COMPUTE_NAME=$(find_available_container_compute)
     if [ $? -ne 0 ]; then
         log_warning "Skipping job test - no availability"
         return 0
     fi
-    
+
     log_info "Using compute: $COMPUTE_NAME"
-    
+
     # Create job deployment
     JOB_NAME="sdk-job-test-$(date +%s)"
     log_info "Creating job deployment: $JOB_NAME"
-    
+
     CREATE_RESPONSE=$(api_post "/job-deployments" "{
         \"name\": \"$JOB_NAME\",
         \"containerRegistrySettings\": {
@@ -632,7 +632,7 @@ test_job_crud() {
             \"deadlineSeconds\": 3600
         }
     }")
-    
+
     # Check for error
     ERROR=$(echo "$CREATE_RESPONSE" | jq -r '.message // empty')
     if [ -n "$ERROR" ]; then
@@ -640,9 +640,9 @@ test_job_crud() {
         echo "$CREATE_RESPONSE"
         return 1
     fi
-    
+
     log_success "Created job deployment: $JOB_NAME"
-    
+
     # Cleanup function
     cleanup_job() {
         log_info "Cleaning up job deployment $JOB_NAME..."
@@ -650,21 +650,21 @@ test_job_crud() {
         log_success "Job deployment deleted"
     }
     trap cleanup_job EXIT
-    
+
     # Wait for deployment
     sleep 10
-    
+
     # List job deployments
     log_info "Listing job deployments..."
     JOBS=$(api_get "/job-deployments")
     JOB_COUNT=$(echo "$JOBS" | jq 'length')
     log_success "Found $JOB_COUNT job deployments"
-    
+
     # Get job details
     log_info "Getting job details..."
     DETAILS=$(api_get "/job-deployments/$JOB_NAME")
     log_success "Job details retrieved"
-    
+
     # Cleanup happens via trap
     log_success "Job CRUD test complete!"
 }
@@ -682,12 +682,12 @@ main() {
     echo "Base URL: $BASE_URL"
     echo "Test Type: ${1:-all}"
     echo ""
-    
+
     # Get access token
     get_access_token
-    
+
     TEST_TYPE="${1:-all}"
-    
+
     case "$TEST_TYPE" in
         instance)
             test_instance_crud
@@ -706,17 +706,17 @@ main() {
             echo ""
             echo "⏳ Waiting 2 minutes before next test..."
             sleep 120
-            
+
             test_cluster_crud
             echo ""
             echo "⏳ Waiting 2 minutes before next test..."
             sleep 120
-            
+
             test_container_crud
             echo ""
             echo "⏳ Waiting 2 minutes before next test..."
             sleep 120
-            
+
             test_job_crud
             ;;
         *)
@@ -725,7 +725,7 @@ main() {
             exit 1
             ;;
     esac
-    
+
     echo ""
     log_success "All tests completed!"
 }

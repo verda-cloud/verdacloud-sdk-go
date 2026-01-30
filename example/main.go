@@ -93,6 +93,107 @@ func main() {
 		fmt.Printf("1V100.6V available: %v\n", available)
 	}
 
+	// Example: List cluster types
+	fmt.Println("\n=== Cluster Types ===")
+	clusterTypes, err := client.Clusters.GetClusterTypes(ctx, "usd")
+	if err != nil {
+		log.Printf("Error getting cluster types: %v", err)
+	} else {
+		fmt.Printf("Found %d cluster types:\n", len(clusterTypes))
+		for i, ct := range clusterTypes {
+			if i < 5 { // Show first 5
+				fmt.Printf("- %s: $%.2f/hr (%s)\n",
+					ct.ClusterType, ct.PricePerHour.Float64(), ct.Description)
+			}
+		}
+	}
+
+	// Example: Check cluster availability
+	fmt.Println("\n=== Cluster Availability ===")
+	clusterAvailabilities, err := client.Clusters.GetAvailabilities(ctx, verda.LocationFIN03)
+	if err != nil {
+		log.Printf("Error getting cluster availability: %v", err)
+	} else {
+		fmt.Printf("Cluster availability at %s:\n", verda.LocationFIN03)
+		for _, avail := range clusterAvailabilities {
+			status := "unavailable"
+			if avail.Available {
+				status = "available"
+			}
+			fmt.Printf("- %s: %s\n", avail.ClusterType, status)
+		}
+	}
+
+	// Example: List cluster images
+	fmt.Println("\n=== Cluster Images ===")
+	clusterImages, err := client.Clusters.GetImages(ctx)
+	if err != nil {
+		log.Printf("Error getting cluster images: %v", err)
+	} else {
+		fmt.Printf("Available cluster images:\n")
+		for _, img := range clusterImages {
+			fmt.Printf("- %s: %s (v%s)\n", img.Name, img.Description, img.Version)
+		}
+	}
+
+	// Example: List existing clusters
+	fmt.Println("\n=== Clusters ===")
+	clusters, err := client.Clusters.Get(ctx)
+	if err != nil {
+		log.Printf("Error getting clusters: %v", err)
+	} else {
+		fmt.Printf("Found %d clusters:\n", len(clusters))
+		for _, cluster := range clusters {
+			fmt.Printf("- %s (%s): %s - %s\n",
+				cluster.Hostname, cluster.ID, cluster.ClusterType, cluster.Status)
+		}
+	}
+
+	// Example: Create cluster (commented out to avoid accidental creation)
+	/*
+		fmt.Println("\n=== Creating Cluster ===")
+		// Make sure you have SSH keys first
+		if len(keys) == 0 {
+			log.Println("⚠️  No SSH keys found. Create SSH keys before creating clusters.")
+		} else {
+			sshKeyIDs := []string{keys[0].ID}
+			clusterReq := verda.CreateClusterRequest{
+				ClusterType:  "16H200",
+				Image:        "ubuntu-24.04-cuda-13.0-open",
+				Hostname:     "my-test-cluster",
+				Description:  "Test cluster from Go SDK",
+				SSHKeyIDs:    sshKeyIDs,
+				LocationCode: verda.LocationFIN03,
+				Contract:     "hourly",
+				Pricing:      "on-demand",
+			}
+
+			clusterResp, err := client.Clusters.Create(ctx, clusterReq)
+			if err != nil {
+				log.Printf("Error creating cluster: %v", err)
+			} else {
+				fmt.Printf("✅ Created cluster with ID: %s\n", clusterResp.ID)
+
+				// Wait and check status
+				cluster, err := client.Clusters.GetByID(ctx, clusterResp.ID)
+				if err != nil {
+					log.Printf("Error getting cluster: %v", err)
+				} else {
+					fmt.Printf("Cluster status: %s\n", cluster.Status)
+				}
+
+				// Cleanup (uncomment to delete after testing)
+				// fmt.Println("\n=== Cleaning up cluster ===")
+				// err = client.Clusters.Discontinue(ctx, clusterResp.ID)
+				// if err != nil {
+				//     log.Printf("Error discontinuing cluster: %v", err)
+				// } else {
+				//     fmt.Printf("✅ Discontinued cluster: %s\n", clusterResp.ID)
+				// }
+			}
+		}
+	*/
+
 	// Example: Create instance (commented out to avoid accidental creation)
 	/*
 		fmt.Println("\n=== Creating Instance ===")

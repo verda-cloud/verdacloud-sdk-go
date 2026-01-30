@@ -71,6 +71,8 @@ func cleanupVolume(t *testing.T, client *verda.Client, volumeID string) {
 		t.Logf("Warning: Failed to delete volume %s: %v (this is non-fatal for test cleanup)", volumeID, err)
 	} else {
 		t.Logf("Successfully initiated deletion of volume %s", volumeID)
+		// Wait for deletion to complete
+		time.Sleep(5 * time.Second)
 	}
 }
 

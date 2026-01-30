@@ -70,9 +70,13 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 			t.Logf("   ⚠️  Discontinue also failed: %v", err)
 		} else {
 			t.Log("   ✅ Discontinued successfully")
+			// Wait for discontinue to complete
+			time.Sleep(10 * time.Second)
 		}
 	} else {
 		t.Log("   ✅ Deleted successfully")
+		// Wait for deletion to complete
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -119,6 +123,8 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 				t.Logf("   ⚠️  Failed to delete SSH key: %v", err)
 			} else {
 				t.Log("   ✅ SSH key deleted")
+				// Wait for deletion to complete
+				time.Sleep(2 * time.Second)
 			}
 		}
 	}()

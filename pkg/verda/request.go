@@ -58,6 +58,7 @@ func postRequest[T any](ctx context.Context, client *Client, url string, reqBody
 	return requestWithBody[T](ctx, client, http.MethodPost, url, reqBody)
 }
 
+//nolint:unused // Reserved for POST endpoints that don't return a response body
 func postRequestNoResult(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
 	var reqBodyReader io.Reader
 	if reqBody != nil {
@@ -76,9 +77,26 @@ func postRequestNoResult(ctx context.Context, client *Client, url string, reqBod
 	return client.Do(req, nil)
 }
 
-//nolint:unused // Reserved for PUT endpoints
 func putRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {
 	return requestWithBody[T](ctx, client, http.MethodPut, url, reqBody)
+}
+
+func putRequestNoResult(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
+	var reqBodyReader io.Reader
+	if reqBody != nil {
+		reqBodyBytes, err := json.Marshal(reqBody)
+		if err != nil {
+			return nil, err
+		}
+		reqBodyReader = bytes.NewReader(reqBodyBytes)
+	}
+
+	req, err := client.NewRequest(ctx, http.MethodPut, url, reqBodyReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.Do(req, nil)
 }
 
 func patchRequest[T any](ctx context.Context, client *Client, url string, reqBody any) (T, *Response, error) {

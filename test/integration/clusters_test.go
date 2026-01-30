@@ -52,9 +52,13 @@ func cleanupCluster(t *testing.T, client *verda.Client, clusterID string) {
 			t.Logf("   ⚠️  Delete also failed: %v", err)
 		} else {
 			t.Log("   ✅ Deleted successfully")
+			// Wait for deletion to complete
+			time.Sleep(15 * time.Second)
 		}
 	} else {
 		t.Log("   ✅ Discontinued successfully")
+		// Wait for discontinue to complete
+		time.Sleep(15 * time.Second)
 	}
 }
 

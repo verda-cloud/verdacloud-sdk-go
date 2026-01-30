@@ -242,7 +242,7 @@ func FindAvailableContainerCompute(ctx context.Context, t *testing.T, client *ve
 	if preferredName != "" {
 		for _, r := range resources {
 			if r.Name == preferredName && r.IsAvailable {
-				t.Logf("✅ Preferred compute %s (size %s) is AVAILABLE", r.Name, r.Size)
+				t.Logf("✅ Preferred compute %s (size %d) is AVAILABLE", r.Name, r.Size)
 				return r.Name, 1, true
 			}
 		}
@@ -252,7 +252,7 @@ func FindAvailableContainerCompute(ctx context.Context, t *testing.T, client *ve
 	// Find any available compute
 	for _, r := range resources {
 		if r.IsAvailable {
-			t.Logf("✅ Found available compute: %s (size %s)", r.Name, r.Size)
+			t.Logf("✅ Found available compute: %s (size %d)", r.Name, r.Size)
 			return r.Name, 1, true
 		}
 	}

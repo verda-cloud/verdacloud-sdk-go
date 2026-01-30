@@ -51,7 +51,7 @@ func TestContainerDeploymentsListOnly(t *testing.T) {
 		}
 		t.Logf("✅ Found %d compute resources:", len(resources))
 		for _, r := range resources {
-			t.Logf("  - %s (size: %s): Available=%v",
+			t.Logf("  - %s (size: %d): Available=%v",
 				r.Name, r.Size, r.IsAvailable)
 		}
 	})
@@ -97,7 +97,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 				ConcurrentRequestsPerReplica: 1,
 				ScalingTriggers: &verda.ScalingTriggers{
 					QueueLoad: &verda.QueueLoadTrigger{
-						Threshold: 0.5,
+						Threshold: 1.0,
 					},
 					CPUUtilization: &verda.UtilizationTrigger{
 						Enabled:   true,
@@ -177,6 +177,8 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 				t.Logf("⚠️  Failed to delete deployment: %v", err)
 			} else {
 				t.Logf("✅ Deleted deployment: %s", depName)
+				// Wait for deletion to complete
+				time.Sleep(10 * time.Second)
 			}
 		}
 	}()
@@ -496,7 +498,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			ConcurrentRequestsPerReplica: 2,
 			ScalingTriggers: &verda.ScalingTriggers{
 				QueueLoad: &verda.QueueLoadTrigger{
-					Threshold: 0.8,
+					Threshold: 1.5,
 				},
 				CPUUtilization: &verda.UtilizationTrigger{
 					Enabled:   true,
@@ -603,7 +605,7 @@ func TestContainerDeploymentsResourcesLookup(t *testing.T) {
 		}
 		t.Logf("✅ Found %d compute resources:", len(resources))
 		for _, r := range resources {
-			t.Logf("   - %s (size: %s): Available=%v",
+			t.Logf("   - %s (size: %d): Available=%v",
 				r.Name, r.Size, r.IsAvailable)
 		}
 	})

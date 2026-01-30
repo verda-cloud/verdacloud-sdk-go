@@ -148,6 +148,8 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 				t.Logf("⚠️  Failed to delete job deployment: %v", err)
 			} else {
 				t.Logf("✅ Deleted job deployment: %s", jobName)
+				// Wait for deletion to complete
+				time.Sleep(10 * time.Second)
 			}
 		}
 	}()

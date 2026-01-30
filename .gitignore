@@ -42,6 +42,7 @@ coverage.out
 coverage.html
 
 # Temporary files
+temp/
 tmp/
 *.tmp
 *.log

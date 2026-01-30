@@ -271,18 +271,59 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume attach
-	mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/attach", func(w http.ResponseWriter, r *http.Request) {
-		var req VolumeAttachRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// Set up mock response for volume attach using PUT /volumes with action
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		var actionReq map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
-		if req.InstanceID == "" {
+		action, _ := actionReq["action"].(string)
+		if action == VolumeActionAttach {
+			instanceID, _ := actionReq["instance_id"].(string)
+			if instanceID == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("instance_id required"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else if action == VolumeActionDetach {
+			instanceID, _ := actionReq["instance_id"].(string)
+			if instanceID == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("instance_id required"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else if action == VolumeActionClone {
+			name, _ := actionReq["name"].(string)
+			if name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("name required"))
+				return
+			}
+			// Return array of volume IDs (matching Python SDK behavior)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`["vol_cloned_456"]`))
+		} else if action == VolumeActionResize {
+			size, _ := actionReq["size"].(float64)
+			if size <= 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("invalid size"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else if action == VolumeActionRename {
+			name, _ := actionReq["name"].(string)
+			if name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("name required"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("instance_id required"))
-			return
+			_, _ = w.Write([]byte("unknown action"))
 		}
-
-		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("attach volume to instance", func(t *testing.T) {
@@ -299,23 +340,31 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 }
 
 func TestVolumeService_DetachVolume(t *testing.T) {
+	// Reuse the same mock server setup from AttachVolume test
+	// since both use PUT /volumes with actions
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume detach
-	mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/detach", func(w http.ResponseWriter, r *http.Request) {
-		var req VolumeDetachRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// Set up mock response for volume actions using PUT /volumes
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		var actionReq map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
-		if req.InstanceID == "" {
+		action, _ := actionReq["action"].(string)
+		if action == VolumeActionDetach {
+			instanceID, _ := actionReq["instance_id"].(string)
+			if instanceID == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("instance_id required"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("instance_id required"))
-			return
+			_, _ = w.Write([]byte("unknown action"))
 		}
-
-		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("detach volume from instance", func(t *testing.T) {
@@ -337,21 +386,27 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume clone
-	mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/clone", func(w http.ResponseWriter, r *http.Request) {
-		var req VolumeCloneRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// Set up mock response for volume clone using PUT /volumes with action
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		var actionReq map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
-		if req.Name == "" {
+		action, _ := actionReq["action"].(string)
+		if action == VolumeActionClone {
+			name, _ := actionReq["name"].(string)
+			if name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("name required"))
+				return
+			}
+			// Return array of volume IDs (matching Python SDK behavior)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`["vol_cloned_456"]`))
+		} else {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("name required"))
-			return
+			_, _ = w.Write([]byte("unknown action"))
 		}
-
-		// Return plain text ID (matching real API behavior)
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("vol_cloned_456"))
 	})
 
 	t.Run("clone volume", func(t *testing.T) {
@@ -378,18 +433,24 @@ func TestVolumeService_ResizeVolume(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume resize
-	mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/resize", func(w http.ResponseWriter, r *http.Request) {
-		var req VolumeResizeRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// Set up mock response for volume resize using PUT /volumes with action
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		var actionReq map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
-		if req.Size <= 0 {
+		action, _ := actionReq["action"].(string)
+		if action == VolumeActionResize {
+			size, _ := actionReq["size"].(float64)
+			if size <= 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("invalid size"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("invalid size"))
-			return
+			_, _ = w.Write([]byte("unknown action"))
 		}
-
-		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("resize volume", func(t *testing.T) {
@@ -411,18 +472,24 @@ func TestVolumeService_RenameVolume(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume rename
-	mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/rename", func(w http.ResponseWriter, r *http.Request) {
-		var req VolumeRenameRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+	// Set up mock response for volume rename using PUT /volumes with action
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		var actionReq map[string]interface{}
+		_ = json.NewDecoder(r.Body).Decode(&actionReq)
 
-		if req.Name == "" {
+		action, _ := actionReq["action"].(string)
+		if action == VolumeActionRename {
+			name, _ := actionReq["name"].(string)
+			if name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("name required"))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		} else {
 			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte("name required"))
-			return
+			_, _ = w.Write([]byte("unknown action"))
 		}
-
-		w.WriteHeader(http.StatusOK)
 	})
 
 	t.Run("rename volume", func(t *testing.T) {

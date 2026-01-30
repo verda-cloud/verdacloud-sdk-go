@@ -90,6 +90,15 @@ type VolumeDetachRequest struct {
 	InstanceID string `json:"instance_id"`
 }
 
+// VolumeActionRequest represents an action to perform on volumes
+type VolumeActionRequest struct {
+	ID     string `json:"id"`
+	Action string `json:"action"`
+	Name   string `json:"name,omitempty"`
+	Type   string `json:"type,omitempty"`
+	Size   int    `json:"size,omitempty"`
+}
+
 // VolumeCloneRequest represents a request to clone a volume
 type VolumeCloneRequest struct {
 	Name         string `json:"name"`
@@ -324,6 +333,16 @@ const (
 	VolumeStatusExported  = "exported"
 	VolumeStatusCanceled  = "canceled"
 	VolumeStatusCanceling = "canceling"
+)
+
+// Volume action constants
+const (
+	VolumeActionAttach = "attach"
+	VolumeActionDetach = "detach"
+	VolumeActionRename = "rename"
+	VolumeActionResize = "resize"
+	VolumeActionDelete = "delete"
+	VolumeActionClone  = "clone"
 )
 
 // Cluster represents a Verda cluster
@@ -622,9 +641,9 @@ type DeleteEnvironmentVariablesRequest struct {
 
 // ComputeResource represents available compute resources
 type ComputeResource struct {
-	Name        string      `json:"name"`
-	Size        interface{} `json:"size"` // Can be string or number depending on API version
-	IsAvailable bool        `json:"is_available"`
+	Name        string `json:"name"`
+	Size        int    `json:"size"`
+	IsAvailable bool   `json:"is_available"`
 }
 
 // Secret represents a secret used in deployments
