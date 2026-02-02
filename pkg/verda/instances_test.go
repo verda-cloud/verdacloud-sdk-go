@@ -116,8 +116,8 @@ func TestInstanceService_Create(t *testing.T) {
 		}
 
 		// Should set default location
-		if instance.Location != LocationFIN03 {
-			t.Errorf("expected location '%s', got '%s'", LocationFIN03, instance.Location)
+		if instance.Location != LocationFIN01 {
+			t.Errorf("expected location '%s', got '%s'", LocationFIN01, instance.Location)
 		}
 	})
 

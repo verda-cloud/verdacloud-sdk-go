@@ -92,7 +92,7 @@ func (s *StartupScriptService) createWithPlainTextResponse(ctx context.Context, 
 
 func (s *StartupScriptService) DeleteStartupScript(ctx context.Context, scriptID string) error {
 	path := fmt.Sprintf("/scripts/%s", scriptID)
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 

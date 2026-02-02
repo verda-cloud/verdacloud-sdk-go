@@ -86,20 +86,20 @@ func TestClusterService_Create(t *testing.T) {
 
 	t.Run("create cluster with full config", func(t *testing.T) {
 		startupScriptID := "script_123"
-		autoRenewal := true
+		autoRentExtension := true
 		turnToPayAsYouGo := false
 
 		req := CreateClusterRequest{
-			ClusterType:          "8V100.48V",
-			Image:                "ubuntu-22.04-cuda-12.0",
-			Hostname:             "test-cluster-full",
-			Description:          "Test cluster with full config",
-			SSHKeyIDs:            []string{"key_123", "key_456"},
-			LocationCode:         LocationFIN03,
-			Contract:             "PAY_AS_YOU_GO",
-			StartupScriptID:      &startupScriptID,
-			AutoRenewalExtension: &autoRenewal,
-			TurnToPayAsYouGo:     &turnToPayAsYouGo,
+			ClusterType:       "8V100.48V",
+			Image:             "ubuntu-22.04-cuda-12.0",
+			Hostname:          "test-cluster-full",
+			Description:       "Test cluster with full config",
+			SSHKeyIDs:         []string{"key_123", "key_456"},
+			LocationCode:      LocationFIN01,
+			Contract:          "PAY_AS_YOU_GO",
+			StartupScriptID:   &startupScriptID,
+			AutoRentExtension: &autoRentExtension,
+			TurnToPayAsYouGo:  &turnToPayAsYouGo,
 			SharedVolume: ClusterSharedVolumeSpec{
 				Name: "cluster-volume",
 				Size: 5000,
@@ -234,7 +234,7 @@ func TestClusterService_GetAvailabilities(t *testing.T) {
 
 	t.Run("get cluster availabilities for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		availabilities, err := client.Clusters.GetAvailabilities(ctx, LocationFIN03)
+		availabilities, err := client.Clusters.GetAvailabilities(ctx, LocationFIN01)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -264,7 +264,7 @@ func TestClusterService_CheckClusterTypeAvailability(t *testing.T) {
 
 	t.Run("check cluster type availability for specific location", func(t *testing.T) {
 		ctx := context.Background()
-		available, err := client.Clusters.CheckClusterTypeAvailability(ctx, "8V100.48V", LocationFIN03)
+		available, err := client.Clusters.CheckClusterTypeAvailability(ctx, "8V100.48V", LocationFIN01)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

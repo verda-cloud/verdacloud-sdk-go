@@ -76,7 +76,7 @@ func main() {
 		fmt.Printf("Available locations:\n")
 		for _, location := range locations {
 			status := "unavailable"
-			if location.Code == verda.LocationFIN03 {
+			if location.Code == verda.LocationFIN01 {
 				status = "available"
 			}
 			fmt.Printf("- %s (%s): %s - %s\n",
@@ -110,11 +110,11 @@ func main() {
 
 	// Example: Check cluster availability
 	fmt.Println("\n=== Cluster Availability ===")
-	clusterAvailabilities, err := client.Clusters.GetAvailabilities(ctx, verda.LocationFIN03)
+	clusterAvailabilities, err := client.Clusters.GetAvailabilities(ctx, verda.LocationFIN01)
 	if err != nil {
 		log.Printf("Error getting cluster availability: %v", err)
 	} else {
-		fmt.Printf("Cluster availability at %s:\n", verda.LocationFIN03)
+		fmt.Printf("Cluster availability at %s:\n", verda.LocationFIN01)
 		for _, avail := range clusterAvailabilities {
 			fmt.Printf("- Location %s: %d cluster types available\n",
 				avail.LocationCode, len(avail.Availabilities))
@@ -163,7 +163,7 @@ func main() {
 				Hostname:     "my-test-cluster",
 				Description:  "Test cluster from Go SDK",
 				SSHKeyIDs:    sshKeyIDs,
-				LocationCode: verda.LocationFIN03,
+				LocationCode: verda.LocationFIN01,
 				Contract:     "hourly",
 				Pricing:      "on-demand",
 			}
@@ -203,7 +203,7 @@ func main() {
 			Hostname:     "test-instance",
 			Description:  "Test instance from Go SDK",
 			SSHKeyIDs:    []string{}, // Add your SSH key IDs here
-			LocationCode: verda.LocationFIN03,
+			LocationCode: verda.LocationFIN01,
 			Contract:     "PAY_AS_YOU_GO",
 			Pricing:      "FIXED_PRICE",
 		})

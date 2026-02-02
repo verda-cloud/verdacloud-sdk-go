@@ -78,7 +78,7 @@ func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req *Cr
 
 func (s *SSHKeyService) DeleteSSHKey(ctx context.Context, sshKeyID string) error {
 	path := fmt.Sprintf("/ssh-keys/%s", sshKeyID)
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 

@@ -163,7 +163,7 @@ func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, depl
 	}
 	// If timeoutMs < 0, don't add timeout parameter (use API default)
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -333,7 +333,7 @@ func (s *ContainerDeploymentsService) DeleteSecret(ctx context.Context, secretNa
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -368,7 +368,7 @@ func (s *ContainerDeploymentsService) DeleteFileSecret(ctx context.Context, secr
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -403,6 +403,6 @@ func (s *ContainerDeploymentsService) DeleteRegistryCredentials(ctx context.Cont
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }

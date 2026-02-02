@@ -12,8 +12,8 @@ import (
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
-// Preferred instance type for testing (as specified by user)
-const PreferredInstanceType = "1RTXPRO6000.30V"
+// Preferred instance type for testing; empty = use cheapest available (e2e cost control)
+const PreferredInstanceType = ""
 
 // createTestSSHKey creates a test SSH key and returns its ID
 func createTestSSHKey(t *testing.T, client *verda.Client) string {
@@ -104,7 +104,7 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 	// ========================================
 	availableInstance, ok := FindAvailableInstanceType(ctx, t, client, PreferredInstanceType)
 	if !ok {
-		t.Skip("⏭️  SKIPPING: No instance types available in staging environment")
+		t.Skip("⏭️  SKIPPING: No instance types available at any location")
 	}
 
 	// Track state for sequential CRUD operations
@@ -112,7 +112,7 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 	var instanceCreated bool
 	var sshKeyID string
 
-	// Cleanup function - always runs at the end
+	// Cleanup runs on success and on failure/panic so test data is always removed
 	defer func() {
 		if instanceCreated && instanceID != "" {
 			cleanupInstance(t, client, instanceID)

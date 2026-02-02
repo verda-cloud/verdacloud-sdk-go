@@ -16,6 +16,8 @@
 #   export VERDA_BASE_URL="https://api.verda.com/v1"  # Optional
 #   ./integration_test.sh [instance|cluster|container|job|all]
 #
+# Run from repo root: test/scripts/integration_test.sh [instance|cluster|container|job|all]
+#
 # =============================================================================
 
 set -e
@@ -219,7 +221,7 @@ test_instance_crud() {
         \"hostname\": \"$INSTANCE_NAME\",
         \"ssh_key_ids\": [\"$SSH_KEY_ID\"],
         \"description\": \"SDK integration test\",
-        \"location_code\": \"FIN-03\"
+        \"location_code\": \"FIN-01\"
     }")
 
     INSTANCE_ID=$(echo "$CREATE_RESPONSE" | jq -r '.id // empty')

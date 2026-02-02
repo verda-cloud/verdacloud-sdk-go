@@ -117,7 +117,7 @@ func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName
 	}
 	// If timeoutMs < 0, don't add timeout parameter (use API default)
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 

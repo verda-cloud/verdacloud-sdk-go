@@ -45,7 +45,7 @@ func (s *VolumeService) GetVolume(ctx context.Context, id string) (*Volume, erro
 
 func (s *VolumeService) CreateVolume(ctx context.Context, req VolumeCreateRequest) (string, error) {
 	if req.LocationCode == "" {
-		req.LocationCode = LocationFIN03
+		req.LocationCode = LocationFIN01
 	}
 
 	return s.createVolumeWithPlainTextResponse(ctx, req)
@@ -79,7 +79,7 @@ func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool)
 		path += "?force=true"
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -91,7 +91,7 @@ func (s *VolumeService) AttachVolume(ctx context.Context, volumeID string, req V
 		"action":      VolumeActionAttach,
 		"instance_id": req.InstanceID,
 	}
-	_, err := putRequestNoResult(ctx, s.client, "/volumes", payload)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
 	return err
 }
 
@@ -102,7 +102,7 @@ func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req V
 		"action":      VolumeActionDetach,
 		"instance_id": req.InstanceID,
 	}
-	_, err := putRequestNoResult(ctx, s.client, "/volumes", payload)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
 	return err
 }
 
@@ -154,7 +154,7 @@ func (s *VolumeService) ResizeVolume(ctx context.Context, volumeID string, req V
 		Action: VolumeActionResize,
 		Size:   req.Size,
 	}
-	_, err := putRequestNoResult(ctx, s.client, "/volumes", actionReq)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }
 
@@ -164,6 +164,6 @@ func (s *VolumeService) RenameVolume(ctx context.Context, volumeID string, req V
 		Action: VolumeActionRename,
 		Name:   req.Name,
 	}
-	_, err := putRequestNoResult(ctx, s.client, "/volumes", actionReq)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }

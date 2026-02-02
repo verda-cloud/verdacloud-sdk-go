@@ -42,7 +42,7 @@ func (s *InstanceService) GetByID(ctx context.Context, id string) (*Instance, er
 
 func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest) (*Instance, error) {
 	if req.LocationCode == "" {
-		req.LocationCode = LocationFIN03
+		req.LocationCode = LocationFIN01
 	}
 
 	if req.SSHKeyIDs == nil {

@@ -305,9 +305,9 @@ const (
 	StatusNoCapacity   = "no_capacity"
 )
 
-// Default location
+// Default location (used when no location is specified)
 const (
-	LocationFIN03 = "FIN-03"
+	LocationFIN01 = "FIN-01"
 )
 
 // Volume type constants
@@ -367,29 +367,29 @@ type ClusterSharedVolume struct {
 
 // Cluster represents a Verda cluster
 type Cluster struct {
-	ID                   string                `json:"id"`
-	IP                   *string               `json:"ip"`
-	Status               string                `json:"status"`
-	CreatedAt            time.Time             `json:"created_at"`
-	CPU                  InstanceCPU           `json:"cpu"`
-	GPU                  InstanceGPU           `json:"gpu"`
-	GPUMemory            InstanceMemory        `json:"gpu_memory"`
-	Memory               InstanceMemory        `json:"memory"`
-	Hostname             string                `json:"hostname"`
-	Description          string                `json:"description"`
-	Location             string                `json:"location"`
-	PricePerHour         FlexibleFloat         `json:"price_per_hour"`
-	ClusterType          string                `json:"cluster_type"`
-	Image                string                `json:"image"`
-	OSName               string                `json:"os_name"`
-	SSHKeyIDs            []string              `json:"ssh_key_ids"`
-	Contract             string                `json:"contract"`
-	StartupScriptID      *string               `json:"startup_script_id,omitempty"`
-	AutoRenewalExtension *bool                 `json:"auto_rental_extension,omitempty"`
-	TurnToPayAsYouGo     *bool                 `json:"turn_to_pay_as_you_go,omitempty"`
-	LongTermPeriod       *string               `json:"long_term_period,omitempty"`
-	WorkerNodes          []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
-	SharedVolumes        []ClusterSharedVolume `json:"shared_volumes,omitempty"`
+	ID                string                `json:"id"`
+	IP                *string               `json:"ip"`
+	Status            string                `json:"status"`
+	CreatedAt         time.Time             `json:"created_at"`
+	CPU               InstanceCPU           `json:"cpu"`
+	GPU               InstanceGPU           `json:"gpu"`
+	GPUMemory         InstanceMemory        `json:"gpu_memory"`
+	Memory            InstanceMemory        `json:"memory"`
+	Hostname          string                `json:"hostname"`
+	Description       string                `json:"description"`
+	Location          string                `json:"location"`
+	PricePerHour      FlexibleFloat         `json:"price_per_hour"`
+	ClusterType       string                `json:"cluster_type"`
+	Image             string                `json:"image"`
+	OSName            string                `json:"os_name"`
+	SSHKeyIDs         []string              `json:"ssh_key_ids"`
+	Contract          string                `json:"contract"`
+	StartupScriptID   *string               `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                 `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                 `json:"turn_to_pay_as_you_go,omitempty"`
+	LongTermPeriod    *string               `json:"long_term_period,omitempty"`
+	WorkerNodes       []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
+	SharedVolumes     []ClusterSharedVolume `json:"shared_volumes,omitempty"`
 }
 
 // ClusterSharedVolumeSpec represents the shared volume specification for cluster creation
@@ -405,18 +405,18 @@ type ClusterExistingVolume struct {
 
 // CreateClusterRequest represents the request to create a cluster
 type CreateClusterRequest struct {
-	ClusterType          string                  `json:"cluster_type"`
-	Image                string                  `json:"image"`
-	Hostname             string                  `json:"hostname"`
-	Description          string                  `json:"description"`
-	SSHKeyIDs            []string                `json:"ssh_key_ids"`
-	LocationCode         string                  `json:"location_code,omitempty"`
-	Contract             string                  `json:"contract,omitempty"`
-	StartupScriptID      *string                 `json:"startup_script_id,omitempty"`
-	AutoRenewalExtension *bool                   `json:"auto_rental_extension,omitempty"`
-	TurnToPayAsYouGo     *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
-	SharedVolume         ClusterSharedVolumeSpec `json:"shared_volume"`
-	ExistingVolumes      []ClusterExistingVolume `json:"existing_volumes,omitempty"`
+	ClusterType       string                  `json:"cluster_type"`
+	Image             string                  `json:"image"`
+	Hostname          string                  `json:"hostname"`
+	Description       string                  `json:"description"`
+	SSHKeyIDs         []string                `json:"ssh_key_ids"`
+	LocationCode      string                  `json:"location_code,omitempty"`
+	Contract          string                  `json:"contract,omitempty"`
+	StartupScriptID   *string                 `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                   `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
+	SharedVolume      ClusterSharedVolumeSpec `json:"shared_volume"`
+	ExistingVolumes   []ClusterExistingVolume `json:"existing_volumes,omitempty"`
 }
 
 // CreateClusterResponse represents the response from creating a cluster

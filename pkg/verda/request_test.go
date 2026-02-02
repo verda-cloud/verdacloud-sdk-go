@@ -132,7 +132,7 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 
 	// Test DELETE request with no result
 	t.Run("DELETE no result", func(t *testing.T) {
-		resp, err := deleteRequestNoResult(ctx, client, "/users/1")
+		resp, err := deleteRequestAllowEmptyResponse(ctx, client, "/users/1")
 		if err != nil {
 			t.Fatalf("DELETE request failed: %v", err)
 		}
@@ -161,7 +161,7 @@ func TestServiceIntegration(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(balance)
 		case "/locations":
 			locations := []Location{
-				{Code: "FIN-03", Name: "Finland 1", CountryCode: "FI"},
+				{Code: "FIN-01", Name: "Finland 1", CountryCode: "FI"},
 			}
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(locations)

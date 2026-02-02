@@ -15,7 +15,8 @@ import (
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
-// getTestClient creates a client for integration tests using environment variables
+// getTestClient creates a client for integration tests using environment variables.
+// Use VERDA_CLIENT_ID and VERDA_CLIENT_SECRET only; never log or commit credentials.
 func getTestClient(t *testing.T) *verda.Client {
 	t.Helper()
 
@@ -74,14 +75,23 @@ type AvailableClusterType struct {
 	Image        string
 }
 
-// FindAvailableInstanceType checks availability and returns the best instance type to use
-// It prefers the preferredType if available, otherwise returns the cheapest available
+// FindAvailableInstanceType checks availability across ALL locations (fetched dynamically from API)
+// and returns the best instance type to use.
+// It prefers the preferredType if available, otherwise returns the cheapest available.
 func FindAvailableInstanceType(ctx context.Context, t *testing.T, client *verda.Client, preferredType string) (*AvailableInstanceType, bool) {
 	t.Helper()
 
-	t.Log("🔍 Checking instance type availability...")
+	t.Log("🔍 Checking instance type availability across all locations...")
 
-	// Get all instance types with pricing
+	// Step 1: Get all locations from API
+	locations, err := client.Locations.Get(ctx)
+	if err != nil {
+		t.Logf("⚠️  Could not get locations: %v", err)
+		return nil, false
+	}
+	t.Logf("   Found %d locations: %v", len(locations), locationCodes(locations))
+
+	// Step 2: Get all instance types with pricing
 	instanceTypes, err := client.InstanceTypes.Get(ctx, "usd")
 	if err != nil {
 		t.Logf("⚠️  Could not get instance types: %v", err)
@@ -89,10 +99,25 @@ func FindAvailableInstanceType(ctx context.Context, t *testing.T, client *verda.
 	}
 	t.Logf("   Found %d instance types", len(instanceTypes))
 
-	// Check if preferred type is available
+	// Step 3: Get availability across all locations
+	availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, false, "")
+	if err != nil {
+		t.Logf("⚠️  Could not get instance availabilities: %v", err)
+		return nil, false
+	}
+	t.Logf("   Checking availability in %d location responses", len(availabilities))
+
+	// Build a map: instanceType -> []locationCode (where available)
+	availableAt := make(map[string][]string)
+	for _, avail := range availabilities {
+		for _, instType := range avail.Availabilities {
+			availableAt[instType] = append(availableAt[instType], avail.LocationCode)
+		}
+	}
+
+	// Check if preferred type is available at any location
 	if preferredType != "" {
-		available, err := client.Instances.CheckInstanceTypeAvailability(ctx, preferredType)
-		if err == nil && available {
+		if locs, ok := availableAt[preferredType]; ok && len(locs) > 0 {
 			// Find price info
 			var price float64
 			for _, it := range instanceTypes {
@@ -101,14 +126,14 @@ func FindAvailableInstanceType(ctx context.Context, t *testing.T, client *verda.
 					break
 				}
 			}
-			t.Logf("✅ Preferred instance type %s is AVAILABLE ($%.2f/hr spot)", preferredType, price)
+			t.Logf("✅ Preferred instance type %s is AVAILABLE at %s ($%.2f/hr spot)", preferredType, locs[0], price)
 			return &AvailableInstanceType{
 				InstanceType: preferredType,
 				SpotPrice:    price,
-				Location:     verda.LocationFIN03,
+				Location:     locs[0],
 			}, true
 		}
-		t.Logf("⚠️  Preferred instance type %s is NOT available", preferredType)
+		t.Logf("⚠️  Preferred instance type %s is NOT available at any location", preferredType)
 	}
 
 	// Sort instance types by spot price (cheapest first)
@@ -116,21 +141,29 @@ func FindAvailableInstanceType(ctx context.Context, t *testing.T, client *verda.
 		return float64(instanceTypes[i].SpotPrice) < float64(instanceTypes[j].SpotPrice)
 	})
 
-	// Find the cheapest available instance type
+	// Find the cheapest available instance type at any location
 	for _, it := range instanceTypes {
-		available, err := client.Instances.CheckInstanceTypeAvailability(ctx, it.InstanceType)
-		if err == nil && available {
-			t.Logf("✅ Found cheapest available: %s ($%.2f/hr spot)", it.InstanceType, float64(it.SpotPrice))
+		if locs, ok := availableAt[it.InstanceType]; ok && len(locs) > 0 {
+			t.Logf("✅ Found cheapest available: %s at %s ($%.2f/hr spot)", it.InstanceType, locs[0], float64(it.SpotPrice))
 			return &AvailableInstanceType{
 				InstanceType: it.InstanceType,
 				SpotPrice:    float64(it.SpotPrice),
-				Location:     verda.LocationFIN03,
+				Location:     locs[0],
 			}, true
 		}
 	}
 
-	t.Log("❌ No instance types available in staging environment")
+	t.Log("❌ No instance types available at any location")
 	return nil, false
+}
+
+// locationCodes extracts location codes from a slice of Location for logging
+func locationCodes(locations []verda.Location) []string {
+	codes := make([]string, len(locations))
+	for i, loc := range locations {
+		codes[i] = loc.Code
+	}
+	return codes
 }
 
 // FindAvailableClusterType checks availability and returns the best cluster type to use
@@ -224,7 +257,7 @@ func FindAvailableClusterType(ctx context.Context, t *testing.T, client *verda.C
 		}
 	}
 
-	t.Log("❌ No cluster types available in staging environment")
+	t.Log("❌ No cluster types available at any location")
 	return nil, false
 }
 

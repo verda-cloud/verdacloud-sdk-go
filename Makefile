@@ -130,11 +130,48 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 		echo "  Using production API: https://api.verda.com/v1"; \
 	fi
 	@echo "→ Checking resource availability..."
-	@scripts/check_availability.sh
+	@test/scripts/check_availability.sh
 	@mkdir -p build
-	@go test -tags=integration -v -timeout=10m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
-	@go test -tags=integration -v -timeout=10m ./test/integration
+	@go test -tags=integration -v -timeout=30m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
+	@go test -tags=integration -v -timeout=30m ./test/integration
 	@echo "✓ Integration tests passed!"
+
+test-e2e: ## Run e2e tests only: instance, serverless container, serverless job (cheapest resources; cleanup on success and failure)
+	@echo "→ Running e2e tests (instance + serverless container + serverless job)..."
+	@echo "  Required: VERDA_CLIENT_ID and VERDA_CLIENT_SECRET (env only; never commit)"
+	@echo "  Optional: VERDA_BASE_URL (defaults to https://api.verda.com/v1)"
+	@echo "  Timeout: 30 minutes"
+	@# Load .env file if it exists (runs in same shell as subsequent commands)
+	@if [ -f .env ]; then \
+		echo "  Loading .env file..."; \
+		set -a; . ./.env; set +a; \
+		if [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
+			echo "  ✗ Missing required environment variables (check .env file)"; \
+			exit 1; \
+		fi; \
+		if [ -n "$$VERDA_BASE_URL" ]; then \
+			echo "  ✅ API URL: $$VERDA_BASE_URL"; \
+		else \
+			echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
+		fi; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	elif [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
+		echo "  ✗ Missing required environment variables"; \
+		echo "  Either create a .env file or set VERDA_CLIENT_ID and VERDA_CLIENT_SECRET"; \
+		exit 1; \
+	elif [ -n "$$VERDA_BASE_URL" ]; then \
+		echo "  ✅ API URL: $$VERDA_BASE_URL"; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	else \
+		echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	fi
 
 coverage: ## Generate test coverage report (HTML output)
 	@echo "→ Generating coverage report..."

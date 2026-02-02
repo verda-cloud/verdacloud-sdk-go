@@ -67,6 +67,13 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 	client := getTestClient(t)
 	ctx := context.Background()
 
+	// Pick cheapest available serverless compute (e2e cost control)
+	computeName, computeSize, ok := FindAvailableContainerCompute(ctx, t, client, "")
+	if !ok {
+		t.Skip("⏭️  SKIPPING: No container compute available")
+	}
+	t.Logf("Using compute: %s (size %d)", computeName, computeSize)
+
 	// Create a unique deployment name
 	depName := generateRandomName("test-dep")
 	var containerName string   // Will be extracted from API response
@@ -78,8 +85,8 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			Name:   depName,
 			IsSpot: false,
 			Compute: verda.ContainerCompute{
-				Name: "RTX 4500 Ada",
-				Size: 1,
+				Name: computeName,
+				Size: computeSize,
 			},
 			ContainerRegistrySettings: verda.ContainerRegistrySettings{
 				IsPrivate: false,
@@ -169,7 +176,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		}
 	})
 
-	// Cleanup function
+	// Cleanup runs on success and on failure/panic so test data is always removed
 	defer func() {
 		if deploymentCreated {
 			t.Logf("🧹 Cleaning up deployment: %s", depName)

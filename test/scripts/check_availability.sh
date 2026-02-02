@@ -12,6 +12,8 @@
 #   export VERDA_BASE_URL="https://api.verda.com/v1"  # Optional
 #   ./check_availability.sh [instance|cluster|container|all]
 #
+# Run from repo root: test/scripts/check_availability.sh [instance|cluster|container|all]
+#
 # =============================================================================
 
 set -e

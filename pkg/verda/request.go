@@ -58,8 +58,8 @@ func postRequest[T any](ctx context.Context, client *Client, url string, reqBody
 	return requestWithBody[T](ctx, client, http.MethodPost, url, reqBody)
 }
 
-//nolint:unused // Reserved for POST endpoints that don't return a response body
-func postRequestNoResult(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
+//nolint:unused // Reserved for POST when response body is empty or not needed
+func postRequestAllowEmptyResponse(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
 	var reqBodyReader io.Reader
 	if reqBody != nil {
 		reqBodyBytes, err := json.Marshal(reqBody)
@@ -81,7 +81,7 @@ func putRequest[T any](ctx context.Context, client *Client, url string, reqBody 
 	return requestWithBody[T](ctx, client, http.MethodPut, url, reqBody)
 }
 
-func putRequestNoResult(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
+func putRequestAllowEmptyResponse(ctx context.Context, client *Client, url string, reqBody any) (*Response, error) {
 	var reqBodyReader io.Reader
 	if reqBody != nil {
 		reqBodyBytes, err := json.Marshal(reqBody)
@@ -120,7 +120,7 @@ func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *
 	return respBody, resp, nil
 }
 
-func deleteRequestNoResult(ctx context.Context, client *Client, url string) (*Response, error) {
+func deleteRequestAllowEmptyResponse(ctx context.Context, client *Client, url string) (*Response, error) {
 	req, err := client.NewRequest(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return nil, err

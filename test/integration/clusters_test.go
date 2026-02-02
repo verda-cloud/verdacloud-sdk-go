@@ -63,7 +63,7 @@ func TestClusterCRUDIntegration(t *testing.T) {
 	// ========================================
 	availableCluster, ok := FindAvailableClusterType(ctx, t, client, PreferredClusterType)
 	if !ok {
-		t.Skip("⏭️  SKIPPING: No cluster types available in staging environment")
+		t.Skip("⏭️  SKIPPING: No cluster types available at any location")
 	}
 
 	// Track state for sequential CRUD operations

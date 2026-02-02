@@ -263,29 +263,29 @@ type ClusterSharedVolume struct {
 }
 
 type Cluster struct {
-	ID                   string                 `json:"id"`
-	IP                   *string                `json:"ip"`
-	Status               string                 `json:"status"`
-	CreatedAt            time.Time              `json:"created_at"`
-	CPU                  map[string]interface{} `json:"cpu"`
-	GPU                  map[string]interface{} `json:"gpu"`
-	GPUMemory            map[string]interface{} `json:"gpu_memory"`
-	Memory               map[string]interface{} `json:"memory"`
-	Hostname             string                 `json:"hostname"`
-	Description          string                 `json:"description"`
-	Location             string                 `json:"location"`
-	PricePerHour         float64                `json:"price_per_hour"`
-	ClusterType          string                 `json:"cluster_type"`
-	Image                string                 `json:"image"`
-	OSName               string                 `json:"os_name"`
-	SSHKeyIDs            []string               `json:"ssh_key_ids"`
-	Contract             string                 `json:"contract"`
-	StartupScriptID      *string                `json:"startup_script_id,omitempty"`
-	AutoRenewalExtension *bool                  `json:"auto_rental_extension,omitempty"`
-	TurnToPayAsYouGo     *bool                  `json:"turn_to_pay_as_you_go,omitempty"`
-	LongTermPeriod       *string                `json:"long_term_period,omitempty"`
-	WorkerNodes          []ClusterWorkerNode    `json:"worker_nodes,omitempty"`
-	SharedVolumes        []ClusterSharedVolume  `json:"shared_volumes,omitempty"`
+	ID                string                 `json:"id"`
+	IP                *string                `json:"ip"`
+	Status            string                 `json:"status"`
+	CreatedAt         time.Time              `json:"created_at"`
+	CPU               map[string]interface{} `json:"cpu"`
+	GPU               map[string]interface{} `json:"gpu"`
+	GPUMemory         map[string]interface{} `json:"gpu_memory"`
+	Memory            map[string]interface{} `json:"memory"`
+	Hostname          string                 `json:"hostname"`
+	Description       string                 `json:"description"`
+	Location          string                 `json:"location"`
+	PricePerHour      float64                `json:"price_per_hour"`
+	ClusterType       string                 `json:"cluster_type"`
+	Image             string                 `json:"image"`
+	OSName            string                 `json:"os_name"`
+	SSHKeyIDs         []string               `json:"ssh_key_ids"`
+	Contract          string                 `json:"contract"`
+	StartupScriptID   *string                `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                  `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                  `json:"turn_to_pay_as_you_go,omitempty"`
+	LongTermPeriod    *string                `json:"long_term_period,omitempty"`
+	WorkerNodes       []ClusterWorkerNode    `json:"worker_nodes,omitempty"`
+	SharedVolumes     []ClusterSharedVolume  `json:"shared_volumes,omitempty"`
 }
 
 type ClusterSharedVolumeSpec struct {
@@ -298,18 +298,18 @@ type ClusterExistingVolume struct {
 }
 
 type CreateClusterRequest struct {
-	ClusterType          string                  `json:"cluster_type"`
-	Image                string                  `json:"image"`
-	Hostname             string                  `json:"hostname"`
-	Description          string                  `json:"description"`
-	SSHKeyIDs            []string                `json:"ssh_key_ids"`
-	LocationCode         string                  `json:"location_code,omitempty"`
-	Contract             string                  `json:"contract,omitempty"`
-	StartupScriptID      *string                 `json:"startup_script_id,omitempty"`
-	AutoRenewalExtension *bool                   `json:"auto_rental_extension,omitempty"`
-	TurnToPayAsYouGo     *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
-	SharedVolume         ClusterSharedVolumeSpec `json:"shared_volume"`
-	ExistingVolumes      []ClusterExistingVolume `json:"existing_volumes,omitempty"`
+	ClusterType       string                  `json:"cluster_type"`
+	Image             string                  `json:"image"`
+	Hostname          string                  `json:"hostname"`
+	Description       string                  `json:"description"`
+	SSHKeyIDs         []string                `json:"ssh_key_ids"`
+	LocationCode      string                  `json:"location_code,omitempty"`
+	Contract          string                  `json:"contract,omitempty"`
+	StartupScriptID   *string                 `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                   `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
+	SharedVolume      ClusterSharedVolumeSpec `json:"shared_volume"`
+	ExistingVolumes   []ClusterExistingVolume `json:"existing_volumes,omitempty"`
 }
 
 type ClusterActionItem struct {
@@ -356,7 +356,7 @@ type ClusterImage struct {
 const (
 	StatusRunning = "running"
 	StatusPending = "pending"
-	LocationFIN03 = "FIN-03"
+	LocationFIN01 = "FIN-01"
 	pathInstances = "/instances"
 	// nolint:gosec // G101: This is a URL path, not a credential
 	pathOAuth2Token = "/oauth2/token"
@@ -604,7 +604,7 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 			Storage:         map[string]interface{}{"description": "100GB SSD"},
 			Hostname:        "test-instance",
 			Description:     "Test instance",
-			Location:        LocationFIN03,
+			Location:        LocationFIN01,
 			PricePerHour:    0.50,
 			IsSpot:          false,
 			InstanceType:    "1V100.6V",
@@ -651,7 +651,7 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		Storage:         map[string]interface{}{"description": "100GB SSD"},
 		Hostname:        "test-instance",
 		Description:     "Test instance",
-		Location:        LocationFIN03,
+		Location:        LocationFIN01,
 		PricePerHour:    0.50,
 		IsSpot:          false,
 		InstanceType:    "1V100.6V",
@@ -681,7 +681,7 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 	// Use LocationCode if provided, otherwise default
 	location := req.LocationCode
 	if location == "" {
-		location = LocationFIN03
+		location = LocationFIN01
 	}
 
 	// Use Contract and Pricing if provided, otherwise use defaults
@@ -772,7 +772,7 @@ func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request)
 
 	locations := []Location{
 		{
-			Code:        LocationFIN03,
+			Code:        LocationFIN01,
 			Name:        "Finland 01",
 			Country:     "Finland",
 			CountryCode: "FI",
@@ -1069,7 +1069,7 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-			Location:     LocationFIN03,
+			Location:     LocationFIN01,
 			Contract:     "PAY_AS_YOU_GO",
 		},
 	}
@@ -1103,7 +1103,7 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 		Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-		Location:     LocationFIN03,
+		Location:     LocationFIN01,
 		Contract:     "PAY_AS_YOU_GO",
 	}
 
@@ -1172,7 +1172,7 @@ func (ms *MockServer) handleGetClusterAvailabilities(w http.ResponseWriter, _ *h
 
 	availabilities := []ClusterAvailability{
 		{
-			LocationCode:   LocationFIN03,
+			LocationCode:   LocationFIN01,
 			Availabilities: []string{"8V100.48V", "16H200", "32H200"},
 		},
 	}
@@ -1418,7 +1418,7 @@ func (ms *MockServer) handleGetInstanceAvailabilities(w http.ResponseWriter, _ *
 
 	availabilities := []LocationAvailability{
 		{
-			LocationCode:   LocationFIN03,
+			LocationCode:   LocationFIN01,
 			Availabilities: []string{"1V100.6V", "8V100.48V"},
 		},
 		{
