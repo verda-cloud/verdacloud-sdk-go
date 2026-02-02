@@ -180,13 +180,27 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 	defer func() {
 		if deploymentCreated {
 			t.Logf("🧹 Cleaning up deployment: %s", depName)
-			if err := client.ContainerDeployments.DeleteDeployment(ctx, depName, 60000); err != nil {
-				t.Logf("⚠️  Failed to delete deployment: %v", err)
-			} else {
-				t.Logf("✅ Deleted deployment: %s", depName)
-				// Wait for deletion to complete
-				time.Sleep(10 * time.Second)
+			// Wait for deployment to stabilize before attempting delete
+			t.Logf("   Waiting 15s for deployment to stabilize...")
+			time.Sleep(15 * time.Second)
+
+			// Retry delete up to 3 times with backoff
+			var deleteErr error
+			for attempt := 1; attempt <= 3; attempt++ {
+				deleteErr = client.ContainerDeployments.DeleteDeployment(ctx, depName, 120000)
+				if deleteErr == nil {
+					t.Logf("✅ Deleted deployment: %s", depName)
+					// Wait for deletion to complete
+					time.Sleep(10 * time.Second)
+					return
+				}
+				t.Logf("⚠️  Delete attempt %d failed: %v", attempt, deleteErr)
+				if attempt < 3 {
+					t.Logf("   Retrying in %ds...", attempt*10)
+					time.Sleep(time.Duration(attempt*10) * time.Second)
+				}
 			}
+			t.Logf("⚠️  Failed to delete deployment after 3 attempts: %v", deleteErr)
 		}
 	}()
 

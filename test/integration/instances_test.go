@@ -32,11 +32,15 @@ func createTestSSHKey(t *testing.T, client *verda.Client) string {
 	return sshKey.ID
 }
 
-// cleanupInstance properly cleans up an instance
+// cleanupInstance properly cleans up an instance with retry logic
 func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 	t.Helper()
 	ctx := context.Background()
 	t.Logf("🧹 Cleaning up instance %s...", instanceID)
+
+	// Wait for instance to stabilize before cleanup
+	t.Logf("   Waiting 15s for instance to stabilize...")
+	time.Sleep(15 * time.Second)
 
 	// Get current status
 	instance, err := client.Instances.GetByID(ctx, instanceID)
@@ -63,21 +67,29 @@ func cleanupInstance(t *testing.T, client *verda.Client, instanceID string) {
 		time.Sleep(30 * time.Second)
 	}
 
-	// Try to delete
-	if err := client.Instances.Delete(ctx, nil, instanceID); err != nil {
-		t.Logf("   ⚠️  Delete failed: %v, trying discontinue...", err)
-		if err := client.Instances.Discontinue(ctx, instanceID); err != nil {
-			t.Logf("   ⚠️  Discontinue also failed: %v", err)
-		} else {
-			t.Log("   ✅ Discontinued successfully")
-			// Wait for discontinue to complete
+	// Retry delete up to 3 times with backoff
+	for attempt := 1; attempt <= 3; attempt++ {
+		err := client.Instances.Delete(ctx, nil, instanceID)
+		if err == nil {
+			t.Log("   ✅ Deleted successfully")
 			time.Sleep(10 * time.Second)
+			return
 		}
-	} else {
-		t.Log("   ✅ Deleted successfully")
-		// Wait for deletion to complete
-		time.Sleep(10 * time.Second)
+		t.Logf("   ⚠️  Delete attempt %d failed: %v", attempt, err)
+
+		// Try discontinue as fallback
+		if discErr := client.Instances.Discontinue(ctx, instanceID); discErr == nil {
+			t.Log("   ✅ Discontinued successfully")
+			time.Sleep(10 * time.Second)
+			return
+		}
+
+		if attempt < 3 {
+			t.Logf("   Retrying in %ds...", attempt*10)
+			time.Sleep(time.Duration(attempt*10) * time.Second)
+		}
 	}
+	t.Logf("   ⚠️  Failed to cleanup instance after 3 attempts")
 }
 
 // ============================================================================
