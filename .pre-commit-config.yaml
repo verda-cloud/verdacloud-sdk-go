@@ -43,16 +43,8 @@ repos:
     hooks:
       - id: golangci-lint
         name: Lint Go code (golangci-lint)
-        description: Fast linters runner for Go running
+        description: Fast linters runner for Go
         entry: make lint
-        language: system
-        types: [go]
-        pass_filenames: false
-
-      - id: go-test-docker
-        name: Run Go unit tests
-        description: Runs unit tests
-        entry: make test
         language: system
         types: [go]
         pass_filenames: false

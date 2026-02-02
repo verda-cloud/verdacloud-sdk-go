@@ -147,10 +147,12 @@ func TestImagesService_GetClusterImages(t *testing.T) {
 			if image.Name == "" {
 				t.Error("expected cluster image to have a Name")
 			}
-			if image.Version == "" {
-				t.Error("expected cluster image to have a Version")
+			if image.ImageType == "" {
+				t.Error("expected cluster image to have an ImageType")
 			}
-			// Description can be empty, so just check it exists as a field
+			if image.ID == "" {
+				t.Error("expected cluster image to have an ID")
+			}
 		}
 	})
 
@@ -163,38 +165,47 @@ func TestImagesService_GetClusterImages(t *testing.T) {
 
 		if len(images) > 0 {
 			for i, image := range images {
+				if image.ID == "" {
+					t.Errorf("cluster image %d missing ID", i)
+				}
+				if image.ImageType == "" {
+					t.Errorf("cluster image %d missing ImageType", i)
+				}
 				if image.Name == "" {
 					t.Errorf("cluster image %d missing Name", i)
 				}
-				if image.Version == "" {
-					t.Errorf("cluster image %d missing Version", i)
+				if image.Category == "" {
+					t.Errorf("cluster image %d missing Category", i)
 				}
-				// Available is a boolean, always has a value
+				if len(image.Details) == 0 {
+					t.Errorf("cluster image %d has no Details", i)
+				}
+				// IsDefault and IsCluster are booleans, always have values
 			}
 		}
 	})
 
-	t.Run("verify at least one available cluster image", func(t *testing.T) {
+	t.Run("verify cluster images are marked as cluster images", func(t *testing.T) {
 		ctx := context.Background()
 		images, err := client.Images.GetClusterImages(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
 
-		hasAvailableImage := false
+		hasClusterImage := false
 		for _, image := range images {
-			if image.Available {
-				hasAvailableImage = true
+			if image.IsCluster {
+				hasClusterImage = true
 				break
 			}
 		}
 
-		if !hasAvailableImage {
-			t.Error("expected at least one available cluster image")
+		if !hasClusterImage {
+			t.Error("expected at least one image with IsCluster=true")
 		}
 	})
 
-	t.Run("verify cluster images have versions", func(t *testing.T) {
+	t.Run("verify cluster images have details", func(t *testing.T) {
 		ctx := context.Background()
 		images, err := client.Images.GetClusterImages(ctx)
 		if err != nil {
@@ -203,8 +214,8 @@ func TestImagesService_GetClusterImages(t *testing.T) {
 
 		if len(images) > 0 {
 			for _, image := range images {
-				if image.Version == "" {
-					t.Errorf("cluster image %s has empty version", image.Name)
+				if len(image.Details) == 0 {
+					t.Errorf("cluster image %s has no details", image.Name)
 				}
 			}
 		}

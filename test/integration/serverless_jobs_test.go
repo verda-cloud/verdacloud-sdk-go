@@ -45,7 +45,10 @@ func TestServerlessJobsListOnly(t *testing.T) {
 }
 
 // TestServerlessJobsCRUDWithScalingAndEnvVars demonstrates complete CRUD flow
-// including scaling options and environment variables
+// Note: Serverless jobs API has limited endpoints compared to container deployments
+// - Environment variables CRUD is NOT supported (set at creation time only)
+// - Scaling update is NOT supported (set at creation time only)
+// - Job deployment PATCH/UPDATE is NOT supported
 func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
@@ -54,20 +57,23 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 	client := getTestClient(t)
 	ctx := context.Background()
 
+	// Pick cheapest available serverless compute (e2e cost control)
+	computeName, computeSize, ok := FindAvailableContainerCompute(ctx, t, client, "")
+	if !ok {
+		t.Skip("⏭️  SKIPPING: No container compute available for jobs")
+	}
+	t.Logf("Using compute: %s (size %d)", computeName, computeSize)
+
 	// Create a unique job name
 	jobName := generateRandomName("job-test")
-	var containerName string // Will be extracted from API response
-	var jobCreated bool      // Track if job was successfully created
+	var jobCreated bool // Track if job was successfully created
 
-	// Step 1: CREATE - Create a new job deployment
+	// Step 1: CREATE - Create a new job deployment (public registry for e2e; no extra secrets)
 	t.Run("1. CREATE job deployment", func(t *testing.T) {
 		req := &verda.CreateJobDeploymentRequest{
 			Name: jobName,
 			ContainerRegistrySettings: &verda.ContainerRegistrySettings{
-				IsPrivate: true,
-				Credentials: &verda.RegistryCredentialsRef{
-					Name: "dockerhub-credentials",
-				},
+				IsPrivate: false,
 			},
 			Containers: []verda.CreateDeploymentContainer{
 				{
@@ -92,22 +98,20 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 					},
 					VolumeMounts: []verda.ContainerVolumeMount{
 						{
-							Type:       "scratch",
-							MountPath:  "/data",
-							SecretName: "my-secret",
-							SizeInMB:   64,
-							VolumeID:   "fa4a0338-65b2-4819-8450-821190fbaf6d",
+							Type:      "scratch",
+							MountPath: "/data",
 						},
 					},
 				},
 			},
 			Compute: &verda.ContainerCompute{
-				Name: "RTX 4500 Ada",
-				Size: 1,
+				Name: computeName,
+				Size: computeSize,
 			},
-			Scaling: &verda.ContainerScalingOptions{
+			Scaling: &verda.JobScalingOptions{
 				MaxReplicaCount:        1,
-				QueueMessageTTLSeconds: 300, // API requires this field to be present
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600, // Job timeout in seconds (required)
 			},
 		}
 
@@ -133,22 +137,37 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 		// Extract the container name from the response
 		if len(job.Containers) > 0 {
-			containerName = job.Containers[0].Name
-			t.Logf("✅ Created job deployment: %s (container: %s)", job.Name, containerName)
+			t.Logf("✅ Created job deployment: %s (container: %s)", job.Name, job.Containers[0].Name)
 		} else {
 			t.Logf("✅ Created job deployment: %s (no containers in response)", job.Name)
 		}
 	})
 
-	// Cleanup function
+	// Cleanup runs on success and on failure/panic so test data is always removed
 	defer func() {
 		if jobCreated {
 			t.Logf("🧹 Cleaning up job deployment: %s", jobName)
-			if err := client.ServerlessJobs.DeleteJobDeployment(ctx, jobName, 60000); err != nil {
-				t.Logf("⚠️  Failed to delete job deployment: %v", err)
-			} else {
-				t.Logf("✅ Deleted job deployment: %s", jobName)
+			// Wait for job deployment to stabilize before attempting delete
+			t.Logf("   Waiting 15s for job deployment to stabilize...")
+			time.Sleep(15 * time.Second)
+
+			// Retry delete up to 3 times with backoff
+			var deleteErr error
+			for attempt := 1; attempt <= 3; attempt++ {
+				deleteErr = client.ServerlessJobs.DeleteJobDeployment(ctx, jobName, 120000)
+				if deleteErr == nil {
+					t.Logf("✅ Deleted job deployment: %s", jobName)
+					// Wait for deletion to complete
+					time.Sleep(10 * time.Second)
+					return
+				}
+				t.Logf("⚠️  Delete attempt %d failed: %v", attempt, deleteErr)
+				if attempt < 3 {
+					t.Logf("   Retrying in %ds...", attempt*10)
+					time.Sleep(time.Duration(attempt*10) * time.Second)
+				}
 			}
+			t.Logf("⚠️  Failed to delete job deployment after 3 attempts: %v", deleteErr)
 		}
 	}()
 
@@ -177,12 +196,7 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 		if job.Name != jobName {
 			t.Errorf("Expected job name %s, got %s", jobName, job.Name)
 		}
-
-		// Extract container name if not already set
-		if containerName == "" && len(job.Containers) > 0 {
-			containerName = job.Containers[0].Name
-		}
-		t.Logf("✅ Retrieved job deployment: %s (containers: %d, containerName: %s)", job.Name, len(job.Containers), containerName)
+		t.Logf("✅ Retrieved job deployment: %s (containers: %d)", job.Name, len(job.Containers))
 	})
 
 	// Step 3: LIST - List all job deployments
@@ -226,15 +240,10 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ Failed to get job deployment status: %v", err)
 		}
-		t.Logf("✅ Job deployment status: %s, active: %d, succeeded: %d, failed: %d",
-			status.Status, status.ActiveJobs, status.SucceededJobs, status.FailedJobs)
+		t.Logf("✅ Job deployment status: %s", status.Status)
 	})
 
-	// ==========================================
-	// SCALING OPTIONS CRUD
-	// ==========================================
-
-	// Step 5: GET scaling options
+	// Step 5: GET scaling options (read-only - update not supported for jobs)
 	t.Run("5. READ job scaling options", func(t *testing.T) {
 		if !jobCreated {
 			t.Skip("⚠️  Skipping - job deployment was not created")
@@ -251,262 +260,8 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 			scaling.MaxReplicaCount, scaling.QueueMessageTTLSeconds)
 	})
 
-	// Step 6: UPDATE scaling options
-	t.Run("6. UPDATE job scaling options", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		updateReq := &verda.UpdateScalingOptionsRequest{
-			MaxReplicaCount:        2,
-			QueueMessageTTLSeconds: 600,
-		}
-
-		scaling, err := client.ServerlessJobs.UpdateJobDeploymentScaling(ctx, jobName, updateReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to update scaling options: %v", err)
-		}
-		t.Logf("✅ Updated scaling options: maxReplicas=%d, queueTTL=%d",
-			scaling.MaxReplicaCount, scaling.QueueMessageTTLSeconds)
-	})
-
-	// Step 7: Verify scaling update
-	t.Run("7. VERIFY scaling options update", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		scaling, err := client.ServerlessJobs.GetJobDeploymentScaling(ctx, jobName)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to get scaling options after update: %v", err)
-		}
-
-		if scaling.MaxReplicaCount != 2 {
-			t.Errorf("Expected maxReplicaCount=2, got %d", scaling.MaxReplicaCount)
-		}
-		t.Logf("✅ Verified scaling options after update: maxReplicas=%d", scaling.MaxReplicaCount)
-	})
-
-	// ==========================================
-	// ENVIRONMENT VARIABLES CRUD
-	// ==========================================
-
-	// Step 8: GET environment variables
-	t.Run("8. READ environment variables", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		envVars, err := client.ServerlessJobs.GetJobEnvironmentVariables(ctx, jobName)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to get environment variables: %v", err)
-		}
-		t.Logf("✅ Got %d environment variables", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
-		}
-	})
-
-	// Step 9: ADD new environment variables
-	t.Run("9. ADD environment variables", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		addReq := &verda.EnvironmentVariablesRequest{
-			ContainerName: containerName,
-			Env: []verda.ContainerEnvVar{
-				{
-					Type:                     "plain",
-					Name:                     "NEW_VAR_1",
-					ValueOrReferenceToSecret: "value-1",
-				},
-				{
-					Type:                     "plain",
-					Name:                     "NEW_VAR_2",
-					ValueOrReferenceToSecret: "value-2",
-				},
-			},
-		}
-
-		err := client.ServerlessJobs.AddJobEnvironmentVariables(ctx, jobName, addReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to add environment variables: %v", err)
-		}
-		t.Logf("✅ Added 2 new environment variables")
-	})
-
-	// Wait a moment for changes to propagate
-	time.Sleep(2 * time.Second)
-
-	// Step 10: Verify env vars were added
-	t.Run("10. VERIFY environment variables added", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		envVars, err := client.ServerlessJobs.GetJobEnvironmentVariables(ctx, jobName)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to get environment variables after add: %v", err)
-		}
-
-		t.Logf("✅ Got %d environment variables after add:", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
-		}
-	})
-
-	// Step 11: UPDATE environment variables
-	t.Run("11. UPDATE environment variables", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		updateReq := &verda.EnvironmentVariablesRequest{
-			ContainerName: containerName,
-			Env: []verda.ContainerEnvVar{
-				{
-					Type:                     "plain",
-					Name:                     "NEW_VAR_1",
-					ValueOrReferenceToSecret: "updated-value-1",
-				},
-			},
-		}
-
-		err := client.ServerlessJobs.UpdateJobEnvironmentVariables(ctx, jobName, updateReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to update environment variables: %v", err)
-		}
-		t.Logf("✅ Updated environment variable NEW_VAR_1")
-	})
-
-	// Step 12: DELETE environment variables
-	t.Run("12. DELETE environment variables", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		deleteReq := &verda.DeleteEnvironmentVariablesRequest{
-			ContainerName: containerName,
-			Env: []verda.ContainerEnvVar{
-				{
-					Name: "NEW_VAR_2",
-				},
-			},
-		}
-
-		err := client.ServerlessJobs.DeleteJobEnvironmentVariables(ctx, jobName, deleteReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to delete environment variables: %v", err)
-		}
-		t.Logf("✅ Deleted environment variable NEW_VAR_2")
-	})
-
-	// Step 13: Verify env var deletion
-	t.Run("13. VERIFY environment variable deletion", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		envVars, err := client.ServerlessJobs.GetJobEnvironmentVariables(ctx, jobName)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to get environment variables after delete: %v", err)
-		}
-
-		t.Logf("✅ Got %d environment variables after delete:", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
-		}
-	})
-
-	// ==========================================
-	// UPDATE JOB DEPLOYMENT (full update)
-	// ==========================================
-
-	// Step 14: UPDATE job deployment (scaling via dedicated endpoint)
-	t.Run("14. UPDATE job deployment (scaling)", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		// Update scaling via the dedicated scaling endpoint
-		updateReq := &verda.UpdateScalingOptionsRequest{
-			MaxReplicaCount:        3,
-			QueueMessageTTLSeconds: 900,
-		}
-
-		scaling, err := client.ServerlessJobs.UpdateJobDeploymentScaling(ctx, jobName, updateReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to update job scaling: %v", err)
-		}
-		t.Logf("✅ Updated job scaling: maxReplicas=%d", scaling.MaxReplicaCount)
-	})
-
-	// ==========================================
-	// UPDATE JOB DEPLOYMENT (via PATCH)
-	// ==========================================
-
-	// Step 15: UPDATE job deployment via PATCH
-	t.Run("15. UPDATE job deployment via PATCH", func(t *testing.T) {
-		if !jobCreated {
-			t.Skip("⚠️  Skipping - job deployment was not created")
-		}
-
-		// Update the job deployment using UpdateJobDeployment (PATCH)
-		updateReq := &verda.UpdateJobDeploymentRequest{
-			Scaling: &verda.ContainerScalingOptions{
-				MaxReplicaCount:        4,
-				QueueMessageTTLSeconds: 1200,
-			},
-		}
-
-		job, err := client.ServerlessJobs.UpdateJobDeployment(ctx, jobName, updateReq)
-		if err != nil {
-			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
-				t.Skip("⚠️  Skipping: API timeout (504)")
-			}
-			t.Fatalf("❌ Failed to update job deployment: %v", err)
-		}
-		t.Logf("✅ Updated job deployment via PATCH: %s", job.Name)
-		if job.Scaling != nil {
-			t.Logf("   Scaling: maxReplicas=%d, queueTTL=%d, deadline=%d",
-				job.Scaling.MaxReplicaCount, job.Scaling.QueueMessageTTLSeconds, job.Scaling.DeadlineSeconds)
-		}
-	})
-
-	// ==========================================
-	// PAUSE AND RESUME
-	// ==========================================
-
-	// Step 16: Pause job deployment
-	t.Run("16. PAUSE job deployment", func(t *testing.T) {
+	// Step 6: Pause job deployment
+	t.Run("6. PAUSE job deployment", func(t *testing.T) {
 		if !jobCreated {
 			t.Skip("⚠️  Skipping - job deployment was not created")
 		}
@@ -524,8 +279,8 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	// Step 17: Resume job deployment
-	t.Run("17. RESUME job deployment", func(t *testing.T) {
+	// Step 7: Resume job deployment
+	t.Run("7. RESUME job deployment", func(t *testing.T) {
 		if !jobCreated {
 			t.Skip("⚠️  Skipping - job deployment was not created")
 		}
@@ -541,12 +296,8 @@ func TestServerlessJobsCRUDWithScalingAndEnvVars(t *testing.T) {
 		}
 	})
 
-	// ==========================================
-	// PURGE QUEUE
-	// ==========================================
-
-	// Step 18: Purge job queue
-	t.Run("18. PURGE job deployment queue", func(t *testing.T) {
+	// Step 8: Purge job queue
+	t.Run("8. PURGE job deployment queue", func(t *testing.T) {
 		if !jobCreated {
 			t.Skip("⚠️  Skipping - job deployment was not created")
 		}

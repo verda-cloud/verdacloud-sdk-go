@@ -19,10 +19,10 @@ func TestBalance(t *testing.T) {
 		ctx := context.Background()
 		balance, err := client.Balance.Get(ctx)
 		if err != nil {
-			t.Errorf("failed to get balance: %v", err)
+			t.Fatalf("failed to get balance: %v", err)
 		}
 		if balance == nil {
-			t.Error("expected balance information")
+			t.Fatal("expected balance information")
 		}
 		t.Logf("Account balance: %.2f %s", balance.Amount, balance.Currency)
 	})

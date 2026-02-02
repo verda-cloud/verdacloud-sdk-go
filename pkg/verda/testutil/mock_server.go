@@ -18,6 +18,11 @@ const (
 	pathClusters   = "/clusters"
 )
 
+// Mock data constants
+const (
+	mockIPAddress = "1.2.3.4"
+)
+
 // Mock response constants
 const mockScalingOptionsResponse = `{
 	"min_replica_count": 1,
@@ -64,28 +69,29 @@ func NewTestClientConfig(mockServer *MockServer) TestClientConfig {
 // Mock types to avoid circular imports
 type Instance struct {
 	ID              string                 `json:"id"`
-	InstanceType    string                 `json:"instance_type"`
-	Image           string                 `json:"image"`
-	PricePerHour    float64                `json:"price_per_hour"`
-	Hostname        string                 `json:"hostname"`
-	Description     string                 `json:"description"`
 	IP              *string                `json:"ip"`
 	Status          string                 `json:"status"`
 	CreatedAt       time.Time              `json:"created_at"`
-	SSHKeyIDs       []string               `json:"ssh_key_ids"`
 	CPU             map[string]interface{} `json:"cpu"`
 	GPU             map[string]interface{} `json:"gpu"`
+	GPUMemory       map[string]interface{} `json:"gpu_memory"`
 	Memory          map[string]interface{} `json:"memory"`
 	Storage         map[string]interface{} `json:"storage"`
-	OSVolumeID      *string                `json:"os_volume_id"`
-	GPUMemory       map[string]interface{} `json:"gpu_memory"`
+	Hostname        string                 `json:"hostname"`
+	Description     string                 `json:"description"`
 	Location        string                 `json:"location"`
+	PricePerHour    float64                `json:"price_per_hour"`
 	IsSpot          bool                   `json:"is_spot"`
+	InstanceType    string                 `json:"instance_type"`
+	Image           string                 `json:"image"`
 	OSName          string                 `json:"os_name"`
 	StartupScriptID *string                `json:"startup_script_id"`
-	JupyterToken    *string                `json:"jupyter_token"`
+	SSHKeyIDs       []string               `json:"ssh_key_ids"`
+	OSVolumeID      *string                `json:"os_volume_id"`
+	JupyterToken    string                 `json:"jupyter_token"`
 	Contract        string                 `json:"contract"`
 	Pricing         string                 `json:"pricing"`
+	VolumeIDs       []string               `json:"volume_ids"`
 }
 
 type CreateInstanceRequest struct {
@@ -117,8 +123,8 @@ type OSVolumeCreateRequest struct {
 }
 
 type InstanceActionRequest struct {
-	ID        string   `json:"id"`
 	Action    string   `json:"action"`
+	ID        []string `json:"id"`
 	VolumeIDs []string `json:"volume_ids,omitempty"`
 }
 
@@ -241,73 +247,109 @@ type LongTermPeriod struct {
 	DiscountPercentage float64 `json:"discount_percentage"`
 }
 
+type ClusterWorkerNode struct {
+	ID        string `json:"id"`
+	Hostname  string `json:"hostname"`
+	PublicIP  string `json:"public_ip"`
+	PrivateIP string `json:"private_ip"`
+	Status    string `json:"status"`
+}
+
+type ClusterSharedVolume struct {
+	ID              string `json:"id"`
+	Name            string `json:"name"`
+	MountPoint      string `json:"mount_point"`
+	SizeInGigabytes int    `json:"size_in_gigabytes"`
+}
+
 type Cluster struct {
-	ID              string                 `json:"id"`
-	ClusterType     string                 `json:"cluster_type"`
-	Image           string                 `json:"image"`
-	PricePerHour    float64                `json:"price_per_hour"`
-	Hostname        string                 `json:"hostname"`
-	Description     string                 `json:"description"`
-	IP              *string                `json:"ip"`
-	Status          string                 `json:"status"`
-	CreatedAt       time.Time              `json:"created_at"`
-	SSHKeyIDs       []string               `json:"ssh_key_ids"`
-	CPU             map[string]interface{} `json:"cpu"`
-	GPU             map[string]interface{} `json:"gpu"`
-	Memory          map[string]interface{} `json:"memory"`
-	Storage         map[string]interface{} `json:"storage"`
-	GPUMemory       map[string]interface{} `json:"gpu_memory"`
-	Location        string                 `json:"location"`
-	OSName          string                 `json:"os_name"`
-	StartupScriptID *string                `json:"startup_script_id"`
-	Contract        string                 `json:"contract"`
-	Pricing         string                 `json:"pricing"`
+	ID                string                 `json:"id"`
+	IP                *string                `json:"ip"`
+	Status            string                 `json:"status"`
+	CreatedAt         time.Time              `json:"created_at"`
+	CPU               map[string]interface{} `json:"cpu"`
+	GPU               map[string]interface{} `json:"gpu"`
+	GPUMemory         map[string]interface{} `json:"gpu_memory"`
+	Memory            map[string]interface{} `json:"memory"`
+	Hostname          string                 `json:"hostname"`
+	Description       string                 `json:"description"`
+	Location          string                 `json:"location"`
+	PricePerHour      float64                `json:"price_per_hour"`
+	ClusterType       string                 `json:"cluster_type"`
+	Image             string                 `json:"image"`
+	OSName            string                 `json:"os_name"`
+	SSHKeyIDs         []string               `json:"ssh_key_ids"`
+	Contract          string                 `json:"contract"`
+	StartupScriptID   *string                `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                  `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                  `json:"turn_to_pay_as_you_go,omitempty"`
+	LongTermPeriod    *string                `json:"long_term_period,omitempty"`
+	WorkerNodes       []ClusterWorkerNode    `json:"worker_nodes,omitempty"`
+	SharedVolumes     []ClusterSharedVolume  `json:"shared_volumes,omitempty"`
+}
+
+type ClusterSharedVolumeSpec struct {
+	Name string `json:"name"`
+	Size int    `json:"size"`
+}
+
+type ClusterExistingVolume struct {
+	ID string `json:"id"`
 }
 
 type CreateClusterRequest struct {
-	ClusterType     string   `json:"cluster_type"`
-	Image           string   `json:"image"`
-	Hostname        string   `json:"hostname"`
-	Description     string   `json:"description,omitempty"`
-	SSHKeyIDs       []string `json:"ssh_key_ids"`
-	LocationCode    string   `json:"location_code,omitempty"`
-	Contract        string   `json:"contract,omitempty"`
-	Pricing         string   `json:"pricing,omitempty"`
-	StartupScriptID *string  `json:"startup_script_id,omitempty"`
-	SharedVolumes   []string `json:"shared_volumes,omitempty"`
-	ExistingVolumes []string `json:"existing_volumes,omitempty"`
-	Coupon          *string  `json:"coupon,omitempty"`
+	ClusterType       string                  `json:"cluster_type"`
+	Image             string                  `json:"image"`
+	Hostname          string                  `json:"hostname"`
+	Description       string                  `json:"description"`
+	SSHKeyIDs         []string                `json:"ssh_key_ids"`
+	LocationCode      string                  `json:"location_code,omitempty"`
+	Contract          string                  `json:"contract,omitempty"`
+	StartupScriptID   *string                 `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                   `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
+	SharedVolume      ClusterSharedVolumeSpec `json:"shared_volume"`
+	ExistingVolumes   []ClusterExistingVolume `json:"existing_volumes,omitempty"`
 }
 
-type ClusterActionRequest struct {
-	IDList any    `json:"id_list"`
+type ClusterActionItem struct {
 	Action string `json:"action"`
+	ID     string `json:"id"`
+}
+
+type ClusterActionsRequest struct {
+	Actions []ClusterActionItem `json:"actions"`
 }
 
 type ClusterType struct {
+	ID           string                 `json:"id"`
+	Model        string                 `json:"model"`
+	Name         string                 `json:"name"`
 	ClusterType  string                 `json:"cluster_type"`
-	Description  string                 `json:"description"`
-	PricePerHour float64                `json:"price_per_hour"`
 	CPU          map[string]interface{} `json:"cpu"`
 	GPU          map[string]interface{} `json:"gpu"`
-	Memory       map[string]interface{} `json:"memory"`
-	Storage      map[string]interface{} `json:"storage"`
 	GPUMemory    map[string]interface{} `json:"gpu_memory"`
+	Memory       map[string]interface{} `json:"memory"`
+	PricePerHour float64                `json:"price_per_hour"`
+	Currency     string                 `json:"currency"`
 	Manufacturer string                 `json:"manufacturer"`
-	Available    bool                   `json:"available"`
+	NodeDetails  []interface{}          `json:"node_details"`
+	SupportedOS  []string               `json:"supported_os"`
 }
 
 type ClusterAvailability struct {
-	ClusterType  string `json:"cluster_type"`
-	LocationCode string `json:"location_code"`
-	Available    bool   `json:"available"`
+	LocationCode   string   `json:"location_code"`
+	Availabilities []string `json:"availabilities"`
 }
 
 type ClusterImage struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Version     string `json:"version"`
-	Available   bool   `json:"available"`
+	ID        string   `json:"id"`
+	ImageType string   `json:"image_type"`
+	Name      string   `json:"name"`
+	IsDefault bool     `json:"is_default"`
+	Details   []string `json:"details"`
+	Category  string   `json:"category"`
+	IsCluster bool     `json:"is_cluster"`
 }
 
 // Instance status constants - must match pkg/verda/types.go values
@@ -545,27 +587,36 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	ip := mockIPAddress
+	scriptID := "script_123"
+	osVolumeID := "vol_os_123"
+
 	instances := []Instance{
 		{
-			ID:           "inst_123",
-			InstanceType: "1V100.6V",
-			Image:        "ubuntu-24.04-cuda-12.8-open-docker",
-			PricePerHour: 0.50,
-			Hostname:     "test-instance",
-			Description:  "Test instance",
-			Status:       StatusRunning,
-			CreatedAt:    time.Now(),
-			SSHKeyIDs:    []string{"key_123"},
-			CPU:          map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-			GPU:          map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-			Memory:       map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-			Storage:      map[string]interface{}{"description": "100GB SSD"},
-			GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Location:     LocationFIN01,
-			IsSpot:       false,
-			OSName:       "test-instance-os",
-			Contract:     "PAY_AS_YOU_GO",
-			Pricing:      "FIXED_PRICE",
+			ID:              "inst_123",
+			IP:              &ip,
+			Status:          StatusRunning,
+			CreatedAt:       time.Now(),
+			CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
+			GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+			GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+			Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+			Storage:         map[string]interface{}{"description": "100GB SSD"},
+			Hostname:        "test-instance",
+			Description:     "Test instance",
+			Location:        LocationFIN01,
+			PricePerHour:    0.50,
+			IsSpot:          false,
+			InstanceType:    "1V100.6V",
+			Image:           "ubuntu-24.04-cuda-12.8-open-docker",
+			OSName:          "Ubuntu 24.04",
+			StartupScriptID: &scriptID,
+			SSHKeyIDs:       []string{"key_123"},
+			OSVolumeID:      &osVolumeID,
+			JupyterToken:    "b9e6d8517db3a722ccfb309ca599a35f",
+			Contract:        "PAY_AS_YOU_GO",
+			Pricing:         "FIXED_PRICE",
+			VolumeIDs:       []string{"vol_123", "vol_456"},
 		},
 	}
 
@@ -584,26 +635,35 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 
 	instanceID := parts[2]
 
+	ip := mockIPAddress
+	scriptID := "script_123"
+	osVolumeID := "vol_os_123"
+
 	instance := Instance{
-		ID:           instanceID,
-		InstanceType: "1V100.6V",
-		Image:        "ubuntu-24.04-cuda-12.8-open-docker",
-		PricePerHour: 0.50,
-		Hostname:     "test-instance",
-		Description:  "Test instance",
-		Status:       StatusRunning,
-		CreatedAt:    time.Now(),
-		SSHKeyIDs:    []string{"key_123"},
-		CPU:          map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-		GPU:          map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-		Memory:       map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-		Storage:      map[string]interface{}{"description": "100GB SSD"},
-		GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Location:     LocationFIN01,
-		IsSpot:       false,
-		OSName:       instanceID + "-os",
-		Contract:     "PAY_AS_YOU_GO",
-		Pricing:      "FIXED_PRICE",
+		ID:              instanceID,
+		IP:              &ip,
+		Status:          StatusRunning,
+		CreatedAt:       time.Now(),
+		CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
+		GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+		GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+		Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+		Storage:         map[string]interface{}{"description": "100GB SSD"},
+		Hostname:        "test-instance",
+		Description:     "Test instance",
+		Location:        LocationFIN01,
+		PricePerHour:    0.50,
+		IsSpot:          false,
+		InstanceType:    "1V100.6V",
+		Image:           "ubuntu-24.04-cuda-12.8-open-docker",
+		OSName:          "Ubuntu 24.04",
+		StartupScriptID: &scriptID,
+		SSHKeyIDs:       []string{"key_123"},
+		OSVolumeID:      &osVolumeID,
+		JupyterToken:    "b9e6d8517db3a722ccfb309ca599a35f",
+		Contract:        "PAY_AS_YOU_GO",
+		Pricing:         "FIXED_PRICE",
+		VolumeIDs:       []string{"vol_123", "vol_456"},
 	}
 
 	writeJSON(w, instance)
@@ -635,26 +695,34 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 		pricing = "FIXED_PRICE"
 	}
 
+	ip := mockIPAddress
+	osVolumeID := "vol_os_new_123"
+
 	instance := Instance{
-		ID:           "inst_new_123",
-		InstanceType: req.InstanceType,
-		Image:        req.Image,
-		PricePerHour: 0.50,
-		Hostname:     req.Hostname,
-		Description:  req.Description,
-		Status:       StatusPending,
-		CreatedAt:    time.Now(),
-		SSHKeyIDs:    req.SSHKeyIDs,
-		CPU:          map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-		GPU:          map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-		Memory:       map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-		Storage:      map[string]interface{}{"description": "100GB SSD"},
-		GPUMemory:    map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Location:     location,
-		IsSpot:       req.IsSpot,
-		OSName:       "inst_new_123-os",
-		Contract:     contract,
-		Pricing:      pricing,
+		ID:              "inst_new_123",
+		IP:              &ip,
+		Status:          StatusPending,
+		CreatedAt:       time.Now(),
+		CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
+		GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+		GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+		Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+		Storage:         map[string]interface{}{"description": "100GB SSD"},
+		Hostname:        req.Hostname,
+		Description:     req.Description,
+		Location:        location,
+		PricePerHour:    0.50,
+		IsSpot:          req.IsSpot,
+		InstanceType:    req.InstanceType,
+		Image:           req.Image,
+		OSName:          "Ubuntu 24.04",
+		StartupScriptID: req.StartupScriptID,
+		SSHKeyIDs:       req.SSHKeyIDs,
+		OSVolumeID:      &osVolumeID,
+		JupyterToken:    "b9e6d8517db3a722ccfb309ca599a35f",
+		Contract:        contract,
+		Pricing:         pricing,
+		VolumeIDs:       []string{"vol_new_123"},
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -990,6 +1058,7 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			ID:           "cluster_123",
 			ClusterType:  "8V100.48V",
 			Image:        "ubuntu-22.04-cuda-12.0",
+			OSName:       "Ubuntu 22.04",
 			PricePerHour: 2.50,
 			Hostname:     "test-cluster",
 			Description:  "Test cluster",
@@ -999,12 +1068,9 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
 			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
-			Storage:      map[string]interface{}{"description": "1TB SSD"},
 			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
 			Location:     LocationFIN01,
-			OSName:       "test-cluster-os",
 			Contract:     "PAY_AS_YOU_GO",
-			Pricing:      "FIXED_PRICE",
 		},
 	}
 
@@ -1026,6 +1092,7 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		ID:           clusterID,
 		ClusterType:  "8V100.48V",
 		Image:        "ubuntu-22.04-cuda-12.0",
+		OSName:       "Ubuntu 22.04",
 		PricePerHour: 2.50,
 		Hostname:     "test-cluster",
 		Description:  "Test cluster",
@@ -1035,12 +1102,9 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
 		GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 		Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
-		Storage:      map[string]interface{}{"description": "1TB SSD"},
 		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
 		Location:     LocationFIN01,
-		OSName:       clusterID + "-os",
 		Contract:     "PAY_AS_YOU_GO",
-		Pricing:      "FIXED_PRICE",
 	}
 
 	writeJSON(w, cluster)
@@ -1065,7 +1129,7 @@ func (ms *MockServer) handleCreateCluster(w http.ResponseWriter, r *http.Request
 }
 
 func (ms *MockServer) handleClusterAction(w http.ResponseWriter, r *http.Request) {
-	var req ClusterActionRequest
+	var req ClusterActionsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -1080,16 +1144,23 @@ func (ms *MockServer) handleGetClusterTypes(w http.ResponseWriter, _ *http.Reque
 
 	clusterTypes := []ClusterType{
 		{
+			ID:           "cluster_type_1",
+			Model:        "V100 Cluster",
+			Name:         "8x NVIDIA Tesla V100 16GB",
 			ClusterType:  "8V100.48V",
-			Description:  "8x NVIDIA Tesla V100 with 48 vCPUs",
-			PricePerHour: 2.50,
 			CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
 			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
-			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
-			Storage:      map[string]interface{}{"description": "1TB SSD"},
 			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
+			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
+			PricePerHour: 2.50,
+			Currency:     "usd",
 			Manufacturer: "NVIDIA",
-			Available:    true,
+			NodeDetails: []interface{}{
+				map[string]interface{}{"GPU VRAM": "128 GB"},
+				map[string]interface{}{"CPU": "48 cores"},
+				map[string]interface{}{"InfiniBand": "100 Gbit/s"},
+			},
+			SupportedOS: []string{"ubuntu-22.04-cuda-12.0", "ubuntu-20.04-cuda-11.8"},
 		},
 	}
 
@@ -1101,9 +1172,8 @@ func (ms *MockServer) handleGetClusterAvailabilities(w http.ResponseWriter, _ *h
 
 	availabilities := []ClusterAvailability{
 		{
-			ClusterType:  "8V100.48V",
-			LocationCode: LocationFIN01,
-			Available:    true,
+			LocationCode:   LocationFIN01,
+			Availabilities: []string{"8V100.48V", "16H200", "32H200"},
 		},
 	}
 
@@ -1129,16 +1199,22 @@ func (ms *MockServer) handleGetClusterImages(w http.ResponseWriter, _ *http.Requ
 
 	images := []ClusterImage{
 		{
-			Name:        "ubuntu-22.04-cuda-12.0",
-			Description: "Ubuntu 22.04 with CUDA 12.0",
-			Version:     "1.0",
-			Available:   true,
+			ID:        "image_cluster_1",
+			ImageType: "ubuntu-22.04-cuda-12.0-cluster",
+			Name:      "Ubuntu 22.04 with CUDA 12.0",
+			IsDefault: true,
+			Details:   []string{"Ubuntu 22.04", "CUDA 12.0"},
+			Category:  "ubuntu",
+			IsCluster: true,
 		},
 		{
-			Name:        "ubuntu-20.04-cuda-11.8",
-			Description: "Ubuntu 20.04 with CUDA 11.8",
-			Version:     "1.0",
-			Available:   true,
+			ID:        "image_cluster_2",
+			ImageType: "ubuntu-20.04-cuda-11.8-cluster",
+			Name:      "Ubuntu 20.04 with CUDA 11.8",
+			IsDefault: false,
+			Details:   []string{"Ubuntu 20.04", "CUDA 11.8"},
+			Category:  "ubuntu",
+			IsCluster: true,
 		},
 	}
 

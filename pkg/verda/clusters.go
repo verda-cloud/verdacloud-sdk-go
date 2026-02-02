@@ -41,19 +41,24 @@ func (s *ClusterService) Create(ctx context.Context, req CreateClusterRequest) (
 	return &response, nil
 }
 
-// Action performs cluster lifecycle operations - currently only "discontinue" is supported
-func (s *ClusterService) Action(ctx context.Context, idList any, action string) error {
-	req := ClusterActionRequest{
-		IDList: idList,
-		Action: action,
+// Discontinue discontinues one or more clusters
+// Note: Only discontinue action is allowed for clusters.
+// Important: Local OS storage will be deleted. Shared volumes will be detached and should be deleted manually.
+func (s *ClusterService) Discontinue(ctx context.Context, clusterIDs []string) error {
+	actions := make([]ClusterActionItem, len(clusterIDs))
+	for i, id := range clusterIDs {
+		actions[i] = ClusterActionItem{
+			Action: ClusterActionDiscontinue,
+			ID:     id,
+		}
+	}
+
+	req := ClusterActionsRequest{
+		Actions: actions,
 	}
 
 	_, _, err := putRequest[any](ctx, s.client, "/clusters", req)
 	return err
-}
-
-func (s *ClusterService) Discontinue(ctx context.Context, idList any) error {
-	return s.Action(ctx, idList, ClusterActionDiscontinue)
 }
 
 func (s *ClusterService) GetClusterTypes(ctx context.Context, currency string) ([]ClusterType, error) {

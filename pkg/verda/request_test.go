@@ -132,7 +132,7 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 
 	// Test DELETE request with no result
 	t.Run("DELETE no result", func(t *testing.T) {
-		resp, err := deleteRequestNoResult(ctx, client, "/users/1")
+		resp, err := deleteRequestAllowEmptyResponse(ctx, client, "/users/1")
 		if err != nil {
 			t.Fatalf("DELETE request failed: %v", err)
 		}

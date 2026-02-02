@@ -4,15 +4,19 @@
 package integration
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"os"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
 
-// getTestClient creates a client for integration tests using environment variables
+// getTestClient creates a client for integration tests using environment variables.
+// Use VERDA_CLIENT_ID and VERDA_CLIENT_SECRET only; never log or commit credentials.
 func getTestClient(t *testing.T) *verda.Client {
 	t.Helper()
 
@@ -50,4 +54,327 @@ func generateRandomName(prefix string) string {
 		return prefix + "-test"
 	}
 	return prefix + "-" + hex.EncodeToString(b)
+}
+
+// ============================================================================
+// AVAILABILITY CHECKING HELPERS
+// ============================================================================
+
+// AvailableInstanceType holds info about an available instance type
+type AvailableInstanceType struct {
+	InstanceType string
+	SpotPrice    float64
+	Location     string
+}
+
+// AvailableClusterType holds info about an available cluster type
+type AvailableClusterType struct {
+	ClusterType  string
+	PricePerHour float64
+	Location     string
+	Image        string
+}
+
+// FindAvailableInstanceType checks availability across ALL locations (fetched dynamically from API)
+// and returns the best instance type to use.
+// It prefers the preferredType if available, otherwise returns the cheapest available.
+func FindAvailableInstanceType(ctx context.Context, t *testing.T, client *verda.Client, preferredType string) (*AvailableInstanceType, bool) {
+	t.Helper()
+
+	t.Log("🔍 Checking instance type availability across all locations...")
+
+	// Step 1: Get all locations from API
+	locations, err := client.Locations.Get(ctx)
+	if err != nil {
+		t.Logf("⚠️  Could not get locations: %v", err)
+		return nil, false
+	}
+	t.Logf("   Found %d locations: %v", len(locations), locationCodes(locations))
+
+	// Step 2: Get all instance types with pricing
+	instanceTypes, err := client.InstanceTypes.Get(ctx, "usd")
+	if err != nil {
+		t.Logf("⚠️  Could not get instance types: %v", err)
+		return nil, false
+	}
+	t.Logf("   Found %d instance types", len(instanceTypes))
+
+	// Step 3: Get availability across all locations
+	availabilities, err := client.InstanceAvailability.GetAllAvailabilities(ctx, false, "")
+	if err != nil {
+		t.Logf("⚠️  Could not get instance availabilities: %v", err)
+		return nil, false
+	}
+	t.Logf("   Checking availability in %d location responses", len(availabilities))
+
+	// Build a map: instanceType -> []locationCode (where available)
+	availableAt := make(map[string][]string)
+	for _, avail := range availabilities {
+		for _, instType := range avail.Availabilities {
+			availableAt[instType] = append(availableAt[instType], avail.LocationCode)
+		}
+	}
+
+	// Check if preferred type is available at any location
+	if preferredType != "" {
+		if locs, ok := availableAt[preferredType]; ok && len(locs) > 0 {
+			// Find price info
+			var price float64
+			for _, it := range instanceTypes {
+				if it.InstanceType == preferredType {
+					price = float64(it.SpotPrice)
+					break
+				}
+			}
+			t.Logf("✅ Preferred instance type %s is AVAILABLE at %s ($%.2f/hr spot)", preferredType, locs[0], price)
+			return &AvailableInstanceType{
+				InstanceType: preferredType,
+				SpotPrice:    price,
+				Location:     locs[0],
+			}, true
+		}
+		t.Logf("⚠️  Preferred instance type %s is NOT available at any location", preferredType)
+	}
+
+	// Sort instance types by spot price (cheapest first)
+	sort.Slice(instanceTypes, func(i, j int) bool {
+		return float64(instanceTypes[i].SpotPrice) < float64(instanceTypes[j].SpotPrice)
+	})
+
+	// Find the cheapest available instance type at any location
+	for _, it := range instanceTypes {
+		if locs, ok := availableAt[it.InstanceType]; ok && len(locs) > 0 {
+			t.Logf("✅ Found cheapest available: %s at %s ($%.2f/hr spot)", it.InstanceType, locs[0], float64(it.SpotPrice))
+			return &AvailableInstanceType{
+				InstanceType: it.InstanceType,
+				SpotPrice:    float64(it.SpotPrice),
+				Location:     locs[0],
+			}, true
+		}
+	}
+
+	t.Log("❌ No instance types available at any location")
+	return nil, false
+}
+
+// locationCodes extracts location codes from a slice of Location for logging
+func locationCodes(locations []verda.Location) []string {
+	codes := make([]string, len(locations))
+	for i, loc := range locations {
+		codes[i] = loc.Code
+	}
+	return codes
+}
+
+// FindAvailableClusterType checks availability and returns the best cluster type to use
+func FindAvailableClusterType(ctx context.Context, t *testing.T, client *verda.Client, preferredType string) (*AvailableClusterType, bool) {
+	t.Helper()
+
+	t.Log("🔍 Checking cluster type availability...")
+
+	// Get all cluster types with pricing
+	clusterTypes, err := client.Clusters.GetClusterTypes(ctx, "usd")
+	if err != nil {
+		t.Logf("⚠️  Could not get cluster types: %v", err)
+		return nil, false
+	}
+	t.Logf("   Found %d cluster types", len(clusterTypes))
+
+	// Get all availabilities
+	availabilities, err := client.Clusters.GetAvailabilities(ctx, "")
+	if err != nil {
+		t.Logf("⚠️  Could not get cluster availabilities: %v", err)
+		return nil, false
+	}
+
+	// Build a map of available cluster types by location
+	availableMap := make(map[string]map[string]bool) // clusterType -> locationCode -> available
+	for _, a := range availabilities {
+		// Each availability entry has location_code and list of available cluster types
+		for _, clusterType := range a.Availabilities {
+			if _, ok := availableMap[clusterType]; !ok {
+				availableMap[clusterType] = make(map[string]bool)
+			}
+			availableMap[clusterType][a.LocationCode] = true
+		}
+	}
+
+	// Get cluster images
+	images, err := client.Clusters.GetImages(ctx)
+	if err != nil {
+		t.Logf("⚠️  Could not get cluster images: %v", err)
+		return nil, false
+	}
+	var defaultImage string
+	if len(images) > 0 {
+		defaultImage = images[0].Name
+	}
+
+	// Check if preferred type is available
+	if preferredType != "" {
+		if locs, ok := availableMap[preferredType]; ok {
+			for loc, avail := range locs {
+				if avail {
+					var price float64
+					for _, ct := range clusterTypes {
+						if ct.ClusterType == preferredType {
+							price = float64(ct.PricePerHour)
+							break
+						}
+					}
+					t.Logf("✅ Preferred cluster type %s is AVAILABLE at %s ($%.2f/hr)", preferredType, loc, price)
+					return &AvailableClusterType{
+						ClusterType:  preferredType,
+						PricePerHour: price,
+						Location:     loc,
+						Image:        defaultImage,
+					}, true
+				}
+			}
+		}
+		t.Logf("⚠️  Preferred cluster type %s is NOT available", preferredType)
+	}
+
+	// Sort cluster types by price (cheapest first)
+	sort.Slice(clusterTypes, func(i, j int) bool {
+		return float64(clusterTypes[i].PricePerHour) < float64(clusterTypes[j].PricePerHour)
+	})
+
+	// Find the cheapest available cluster type
+	for _, ct := range clusterTypes {
+		if locs, ok := availableMap[ct.ClusterType]; ok {
+			for loc, avail := range locs {
+				if avail {
+					t.Logf("✅ Found cheapest available: %s at %s ($%.2f/hr)", ct.ClusterType, loc, float64(ct.PricePerHour))
+					return &AvailableClusterType{
+						ClusterType:  ct.ClusterType,
+						PricePerHour: float64(ct.PricePerHour),
+						Location:     loc,
+						Image:        defaultImage,
+					}, true
+				}
+			}
+		}
+	}
+
+	t.Log("❌ No cluster types available at any location")
+	return nil, false
+}
+
+// FindAvailableContainerCompute checks availability for serverless containers
+func FindAvailableContainerCompute(ctx context.Context, t *testing.T, client *verda.Client, preferredName string) (string, int, bool) {
+	t.Helper()
+
+	t.Log("🔍 Checking container compute availability...")
+
+	resources, err := client.ContainerDeployments.GetServerlessComputeResources(ctx)
+	if err != nil {
+		t.Logf("⚠️  Could not get compute resources: %v", err)
+		return "", 0, false
+	}
+	t.Logf("   Found %d compute resources", len(resources))
+
+	// Check if preferred compute is available
+	if preferredName != "" {
+		for _, r := range resources {
+			if r.Name == preferredName && r.IsAvailable {
+				t.Logf("✅ Preferred compute %s (size %d) is AVAILABLE", r.Name, r.Size)
+				return r.Name, 1, true
+			}
+		}
+		t.Logf("⚠️  Preferred compute %s is NOT available", preferredName)
+	}
+
+	// Find any available compute
+	for _, r := range resources {
+		if r.IsAvailable {
+			t.Logf("✅ Found available compute: %s (size %d)", r.Name, r.Size)
+			return r.Name, 1, true
+		}
+	}
+
+	t.Log("❌ No container compute resources available")
+	return "", 0, false
+}
+
+// ============================================================================
+// WAIT HELPERS
+// ============================================================================
+
+// WaitForInstanceStatus waits for an instance to reach a target status
+func WaitForInstanceStatus(ctx context.Context, t *testing.T, client *verda.Client, instanceID string, targetStatus string, timeout time.Duration) (*verda.Instance, bool) {
+	t.Helper()
+
+	t.Logf("⏳ Waiting for instance %s to reach status '%s' (timeout: %v)...", instanceID, targetStatus, timeout)
+
+	start := time.Now()
+	lastStatus := ""
+	for time.Since(start) < timeout {
+		instance, err := client.Instances.GetByID(ctx, instanceID)
+		if err != nil {
+			t.Logf("   ⚠️  Error getting instance: %v", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		if instance.Status != lastStatus {
+			t.Logf("   Instance status: %s", instance.Status)
+			lastStatus = instance.Status
+		}
+
+		if instance.Status == targetStatus {
+			t.Logf("✅ Instance reached target status '%s'", targetStatus)
+			return instance, true
+		}
+
+		// If instance failed, stop waiting
+		if instance.Status == "FAILED" || instance.Status == "failed" {
+			t.Logf("❌ Instance failed")
+			return instance, false
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+
+	t.Logf("❌ Timeout waiting for instance to reach status '%s'", targetStatus)
+	return nil, false
+}
+
+// WaitForClusterStatus waits for a cluster to reach a target status
+func WaitForClusterStatus(ctx context.Context, t *testing.T, client *verda.Client, clusterID string, targetStatus string, timeout time.Duration) (*verda.Cluster, bool) {
+	t.Helper()
+
+	t.Logf("⏳ Waiting for cluster %s to reach status '%s' (timeout: %v)...", clusterID, targetStatus, timeout)
+
+	start := time.Now()
+	lastStatus := ""
+	for time.Since(start) < timeout {
+		cluster, err := client.Clusters.GetByID(ctx, clusterID)
+		if err != nil {
+			t.Logf("   ⚠️  Error getting cluster: %v", err)
+			time.Sleep(10 * time.Second)
+			continue
+		}
+
+		if cluster.Status != lastStatus {
+			t.Logf("   Cluster status: %s", cluster.Status)
+			lastStatus = cluster.Status
+		}
+
+		if cluster.Status == targetStatus {
+			t.Logf("✅ Cluster reached target status '%s'", targetStatus)
+			return cluster, true
+		}
+
+		// If cluster failed, stop waiting
+		if cluster.Status == "FAILED" || cluster.Status == "failed" {
+			t.Logf("❌ Cluster failed")
+			return cluster, false
+		}
+
+		time.Sleep(10 * time.Second)
+	}
+
+	t.Logf("❌ Timeout waiting for cluster to reach status '%s'", targetStatus)
+	return nil, false
 }

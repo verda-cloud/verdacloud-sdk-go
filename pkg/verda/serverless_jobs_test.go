@@ -30,7 +30,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 			if job.Name == "" {
 				t.Error("expected job to have a Name")
 			}
-			if job.CreatedAt == "" {
+			if job.CreatedAt.IsZero() {
 				t.Error("expected job to have a CreatedAt")
 			}
 		}
@@ -48,7 +48,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 				if job.Name == "" {
 					t.Errorf("job %d missing Name", i)
 				}
-				if job.CreatedAt == "" {
+				if job.CreatedAt.IsZero() {
 					t.Errorf("job %d missing CreatedAt", i)
 				}
 			}
@@ -110,6 +110,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 			Scaling: &JobScalingOptions{
 				MaxReplicaCount:        1,
 				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600, // Required: job timeout in seconds
 			},
 		}
 
@@ -125,7 +126,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 		if job.Name == "" {
 			t.Error("expected job to have a Name")
 		}
-		if job.CreatedAt == "" {
+		if job.CreatedAt.IsZero() {
 			t.Error("expected job to have a CreatedAt")
 		}
 	})
@@ -153,7 +154,9 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 				Size: 1,
 			},
 			Scaling: &JobScalingOptions{
-				MaxReplicaCount: 1,
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
 			},
 		}
 
@@ -190,7 +193,9 @@ func TestServerlessJobsService_DeleteJobDeployment(t *testing.T) {
 				Size: 1,
 			},
 			Scaling: &JobScalingOptions{
-				MaxReplicaCount: 1,
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
 			},
 		}
 
@@ -226,7 +231,9 @@ func TestServerlessJobsService_GetJobDeploymentStatus(t *testing.T) {
 				Size: 1,
 			},
 			Scaling: &JobScalingOptions{
-				MaxReplicaCount: 1,
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
 			},
 		}
 
@@ -262,7 +269,9 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 				Size: 1,
 			},
 			Scaling: &JobScalingOptions{
-				MaxReplicaCount: 1,
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
 			},
 		}
 

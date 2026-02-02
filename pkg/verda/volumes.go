@@ -2,6 +2,7 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -78,28 +79,43 @@ func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool)
 		path += "?force=true"
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
 // AttachVolume attaches a volume - instance must be shut down first
 func (s *VolumeService) AttachVolume(ctx context.Context, volumeID string, req VolumeAttachRequest) error {
-	path := fmt.Sprintf("/volumes/%s/attach", volumeID)
-	_, err := postRequestNoResult(ctx, s.client, path, req)
+	// Use map to combine action fields with instance_id
+	payload := map[string]interface{}{
+		"id":          volumeID,
+		"action":      VolumeActionAttach,
+		"instance_id": req.InstanceID,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
 	return err
 }
 
 // DetachVolume detaches a volume - instance must be shut down first
 func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req VolumeDetachRequest) error {
-	path := fmt.Sprintf("/volumes/%s/detach", volumeID)
-	_, err := postRequestNoResult(ctx, s.client, path, req)
+	payload := map[string]interface{}{
+		"id":          volumeID,
+		"action":      VolumeActionDetach,
+		"instance_id": req.InstanceID,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
 	return err
 }
 
+// CloneVolume clones a volume and returns the new volume ID
 func (s *VolumeService) CloneVolume(ctx context.Context, volumeID string, req VolumeCloneRequest) (string, error) {
-	path := fmt.Sprintf("/volumes/%s/clone", volumeID)
+	actionReq := VolumeActionRequest{
+		ID:     volumeID,
+		Action: VolumeActionClone,
+		Name:   req.Name,
+		Type:   req.LocationCode, // Note: Python SDK uses 'type' field for location
+	}
 
-	resp, err := s.client.makeRequest(ctx, http.MethodPost, path, req)
+	resp, err := s.client.makeRequest(ctx, http.MethodPut, "/volumes", actionReq)
 	if err != nil {
 		return "", err
 	}
@@ -116,19 +132,38 @@ func (s *VolumeService) CloneVolume(ctx context.Context, volumeID string, req Vo
 		return "", fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	newVolumeID := strings.TrimSpace(string(body))
-	return newVolumeID, nil
+	// API returns an array of volume IDs, get the first one
+	var volumeIDs []string
+	if err := json.Unmarshal(body, &volumeIDs); err != nil {
+		// If not an array, try as single string
+		newVolumeID := strings.TrimSpace(string(body))
+		return newVolumeID, nil
+	}
+
+	if len(volumeIDs) > 0 {
+		return volumeIDs[0], nil
+	}
+
+	return "", fmt.Errorf("no volume ID returned from clone operation")
 }
 
 // ResizeVolume grows a volume - shrinking is not supported
 func (s *VolumeService) ResizeVolume(ctx context.Context, volumeID string, req VolumeResizeRequest) error {
-	path := fmt.Sprintf("/volumes/%s/resize", volumeID)
-	_, err := postRequestNoResult(ctx, s.client, path, req)
+	actionReq := VolumeActionRequest{
+		ID:     volumeID,
+		Action: VolumeActionResize,
+		Size:   req.Size,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }
 
 func (s *VolumeService) RenameVolume(ctx context.Context, volumeID string, req VolumeRenameRequest) error {
-	path := fmt.Sprintf("/volumes/%s/rename", volumeID)
-	_, err := postRequestNoResult(ctx, s.client, path, req)
+	actionReq := VolumeActionRequest{
+		ID:     volumeID,
+		Action: VolumeActionRename,
+		Name:   req.Name,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }

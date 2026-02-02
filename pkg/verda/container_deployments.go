@@ -44,29 +44,8 @@ func (s *ContainerDeploymentsService) GetDeploymentsForProject(ctx context.Conte
 }
 
 func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req *CreateDeploymentRequest) (*ContainerDeployment, error) {
-	// Validate required fields for create
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-	if req.Name == "" {
-		return nil, fmt.Errorf("name is required")
-	}
-	if req.Compute.Name == "" {
-		return nil, fmt.Errorf("compute is required")
-	}
-	if req.Scaling.MaxReplicaCount == 0 {
-		return nil, fmt.Errorf("scaling.max_replica_count is required")
-	}
-	if len(req.Containers) == 0 {
-		return nil, fmt.Errorf("at least one container is required")
-	}
-	for i, c := range req.Containers {
-		if c.Image == "" {
-			return nil, fmt.Errorf("containers[%d].image is required", i)
-		}
-		if c.ExposedPort == 0 {
-			return nil, fmt.Errorf("containers[%d].exposed_port is required", i)
-		}
+	if err := validateCreateDeploymentRequest(req); err != nil {
+		return nil, err
 	}
 
 	deployment, _, err := postRequest[ContainerDeployment](ctx, s.client, "/container-deployments", req)
@@ -74,6 +53,57 @@ func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req 
 		return nil, err
 	}
 	return &deployment, nil
+}
+
+// validateCreateDeploymentRequest validates all required fields for container deployment creation
+func validateCreateDeploymentRequest(req *CreateDeploymentRequest) error {
+	if req == nil {
+		return fmt.Errorf("request cannot be nil")
+	}
+
+	// Basic required fields
+	if req.Name == "" {
+		return fmt.Errorf("name is required")
+	}
+	if req.Compute.Name == "" {
+		return fmt.Errorf("compute.name is required")
+	}
+
+	// Container validation
+	if len(req.Containers) == 0 {
+		return fmt.Errorf("at least one container is required")
+	}
+	for i, c := range req.Containers {
+		if c.Image == "" {
+			return fmt.Errorf("containers[%d].image is required", i)
+		}
+		// Check for "latest" tag - API does not allow it
+		if isLatestTag(c.Image) {
+			return fmt.Errorf("containers[%d].image: 'latest' tag is not allowed, please specify a specific version tag (e.g., nginx:1.25.3)", i)
+		}
+		if c.ExposedPort == 0 {
+			return fmt.Errorf("containers[%d].exposed_port is required", i)
+		}
+	}
+
+	// Scaling validation
+	if req.Scaling.MaxReplicaCount == 0 {
+		return fmt.Errorf("scaling.max_replica_count is required")
+	}
+	if req.Scaling.ScaleDownPolicy == nil {
+		return fmt.Errorf("scaling.scale_down_policy is required")
+	}
+	if req.Scaling.ScaleUpPolicy == nil {
+		return fmt.Errorf("scaling.scale_up_policy is required")
+	}
+	if req.Scaling.ScalingTriggers == nil {
+		return fmt.Errorf("scaling.scaling_triggers is required")
+	}
+	if req.Scaling.ScalingTriggers.QueueLoad != nil && req.Scaling.ScalingTriggers.QueueLoad.Threshold < 1 {
+		return fmt.Errorf("scaling.scaling_triggers.queue_load.threshold must be >= 1")
+	}
+
+	return nil
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentByName(ctx context.Context, deploymentName string) (*ContainerDeployment, error) {
@@ -105,7 +135,11 @@ func (s *ContainerDeploymentsService) UpdateDeployment(ctx context.Context, depl
 }
 
 // DeleteDeployment removes a deployment with timeout in milliseconds (0-300000ms)
-// If timeoutMs <= 0, uses the API default of 60000ms (60 seconds)
+// timeoutMs behavior:
+//   - 0: Skip waiting (returns immediately)
+//   - Negative (e.g., -1): Use API default of 60000ms (omit query parameter)
+//   - 1-300000: Wait specified milliseconds
+//   - >300000: Capped at 300000ms
 func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, deploymentName string, timeoutMs int) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
@@ -113,26 +147,29 @@ func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, depl
 
 	path := fmt.Sprintf("/container-deployments/%s", deploymentName)
 
-	// Use default timeout of 60000ms if not specified
-	// Valid range: 0-300000ms
-	timeout := timeoutMs
-	if timeout <= 0 {
-		timeout = 60000 // default 60 seconds
-	} else if timeout > 300000 {
-		timeout = 300000 // max 300 seconds
+	// Handle timeout parameter based on API specification
+	// - Negative values: omit timeout parameter (API uses default 60000ms)
+	// - 0: skip waiting (return immediately)
+	// - 1-300000: explicit timeout value
+	// - >300000: cap at maximum 300000ms
+	if timeoutMs >= 0 {
+		timeout := timeoutMs
+		if timeout > 300000 {
+			timeout = 300000 // cap at max 300 seconds
+		}
+		params := url.Values{}
+		params.Set("timeout", fmt.Sprintf("%d", timeout))
+		path += "?" + params.Encode()
 	}
+	// If timeoutMs < 0, don't add timeout parameter (use API default)
 
-	params := url.Values{}
-	params.Set("timeout", fmt.Sprintf("%d", timeout))
-	path += "?" + params.Encode()
-
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
-func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, deploymentName string) (*DeploymentStatus, error) {
+func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, deploymentName string) (*ContainerDeploymentStatus, error) {
 	path := fmt.Sprintf("/container-deployments/%s/status", deploymentName)
-	status, _, err := getRequest[DeploymentStatus](ctx, s.client, path)
+	status, _, err := getRequest[ContainerDeploymentStatus](ctx, s.client, path)
 	if err != nil {
 		return nil, err
 	}
@@ -211,7 +248,7 @@ func (s *ContainerDeploymentsService) GetEnvironmentVariables(ctx context.Contex
 	return envVars, nil
 }
 
-func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Context, deploymentName string, req *EnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -229,7 +266,7 @@ func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Contex
 	return err
 }
 
-func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Context, deploymentName string, req *EnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -247,7 +284,7 @@ func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Con
 	return err
 }
 
-func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Context, deploymentName string, req *DeleteEnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Context, deploymentName string, req *DeleteContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -296,7 +333,7 @@ func (s *ContainerDeploymentsService) DeleteSecret(ctx context.Context, secretNa
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -331,7 +368,7 @@ func (s *ContainerDeploymentsService) DeleteFileSecret(ctx context.Context, secr
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -366,6 +403,6 @@ func (s *ContainerDeploymentsService) DeleteRegistryCredentials(ctx context.Cont
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestNoResult(ctx, s.client, path)
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }

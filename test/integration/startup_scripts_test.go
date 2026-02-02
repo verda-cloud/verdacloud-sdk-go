@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
 )
@@ -85,6 +86,8 @@ func TestCreateStartScript_Integration(t *testing.T) {
 			t.Errorf("failed to delete test start script %s: %v", scriptID.ID, err)
 		} else {
 			t.Log("Successfully cleaned up test start script")
+			// Wait for deletion to complete
+			time.Sleep(2 * time.Second)
 		}
 	}()
 
@@ -159,6 +162,8 @@ func TestListStartScripts_Integration(t *testing.T) {
 			t.Errorf("failed to delete test start script %s: %v", scriptID.ID, err)
 		} else {
 			t.Log("Successfully cleaned up test start script")
+			// Wait for deletion to complete
+			time.Sleep(2 * time.Second)
 		}
 	}()
 }
@@ -242,6 +247,8 @@ func TestStartupScriptLifecycle_Integration(t *testing.T) {
 			} else {
 				t.Logf("Successfully cleaned up startup script %s", scriptID)
 			}
+			// Wait between deletions
+			time.Sleep(2 * time.Second)
 		}
 	}()
 }

@@ -5,8 +5,8 @@
 # For static analysis and formatting, use pre-commit hooks (see setup-hooks).
 # ============================================================================
 
-.PHONY: help build test test-unit test-integration clean coverage
-.PHONY: lint fmt check setup setup-hooks install-tools pre-commit
+.PHONY: help build test-unit test-integration clean coverage
+.PHONY: lint fmt setup pre-commit
 .DEFAULT_GOAL := help
 
 # ============================================================================
@@ -23,81 +23,54 @@ help: ## Show this help message with all available commands
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
-	@echo 'Tip: Run "make setup" first to install all development tools!'
+	@echo 'Tip: Run "make setup" to install tools and configure hooks!'
 
 # ============================================================================
 # Development Setup
 # ============================================================================
 
-setup: install-tools setup-hooks ## Complete development environment setup (tools + hooks)
-	@echo "✓ Development environment is ready!"
+setup: ## Complete development environment setup (installs only what's needed)
+	@echo "→ Setting up development environment..."
 	@echo ""
-	@echo "Next steps:"
-	@echo "  1. Run 'make check' to verify everything works"
-	@echo "  2. Start coding! Pre-commit hooks will run automatically"
-	@echo "  3. Use 'make test-unit' to run unit tests"
-
-install-tools: ## Install required development tools (golangci-lint) and check for pre-commit
-	@echo "→ Checking development tools..."
+	@# Check and install golangci-lint if needed
 	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "  Installing golangci-lint v2.5.0..."; \
+		echo "Installing golangci-lint v2.5.0..."; \
 		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0; \
-		echo "  ✓ golangci-lint v2.5.0 installed successfully"; \
+		echo "✓ golangci-lint installed"; \
 	else \
-		echo "  ✓ golangci-lint already installed ($$(golangci-lint --version))"; \
+		echo "✓ golangci-lint already installed ($$(golangci-lint --version))"; \
 	fi
 	@echo ""
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo "  ⚠ pre-commit not found (optional for local development)"; \
-		echo ""; \
-		echo "  To enable pre-commit hooks, install pre-commit:"; \
-		echo ""; \
-		echo "  macOS:"; \
-		echo "    brew install pre-commit"; \
-		echo ""; \
-		echo "  Linux (Ubuntu/Debian):"; \
-		echo "    pip install pre-commit"; \
-		echo "    # or: pip3 install pre-commit"; \
-		echo ""; \
-		echo "  Linux (Fedora):"; \
-		echo "    pip install pre-commit"; \
-		echo ""; \
-		echo "  Windows:"; \
-		echo "    pip install pre-commit"; \
-		echo ""; \
-		echo "  After installing, run 'make setup-hooks' to configure."; \
-		echo ""; \
+	@# Check and install pre-commit hooks if pre-commit is available
+	@if command -v pre-commit >/dev/null 2>&1; then \
+		if [ ! -f .git/hooks/pre-commit ]; then \
+			echo "Installing pre-commit hooks..."; \
+			pre-commit install >/dev/null 2>&1; \
+			pre-commit install --hook-type commit-msg >/dev/null 2>&1; \
+			echo "✓ Pre-commit hooks installed"; \
+		else \
+			echo "✓ Pre-commit hooks already installed"; \
+		fi; \
 	else \
-		echo "  ✓ pre-commit already installed ($$(pre-commit --version))"; \
+		echo "⚠ pre-commit not found (optional)"; \
+		echo "  Install: brew install pre-commit (macOS) or pip install pre-commit"; \
 	fi
-
-setup-hooks: ## Install and configure pre-commit hooks for automatic checks
-	@echo "→ Setting up pre-commit hooks..."
-	@if ! command -v pre-commit >/dev/null 2>&1; then \
-		echo "  ✗ pre-commit not found"; \
-		echo ""; \
-		echo "  Please install pre-commit first. See 'make install-tools' for instructions."; \
-		echo ""; \
-		exit 1; \
-	fi
-	@pre-commit install
-	@pre-commit install --hook-type commit-msg
-	@echo "  ✓ Pre-commit hooks installed successfully"
-	@echo "  ℹ  Hooks will run automatically on 'git commit'"
+	@echo ""
+	@echo "✓ Development environment ready!"
 
 # ============================================================================
-# Code Quality - Linting and Formatting
+# Code Quality - CI Targets
 # ============================================================================
-# Why: These commands help maintain code quality and consistency.
-# Note: Pre-commit hooks run these automatically, but you can run manually too.
+# Note: Pre-commit hooks auto-format and lint on commit.
+# These targets are used by CI workflows, not for manual use.
 # ============================================================================
 
-lint: ## Run golangci-lint on all Go code (static analysis, security checks)
+lint: ## Run golangci-lint (used by CI, pre-commit handles this locally)
 	@echo "→ Running golangci-lint..."
 	@golangci-lint run ./...
 	@echo "✓ Linting complete!"
 
-security: ## Run security checks (gosec via golangci-lint + govulncheck)
+security: ## Run security checks (gosec + govulncheck)
 	@echo "→ Running security checks..."
 	@echo "  1. Running gosec (via golangci-lint)..."
 	@golangci-lint run --no-config -E gosec ./...
@@ -109,21 +82,7 @@ security: ## Run security checks (gosec via golangci-lint + govulncheck)
 	@govulncheck ./...
 	@echo "✓ Security checks complete!"
 
-gosec: ## Run gosec security scanner (respects .golangci.yml exclusions)
-	@echo "→ Running gosec via golangci-lint..."
-	@golangci-lint run --no-config -E gosec ./...
-	@echo "✓ gosec complete!"
-
-govulncheck: ## Run Go vulnerability checker
-	@echo "→ Running govulncheck..."
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
-		echo "  Installing govulncheck..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@latest; \
-	fi
-	@govulncheck ./...
-	@echo "✓ govulncheck complete!"
-
-fmt: ## Format all Go code using gofmt and goimports
+fmt: ## Format Go code (used by CI, pre-commit handles this locally)
 	@echo "→ Formatting Go code..."
 	@gofmt -w -s .
 	@if command -v goimports >/dev/null 2>&1; then \
@@ -132,12 +91,6 @@ fmt: ## Format all Go code using gofmt and goimports
 		echo "  ℹ goimports not found, skipping import formatting"; \
 	fi
 	@echo "✓ Formatting complete!"
-
-check: fmt lint test-unit ## Run all quality checks (format, lint, test) - CI/CD ready
-	@echo "✓ All checks passed!"
-
-check-security: check security ## Run all checks including security scans
-	@echo "✓ All checks including security passed!"
 
 # ============================================================================
 # Building
@@ -177,11 +130,46 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 		echo "  Using production API: https://api.verda.com/v1"; \
 	fi
 	@mkdir -p build
-	@go test -tags=integration -v -timeout=10m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
-	@go test -tags=integration -v -timeout=10m ./test/integration
+	@go test -tags=integration -v -timeout=30m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
+	@go test -tags=integration -v -timeout=30m ./test/integration
 	@echo "✓ Integration tests passed!"
 
-test: lint test-unit ## Run linting and unit tests (default test target)
+test-e2e: ## Run e2e tests only: instance, serverless container, serverless job (cheapest resources; cleanup on success and failure)
+	@echo "→ Running e2e tests (instance + serverless container + serverless job)..."
+	@echo "  Required: VERDA_CLIENT_ID and VERDA_CLIENT_SECRET (env only; never commit)"
+	@echo "  Optional: VERDA_BASE_URL (defaults to https://api.verda.com/v1)"
+	@echo "  Timeout: 30 minutes"
+	@# Load .env file if it exists (runs in same shell as subsequent commands)
+	@if [ -f .env ]; then \
+		echo "  Loading .env file..."; \
+		set -a; . ./.env; set +a; \
+		if [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
+			echo "  ✗ Missing required environment variables (check .env file)"; \
+			exit 1; \
+		fi; \
+		if [ -n "$$VERDA_BASE_URL" ]; then \
+			echo "  ✅ API URL: $$VERDA_BASE_URL"; \
+		else \
+			echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
+		fi; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	elif [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
+		echo "  ✗ Missing required environment variables"; \
+		echo "  Either create a .env file or set VERDA_CLIENT_ID and VERDA_CLIENT_SECRET"; \
+		exit 1; \
+	elif [ -n "$$VERDA_BASE_URL" ]; then \
+		echo "  ✅ API URL: $$VERDA_BASE_URL"; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	else \
+		echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
+		mkdir -p build; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		echo "✓ E2E tests passed!"; \
+	fi
 
 coverage: ## Generate test coverage report (HTML output)
 	@echo "→ Generating coverage report..."
@@ -195,19 +183,12 @@ coverage: ## Generate test coverage report (HTML output)
 # Maintenance
 # ============================================================================
 
-clean: ## Clean build artifacts, coverage reports, and test caches
-	@echo "→ Cleaning build artifacts..."
+clean: ## Clean build artifacts, coverage reports, test caches, and Go build cache
+	@echo "→ Cleaning build artifacts and caches..."
 	@rm -rf build/
 	@rm -f coverage.out coverage.html integration.test  # Legacy locations
-	@go clean -testcache 2>/dev/null || true
+	@go clean -cache -testcache 2>/dev/null || true
 	@echo "✓ Clean complete!"
-
-clean-all: ## Clean everything including Go build cache (may require permissions)
-	@echo "→ Deep cleaning (including Go cache)..."
-	@rm -rf build/
-	@rm -f coverage.out coverage.html integration.test
-	@go clean -cache -testcache
-	@echo "✓ Deep clean complete!"
 
 mod-tidy: ## Tidy Go module dependencies (go mod tidy)
 	@echo "→ Tidying Go modules..."
@@ -219,6 +200,13 @@ update-deps: ## Update all Go dependencies to their latest versions
 	@go get -u ./...
 	@go mod tidy
 	@echo "✓ Dependencies updated!"
+
+# ============================================================================
+# Release Management
+# ============================================================================
+
+release: ## Prepare a new release by updating CHANGELOG.md (usage: make release VERSION=v1.0.0)
+	@scripts/release.sh $(VERSION)
 
 # ============================================================================
 # Pre-commit Management
@@ -234,7 +222,7 @@ pre-commit: ## Run all pre-commit hooks on all files (stages modified files firs
 # CI/CD Targets
 # ============================================================================
 
-ci: ## Run all CI checks (matches GitHub Actions checks)
+ci: ## Run all CI checks (matches GitHub Actions: format, mod-tidy, lint, build, test)
 	@echo "→ Running CI checks (same as GitHub Actions)..."
 	@echo ""
 	@echo "1. Format check..."
@@ -266,169 +254,6 @@ ci: ## Run all CI checks (matches GitHub Actions checks)
 	@echo ""
 	@echo "✓ All CI checks passed! Ready to push."
 
-ci-local: fmt lint test-unit ## Quick local CI check (without strict format/tidy verification)
-	@echo "✓ Local CI checks completed!"
-
-# ============================================================================
-# Docker Development Environment
-# ============================================================================
-# Run commands in a persistent Docker container for faster execution.
-# Container stays running in background and reuses same environment.
-# ============================================================================
-
-DOCKER_IMAGE := verda-dev
-DOCKER_CONTAINER := verda-dev-container
-
-docker-build: ## Build Docker development image with fixed Go and tool versions
-	@echo "→ Building Docker development image..."
-	@docker build -t $(DOCKER_IMAGE) .
-	@echo "✓ Docker image '$(DOCKER_IMAGE)' built successfully"
-	@echo ""
-	@echo "Container will auto-start when you run docker commands"
-
-# Internal target: ensures container is running (auto-starts if needed)
-docker-ensure-running:
-	@CONTAINER_RUNNING=$$(docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
-	CONTAINER_EXISTS=$$(docker ps -aq -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
-	if [ -z "$$CONTAINER_RUNNING" ]; then \
-		if ! docker image inspect $(DOCKER_IMAGE) >/dev/null 2>&1; then \
-			echo "→ Building Docker image..."; \
-			docker build -q -t $(DOCKER_IMAGE) .; \
-		fi; \
-		if [ -n "$$CONTAINER_EXISTS" ]; then \
-			echo "→ Restarting existing dev container..."; \
-			docker start $(DOCKER_CONTAINER) >/dev/null 2>&1; \
-			sleep 1; \
-			echo "✓ Dev container restarted"; \
-		else \
-			echo "→ Starting dev container..."; \
-			docker run -d \
-				--name $(DOCKER_CONTAINER) \
-				-v $(PWD):/workspace \
-				-w /workspace \
-				-e CGO_ENABLED=0 \
-				$(DOCKER_IMAGE) \
-				tail -f /dev/null >/dev/null 2>&1; \
-			sleep 1; \
-			echo "✓ Dev container started"; \
-		fi; \
-	fi
-	@# Verify correct mount: Makefile must be at /workspace/Makefile; otherwise recreate container
-	@docker exec $(DOCKER_CONTAINER) sh -lc 'test -f /workspace/Makefile' >/dev/null 2>&1 || ( \
-		echo "→ Detected incorrect mount in container; recreating with correct volume..."; \
-		docker stop $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
-		docker rm $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
-		docker run -d \
-			--name $(DOCKER_CONTAINER) \
-			-v $(PWD):/workspace \
-			-w /workspace \
-			-e CGO_ENABLED=0 \
-			$(DOCKER_IMAGE) \
-			tail -f /dev/null >/dev/null 2>&1; \
-		sleep 1; \
-		echo "✓ Dev container recreated" )
-
-docker-start: docker-ensure-running ## Start persistent dev container in background (stays running)
-	@echo "✓ Dev container is ready"
-	@echo ""
-	@echo "Now you can run commands instantly:"
-	@echo "  make docker-lint"
-	@echo "  make docker-test"
-	@echo "  make docker-ci"
-
-docker-stop: ## Stop and remove the persistent dev container
-	@CONTAINER_EXISTS=$$(docker ps -aq -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
-	if [ -n "$$CONTAINER_EXISTS" ]; then \
-		echo "→ Stopping dev container..."; \
-		docker stop $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
-		docker rm $(DOCKER_CONTAINER) >/dev/null 2>&1 || true; \
-		echo "✓ Dev container stopped"; \
-	else \
-		echo "✓ Dev container not running"; \
-	fi
-
-docker-restart: docker-stop docker-start ## Restart the dev container (useful after image rebuild)
-
-docker-lint: docker-ensure-running ## Run linting in persistent container (auto-starts if needed)
-	@echo "→ Running linting in container..."
-	@docker exec -w /workspace $(DOCKER_CONTAINER) make lint
-
-docker-test: docker-ensure-running ## Run unit tests in persistent container (auto-starts if needed)
-	@echo "→ Running unit tests in container..."
-	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make test-unit
-
-docker-test-integration: docker-ensure-running ## Run integration tests (auto-starts, set VERDA_* env vars first)
-	@echo "→ Running integration tests in container..."
-	@docker exec -w /workspace \
-		-e VERDA_CLIENT_ID=$(VERDA_CLIENT_ID) \
-		-e VERDA_CLIENT_SECRET=$(VERDA_CLIENT_SECRET) \
-		-e VERDA_BASE_URL=$(VERDA_BASE_URL) \
-		$(DOCKER_CONTAINER) make test-integration
-
-docker-coverage: docker-ensure-running ## Run tests with coverage in persistent container (auto-starts if needed)
-	@echo "→ Running coverage in container..."
-	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make coverage
-
-docker-ci: docker-ensure-running ## Run all CI checks in persistent container (auto-starts if needed)
-	@echo "→ Running CI checks in container..."
-	@docker exec -e CGO_ENABLED=1 -w /workspace $(DOCKER_CONTAINER) make ci
-
-docker-fmt: docker-ensure-running ## Format code in persistent container (auto-starts if needed)
-	@echo "→ Formatting code in container..."
-	@docker exec -w /workspace $(DOCKER_CONTAINER) make fmt
-
-docker-shell: docker-ensure-running ## Open interactive shell in persistent container (auto-starts if needed)
-	@echo "→ Opening shell in container..."
-	@docker exec -it -w /workspace $(DOCKER_CONTAINER) /bin/bash
-
-docker-security: docker-ensure-running ## Run security checks in persistent container (auto-starts if needed)
-	@echo "→ Running security checks in container..."
-	@docker exec -w /workspace $(DOCKER_CONTAINER) make security
-
-docker-status: ## Show status of dev container
-	@CONTAINER_RUNNING=$$(docker ps -q -f name=$(DOCKER_CONTAINER) 2>/dev/null); \
-	if [ -n "$$CONTAINER_RUNNING" ]; then \
-		echo "✓ Dev container is RUNNING"; \
-		echo ""; \
-		docker ps -f name=$(DOCKER_CONTAINER) --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"; \
-	else \
-		echo "✗ Dev container is NOT running"; \
-		echo ""; \
-		echo "Start it with: make docker-start"; \
-	fi
-
-docker-clean: docker-stop ## Remove Docker image and container
-	@echo "→ Removing Docker image..."
-	@docker rmi $(DOCKER_IMAGE) 2>/dev/null || true
-	@echo "✓ Docker cleanup complete"
-
-docker-help: ## Show Docker-specific help
-	@echo '╔════════════════════════════════════════════════════════════════╗'
-	@echo '║          Docker Development Environment                        ║'
-	@echo '╚════════════════════════════════════════════════════════════════╝'
-	@echo ''
-	@echo 'Why Docker?'
-	@echo '  • Guaranteed consistency: Same Go 1.24 and golangci-lint v2.5.0'
-	@echo '  • No local setup needed: Everything runs in container'
-	@echo '  • Matches CI/CD exactly: Same environment as GitHub Actions'
-	@echo '  • FAST: Container stays running, commands execute instantly!'
-	@echo ''
-	@echo 'Quick Start:'
-	@echo '  make docker-start        # Start container (once, stays running)'
-	@echo '  make docker-lint         # Run linting (instant!)'
-	@echo '  make docker-test         # Run tests (instant!)'
-	@echo '  make docker-ci           # Run all CI checks (instant!)'
-	@echo ''
-	@echo 'Management:'
-	@echo '  make docker-status       # Check if container is running'
-	@echo '  make docker-stop         # Stop the container'
-	@echo '  make docker-restart      # Restart container'
-	@echo '  make docker-shell        # Open bash in container'
-	@echo ''
-
-.PHONY: setup install-tools setup-hooks lint fmt check check-security security gosec govulncheck
-.PHONY: build test test-unit test-integration coverage clean clean-all mod-tidy update-deps
-.PHONY: pre-commit pre-commit-run pre-commit-update ci ci-local
-.PHONY: docker-build docker-start docker-stop docker-restart docker-lint docker-test
-.PHONY: docker-test-integration docker-coverage docker-ci docker-fmt docker-shell
-.PHONY: docker-status docker-clean docker-help docker-security
+.PHONY: setup lint fmt security
+.PHONY: build test-unit test-integration coverage clean mod-tidy update-deps release
+.PHONY: pre-commit ci

@@ -124,7 +124,7 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 				QueueMessageTTLSeconds:       300,
 				ConcurrentRequestsPerReplica: 1,
 				ScalingTriggers: &ScalingTriggers{
-					QueueLoad:      &QueueLoadTrigger{Threshold: 0.5},
+					QueueLoad:      &QueueLoadTrigger{Threshold: 1}, // Must be >= 1
 					CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 					GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 				},
@@ -415,7 +415,7 @@ func TestContainerDeploymentsService_GetSecrets(t *testing.T) {
 			if secret.Name == "" {
 				t.Error("expected secret to have a Name")
 			}
-			if secret.CreatedAt == "" {
+			if secret.CreatedAt.IsZero() {
 				t.Error("expected secret to have a CreatedAt")
 			}
 			if secret.SecretType == "" {
@@ -436,7 +436,7 @@ func TestContainerDeploymentsService_GetSecrets(t *testing.T) {
 				if secret.Name == "" {
 					t.Errorf("secret %d missing Name", i)
 				}
-				if secret.CreatedAt == "" {
+				if secret.CreatedAt.IsZero() {
 					t.Errorf("secret %d missing CreatedAt", i)
 				}
 				if secret.SecretType == "" {

@@ -169,7 +169,15 @@ func TestInstanceService_Action(t *testing.T) {
 
 	t.Run("action on instance", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Instances.Action(ctx, "inst_123", ActionShutdown, nil)
+		err := client.Instances.Action(ctx, []string{"inst_123"}, ActionShutdown, nil)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("action on multiple instances", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Action(ctx, []string{"inst_123", "inst_456"}, ActionShutdown, nil)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -177,7 +185,7 @@ func TestInstanceService_Action(t *testing.T) {
 
 	t.Run("action delete with volumes", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Instances.Action(ctx, "inst_123", ActionDelete, []string{"vol_123"})
+		err := client.Instances.Action(ctx, []string{"inst_123"}, ActionDelete, []string{"vol_123"})
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -216,7 +224,15 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 
 	t.Run("delete instance", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Instances.Delete(ctx, "inst_123", []string{"vol_123"})
+		err := client.Instances.Delete(ctx, []string{"vol_123"}, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("delete multiple instances", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.Delete(ctx, []string{"vol_123"}, "inst_123", "inst_456")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -256,7 +272,15 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 
 	t.Run("delete stuck instance", func(t *testing.T) {
 		ctx := context.Background()
-		err := client.Instances.DeleteStuck(ctx, "inst_123", []string{"vol_123"})
+		err := client.Instances.DeleteStuck(ctx, []string{"vol_123"}, "inst_123")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("delete stuck multiple instances", func(t *testing.T) {
+		ctx := context.Background()
+		err := client.Instances.DeleteStuck(ctx, []string{"vol_123"}, "inst_123", "inst_456")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}

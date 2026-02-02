@@ -46,10 +46,8 @@ issues:
   exclude-dirs:
     - vendor
     - third_party
-  exclude-files:
-    - ".*_test\\.go$"
   exclude-rules:
-    # Test files - relax most rules
+    # Test files - relax SOME rules but keep staticcheck
     - linters:
         - dupl
         - errcheck

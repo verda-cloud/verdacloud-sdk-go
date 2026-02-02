@@ -25,7 +25,7 @@ jobs:
         run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Install golangci-lint
-        run: make install-tools
+        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0
 
       - name: Run linters
         run: make lint
@@ -134,10 +134,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Go (with security fixes for crypto/x509)
+      - name: Set up Go (with security fixes)
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.11"
+          go-version: "1.24.12"
           cache: true
 
       - name: Add Go bin to PATH
@@ -149,48 +149,49 @@ jobs:
       - name: Run govulncheck
         run: govulncheck ./...
 
-  # Integration tests (runs on PRs and after merge, skips if secrets unavailable)
-  integration-test:
-    name: Integration Tests
+  # E2E tests (focused subset: instance, serverless container, serverless job)
+  e2e-test:
+    name: E2E Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # Allow enough time for cloud resource provisioning
+    # Only run if secrets are available (secrets are empty strings for fork PRs)
+    env:
+      VERDA_CLIENT_ID: ${{ secrets.VERDA_CLIENT_ID }}
+      VERDA_CLIENT_SECRET: ${{ secrets.VERDA_CLIENT_SECRET }}
+      VERDA_BASE_URL: ${{ secrets.VERDA_BASE_URL }}
     steps:
+      - name: Check if secrets are available
+        id: check-secrets
+        run: |
+          if [ -n "$VERDA_CLIENT_ID" ] && [ -n "$VERDA_CLIENT_SECRET" ]; then
+            echo "available=true" >> $GITHUB_OUTPUT
+            echo "✅ API credentials available - e2e tests will run"
+          else
+            echo "available=false" >> $GITHUB_OUTPUT
+            echo "⚠️ API credentials not available - e2e tests will be skipped"
+            echo "This is expected for PRs from forks. Tests will run after merge."
+          fi
+
       - name: Checkout code
+        if: steps.check-secrets.outputs.available == 'true'
         uses: actions/checkout@v4
 
       - name: Set up Go
+        if: steps.check-secrets.outputs.available == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: "1.24"
           cache: true
 
-      - name: Check if secrets are available
-        id: check-secrets
-        run: |
-          if [ -n "${{ secrets.VERDA_CLIENT_ID }}" ] && [ -n "${{ secrets.VERDA_CLIENT_SECRET }}" ]; then
-            echo "available=true" >> $GITHUB_OUTPUT
-          else
-            echo "available=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Run integration tests
+      - name: Run e2e tests
         if: steps.check-secrets.outputs.available == 'true'
-        env:
-          VERDA_CLIENT_ID: ${{ secrets.VERDA_CLIENT_ID }}
-          VERDA_CLIENT_SECRET: ${{ secrets.VERDA_CLIENT_SECRET }}
-          VERDA_BASE_URL: ${{ secrets.VERDA_BASE_URL }}
-        run: make test-integration
-
-      - name: Skip integration tests (secrets not available)
-        if: steps.check-secrets.outputs.available == 'false'
-        run: |
-          echo "⚠️ Integration tests skipped - API credentials not available"
-          echo "This is expected for PRs from forks. Tests will run after merge."
+        run: make test-e2e
 
   # All checks passed - used for branch protection
   ci-success:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
-    needs: [lint, test, build, format, mod-tidy, vuln-scan, integration-test]
+    needs: [lint, test, build, format, mod-tidy, vuln-scan]
     steps:
       - name: Success
         run: echo "All CI checks passed successfully!"
