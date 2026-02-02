@@ -30,7 +30,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 			if job.Name == "" {
 				t.Error("expected job to have a Name")
 			}
-			if job.CreatedAt == "" {
+			if job.CreatedAt.IsZero() {
 				t.Error("expected job to have a CreatedAt")
 			}
 		}
@@ -48,7 +48,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 				if job.Name == "" {
 					t.Errorf("job %d missing Name", i)
 				}
-				if job.CreatedAt == "" {
+				if job.CreatedAt.IsZero() {
 					t.Errorf("job %d missing CreatedAt", i)
 				}
 			}
@@ -126,7 +126,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 		if job.Name == "" {
 			t.Error("expected job to have a Name")
 		}
-		if job.CreatedAt == "" {
+		if job.CreatedAt.IsZero() {
 			t.Error("expected job to have a CreatedAt")
 		}
 	})

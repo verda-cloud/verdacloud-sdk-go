@@ -481,7 +481,7 @@ type ContainerDeployment struct {
 	Name                      string                     `json:"name"`
 	Containers                []DeploymentContainer      `json:"containers"`
 	EndpointBaseURL           string                     `json:"endpoint_base_url"`
-	CreatedAt                 string                     `json:"created_at"`
+	CreatedAt                 time.Time                  `json:"created_at"`
 	Compute                   *ContainerCompute          `json:"compute,omitempty"`
 	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
 	IsSpot                    bool                       `json:"is_spot"`
@@ -517,8 +517,8 @@ type DeploymentContainer struct {
 }
 
 type ContainerImage struct {
-	Image         string `json:"image"`
-	LastUpdatedAt string `json:"last_updated_at,omitempty"`
+	Image         string    `json:"image"`
+	LastUpdatedAt time.Time `json:"last_updated_at,omitempty"`
 }
 
 // ContainerEnvVar represents an environment variable with type
@@ -634,14 +634,14 @@ type DeploymentReplicas struct {
 
 // ReplicaInfo represents information about a single replica
 type ReplicaInfo struct {
-	ID        string `json:"id"`         // Replica ID
-	Status    string `json:"status"`     // Replica status (e.g., "running")
-	StartedAt string `json:"started_at"` // ISO 8601 timestamp when replica started
+	ID        string    `json:"id"`         // Replica ID
+	Status    string    `json:"status"`     // Replica status (e.g., "running")
+	StartedAt time.Time `json:"started_at"` // Timestamp when replica started
 }
 
-// EnvironmentVariablesRequest represents a request to add/update environment variables
+// ContainerEnvVarsRequest represents a request to add/update environment variables for container deployments
 // Used by POST and PATCH /container-deployments/{name}/environment-variables
-type EnvironmentVariablesRequest struct {
+type ContainerEnvVarsRequest struct {
 	ContainerName string            `json:"container_name"`
 	Env           []ContainerEnvVar `json:"env"`
 }
@@ -676,8 +676,9 @@ type ContainerAutoUpdate struct {
 	TagFilter string `json:"tag_filter,omitempty"`
 }
 
-// DeleteEnvironmentVariablesRequest represents a request to delete environment variables
-type DeleteEnvironmentVariablesRequest struct {
+// DeleteContainerEnvVarsRequest represents a request to delete environment variables from container deployments
+// Used by DELETE /container-deployments/{name}/environment-variables
+type DeleteContainerEnvVarsRequest struct {
 	ContainerName string   `json:"container_name"`
 	Env           []string `json:"env"`
 }
@@ -691,9 +692,9 @@ type ComputeResource struct {
 
 // Secret represents a secret used in deployments
 type Secret struct {
-	Name       string `json:"name"`
-	CreatedAt  string `json:"created_at"`
-	SecretType string `json:"secret_type"`
+	Name       string    `json:"name"`
+	CreatedAt  time.Time `json:"created_at"`
+	SecretType string    `json:"secret_type"`
 }
 
 // CreateSecretRequest represents a request to create a new secret
@@ -704,10 +705,10 @@ type CreateSecretRequest struct {
 
 // FileSecret represents a fileset secret
 type FileSecret struct {
-	Name       string   `json:"name"`
-	CreatedAt  string   `json:"created_at"`
-	SecretType string   `json:"secret_type"`
-	FileNames  []string `json:"file_names"`
+	Name       string    `json:"name"`
+	CreatedAt  time.Time `json:"created_at"`
+	SecretType string    `json:"secret_type"`
+	FileNames  []string  `json:"file_names"`
 }
 
 // CreateFileSecretRequest represents a request to create a fileset secret
@@ -723,8 +724,8 @@ type FileSecretFile struct {
 
 // RegistryCredentials represents container registry credentials
 type RegistryCredentials struct {
-	Name      string `json:"name"`
-	CreatedAt string `json:"created_at"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // CreateRegistryCredentialsRequest represents a request to create registry credentials
@@ -749,7 +750,7 @@ type CreateRegistryCredentialsRequest struct {
 // JobDeploymentShortInfo represents summary information about a job deployment
 type JobDeploymentShortInfo struct {
 	Name      string            `json:"name"`
-	CreatedAt string            `json:"created_at"`
+	CreatedAt time.Time         `json:"created_at"`
 	Compute   *ContainerCompute `json:"compute"`
 }
 
@@ -759,7 +760,7 @@ type JobDeployment struct {
 	Name                      string                     `json:"name"`
 	Containers                []DeploymentContainer      `json:"containers"`
 	EndpointBaseURL           string                     `json:"endpoint_base_url"`
-	CreatedAt                 string                     `json:"created_at"`
+	CreatedAt                 time.Time                  `json:"created_at"`
 	Compute                   *ContainerCompute          `json:"compute"`
 	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings"`
 	Scaling                   *JobScalingOptions         `json:"scaling,omitempty"`

@@ -374,7 +374,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
-		addReq := &verda.EnvironmentVariablesRequest{
+		addReq := &verda.ContainerEnvVarsRequest{
 			ContainerName: containerName,
 			Env: []verda.ContainerEnvVar{
 				{
@@ -429,7 +429,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
-		updateReq := &verda.EnvironmentVariablesRequest{
+		updateReq := &verda.ContainerEnvVarsRequest{
 			ContainerName: containerName,
 			Env: []verda.ContainerEnvVar{
 				{
@@ -456,7 +456,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
-		deleteReq := &verda.DeleteEnvironmentVariablesRequest{
+		deleteReq := &verda.DeleteContainerEnvVarsRequest{
 			ContainerName: containerName,
 			Env: []string{
 				"NEW_VAR_2",

@@ -248,7 +248,7 @@ func (s *ContainerDeploymentsService) GetEnvironmentVariables(ctx context.Contex
 	return envVars, nil
 }
 
-func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Context, deploymentName string, req *EnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -266,7 +266,7 @@ func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Contex
 	return err
 }
 
-func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Context, deploymentName string, req *EnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -284,7 +284,7 @@ func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Con
 	return err
 }
 
-func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Context, deploymentName string, req *DeleteEnvironmentVariablesRequest) error {
+func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Context, deploymentName string, req *DeleteContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
