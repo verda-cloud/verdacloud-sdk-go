@@ -21,9 +21,17 @@ func NewMiddleware(requestMiddleware []RequestMiddleware, responseMiddleware []R
 
 // NewDefaultMiddleware creates a Middleware manager with the standard default middleware
 func NewDefaultMiddleware(logger Logger) *Middleware {
+	return NewDefaultMiddlewareWithUserAgent(logger, "")
+}
+
+// NewDefaultMiddlewareWithUserAgent creates a Middleware manager with custom User-Agent support
+func NewDefaultMiddlewareWithUserAgent(logger Logger, customUserAgent string) *Middleware {
+	userAgent := BuildUserAgent(customUserAgent)
+
 	requestMiddleware := []RequestMiddleware{
 		AuthenticationMiddleware(),
 		JSONContentTypeMiddleware(),
+		UserAgentMiddleware(userAgent),
 	}
 
 	responseMiddleware := []ResponseMiddleware{

@@ -11,8 +11,8 @@ func TestMiddlewareManager(t *testing.T) {
 		middleware := NewDefaultMiddleware(&NoOpLogger{})
 
 		reqCount, respCount := middleware.Len()
-		if reqCount != 2 {
-			t.Errorf("Expected 2 default request middleware, got %d", reqCount)
+		if reqCount != 3 { // Auth + JSON + UserAgent
+			t.Errorf("Expected 3 default request middleware, got %d", reqCount)
 		}
 		if respCount != 1 {
 			t.Errorf("Expected 1 default response middleware, got %d", respCount)
@@ -21,8 +21,8 @@ func TestMiddlewareManager(t *testing.T) {
 		// Test with debug logger (should add logging middleware)
 		debugMiddleware := NewDefaultMiddleware(NewStdLogger(true))
 		reqCount, respCount = debugMiddleware.Len()
-		if reqCount != 3 { // Auth + JSON + Logging
-			t.Errorf("Expected 3 request middleware with debug logger, got %d", reqCount)
+		if reqCount != 4 { // Auth + JSON + UserAgent + Logging
+			t.Errorf("Expected 4 request middleware with debug logger, got %d", reqCount)
 		}
 		if respCount != 2 { // Error + ResponseLogging
 			t.Errorf("Expected 2 response middleware with debug logger, got %d", respCount)
@@ -100,8 +100,8 @@ func TestMiddlewareManager(t *testing.T) {
 		reqSnapshot, respSnapshot := middleware.Snapshot()
 
 		// Verify snapshot has correct length
-		if len(reqSnapshot) != 2 {
-			t.Errorf("Expected 2 request middleware in snapshot, got %d", len(reqSnapshot))
+		if len(reqSnapshot) != 3 { // Auth + JSON + UserAgent
+			t.Errorf("Expected 3 request middleware in snapshot, got %d", len(reqSnapshot))
 		}
 		if len(respSnapshot) != 1 {
 			t.Errorf("Expected 1 response middleware in snapshot, got %d", len(respSnapshot))
@@ -111,7 +111,7 @@ func TestMiddlewareManager(t *testing.T) {
 		middleware.ClearRequestMiddleware()
 
 		// Snapshot should still have original values
-		if len(reqSnapshot) != 2 {
+		if len(reqSnapshot) != 3 {
 			t.Errorf("Snapshot was affected by original modification")
 		}
 
@@ -131,7 +131,7 @@ func TestMiddlewareThreadSafety(t *testing.T) {
 
 	// Add middleware concurrently
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 
@@ -147,7 +147,7 @@ func TestMiddlewareThreadSafety(t *testing.T) {
 
 	// Take snapshots concurrently
 	wg.Add(numGoroutines)
-	for i := 0; i < numGoroutines; i++ {
+	for range numGoroutines {
 		go func() {
 			defer wg.Done()
 			_, _ = middleware.Snapshot()
@@ -156,9 +156,9 @@ func TestMiddlewareThreadSafety(t *testing.T) {
 
 	wg.Wait()
 
-	// Should have original 2 + 10 added = 12 request middleware
-	if middleware.LenRequestMiddleware() != 12 {
-		t.Errorf("Expected 12 request middleware after concurrent adds, got %d", middleware.LenRequestMiddleware())
+	// Should have original 3 (Auth + JSON + UserAgent) + 10 added = 13 request middleware
+	if middleware.LenRequestMiddleware() != 13 {
+		t.Errorf("Expected 13 request middleware after concurrent adds, got %d", middleware.LenRequestMiddleware())
 	}
 }
 
@@ -173,8 +173,8 @@ func TestClientMiddlewareIntegration(t *testing.T) {
 
 	// Test that client has default middleware
 	reqCount, respCount := client.Middleware.Len()
-	if reqCount != 2 {
-		t.Errorf("Expected 2 default request middleware in client, got %d", reqCount)
+	if reqCount != 3 { // Auth + JSON + UserAgent
+		t.Errorf("Expected 3 default request middleware in client, got %d", reqCount)
 	}
 	if respCount != 1 {
 		t.Errorf("Expected 1 default response middleware in client, got %d", respCount)
@@ -198,8 +198,8 @@ func TestClientMiddlewareIntegration(t *testing.T) {
 
 	// Verify middleware were added
 	reqCount, respCount = client.Middleware.Len()
-	if reqCount != 3 {
-		t.Errorf("Expected 3 request middleware after adding one, got %d", reqCount)
+	if reqCount != 4 { // Auth + JSON + UserAgent + custom
+		t.Errorf("Expected 4 request middleware after adding one, got %d", reqCount)
 	}
 	if respCount != 2 {
 		t.Errorf("Expected 2 response middleware after adding one, got %d", respCount)

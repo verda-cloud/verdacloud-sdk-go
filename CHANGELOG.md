@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.2.1] - 2026-02-05
+### Added
+- feat(client): Add User-Agent header support with `WithUserAgent()` option
+- feat(version): Add SDK version detection via `runtime/debug.ReadBuildInfo()`
+- feat(release): Auto-update SDK version in `make release`
+
 ## [v1.2.0] - 2026-02-02
 ### Added
 - feat(workflow): Establish changelog and automated release workflow
