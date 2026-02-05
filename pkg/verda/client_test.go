@@ -54,6 +54,15 @@ func TestNewClient(t *testing.T) {
 			},
 			wantError: false,
 		},
+		{
+			name: "with custom user agent",
+			opts: []ClientOption{
+				WithClientID("test_id"),
+				WithClientSecret("test_secret"),
+				WithUserAgent("my-terraform/1.4.2"),
+			},
+			wantError: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -323,6 +332,91 @@ func TestClientMiddleware(t *testing.T) {
 		// The token is stored internally and used for authentication
 		if client == nil {
 			t.Fatal("expected client to be created")
+		}
+	})
+}
+
+func TestWithUserAgent(t *testing.T) {
+	t.Run("client stores custom user agent", func(t *testing.T) {
+		client, err := NewClient(
+			WithClientID("test_id"),
+			WithClientSecret("test_secret"),
+			WithUserAgent("my-terraform/1.4.2"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if client.UserAgent != "my-terraform/1.4.2" {
+			t.Errorf("expected UserAgent 'my-terraform/1.4.2', got %q", client.UserAgent)
+		}
+	})
+
+	t.Run("default user agent when not specified", func(t *testing.T) {
+		client, err := NewClient(
+			WithClientID("test_id"),
+			WithClientSecret("test_secret"),
+		)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// UserAgent field should be empty (default middleware handles it)
+		if client.UserAgent != "" {
+			t.Errorf("expected empty UserAgent field when not specified, got %q", client.UserAgent)
+		}
+	})
+}
+
+func TestUserAgentInRequests(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	t.Run("sends default user agent header", func(t *testing.T) {
+		var receivedUA string
+		mockServer.SetHandler(http.MethodGet, "/test-ua", func(w http.ResponseWriter, r *http.Request) {
+			receivedUA = r.Header.Get("User-Agent")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		})
+
+		client := NewTestClient(mockServer)
+		ctx := context.Background()
+
+		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua", nil)
+		if err != nil {
+			t.Fatalf("failed to create request: %v", err)
+		}
+
+		_, _ = client.Do(req, nil)
+
+		expectedUA := DefaultUserAgent()
+		if receivedUA != expectedUA {
+			t.Errorf("expected User-Agent %q, got %q", expectedUA, receivedUA)
+		}
+	})
+
+	t.Run("sends custom user agent with SDK suffix", func(t *testing.T) {
+		var receivedUA string
+		mockServer.SetHandler(http.MethodGet, "/test-ua-custom", func(w http.ResponseWriter, r *http.Request) {
+			receivedUA = r.Header.Get("User-Agent")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{}`))
+		})
+
+		client := NewTestClientWithUserAgent(mockServer, "my-terraform/1.4.2")
+		ctx := context.Background()
+
+		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua-custom", nil)
+		if err != nil {
+			t.Fatalf("failed to create request: %v", err)
+		}
+
+		_, _ = client.Do(req, nil)
+
+		expectedUA := BuildUserAgent("my-terraform/1.4.2")
+		if receivedUA != expectedUA {
+			t.Errorf("expected User-Agent %q, got %q", expectedUA, receivedUA)
 		}
 	})
 }

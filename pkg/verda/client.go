@@ -21,6 +21,7 @@ type Client struct {
 	ClientID        string
 	ClientSecret    string
 	AuthBearerToken string
+	UserAgent       string
 
 	HTTPClient *http.Client
 	Logger     Logger
@@ -68,7 +69,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		}
 	}
 
-	client.Middleware = NewDefaultMiddleware(client.Logger)
+	client.Middleware = NewDefaultMiddlewareWithUserAgent(client.Logger, client.UserAgent)
 
 	// Wire up debug middleware if VERDA_DEBUG is set
 	if verdaDebug := os.Getenv("VERDA_DEBUG"); strings.ToLower(verdaDebug) == trueString {
@@ -167,6 +168,12 @@ func WithDebugLogging(enabled bool) ClientOption {
 func WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *Client) {
 		c.HTTPClient = httpClient
+	}
+}
+
+func WithUserAgent(userAgent string) ClientOption {
+	return func(c *Client) {
+		c.UserAgent = userAgent
 	}
 }
 

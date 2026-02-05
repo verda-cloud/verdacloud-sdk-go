@@ -205,7 +205,16 @@ update-deps: ## Update all Go dependencies to their latest versions
 # Release Management
 # ============================================================================
 
-release: ## Prepare a new release by updating CHANGELOG.md (usage: make release VERSION=v1.0.0)
+release: ## Prepare a new release by updating version and CHANGELOG.md (usage: make release VERSION=v1.0.0)
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required"; \
+		echo "Usage: make release VERSION=v1.3.0"; \
+		exit 1; \
+	fi
+	@VERSION_NUM=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	echo "→ Updating SDK version to $$VERSION_NUM..."; \
+	sed -i '' "s/fallbackVersion = \".*\"/fallbackVersion = \"$$VERSION_NUM\"/" pkg/verda/version.go; \
+	echo "✓ Updated pkg/verda/version.go"
 	@scripts/release.sh $(VERSION)
 
 # ============================================================================
