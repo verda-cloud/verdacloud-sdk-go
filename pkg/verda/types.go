@@ -143,17 +143,50 @@ type LocationAvailability struct {
 	Availabilities []string `json:"availabilities"`
 }
 
+// VolumeAttachedInstance represents a summary of an instance that has a volume attached
+type VolumeAttachedInstance struct {
+	ID                  string  `json:"id"`
+	AutoRentalExtension *bool   `json:"auto_rental_extension"`
+	IP                  *string `json:"ip"`
+	InstanceType        string  `json:"instance_type"`
+	Status              string  `json:"status"`
+	OSVolumeID          string  `json:"os_volume_id"`
+	Hostname            string  `json:"hostname"`
+}
+
+// VolumeLongTerm represents long-term rental details for a volume
+type VolumeLongTerm struct {
+	EndDate             time.Time `json:"end_date"`
+	LongTermPeriod      string    `json:"long_term_period"`
+	DiscountPercentage  int       `json:"discount_percentage"`
+	AutoRentalExtension bool      `json:"auto_rental_extension"`
+	NextPeriodPrice     float64   `json:"next_period_price"`
+	CurrentPeriodPrice  float64   `json:"current_period_price"`
+}
+
 // Volume represents a Verda volume
 type Volume struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Size       int       `json:"size"`
-	Type       string    `json:"type"`
-	Status     string    `json:"status"`
-	CreatedAt  time.Time `json:"created_at"`
-	InstanceID *string   `json:"instance_id"`
-	Location   string    `json:"location"`
-	Contract   string    `json:"contract,omitempty"`
+	ID                       string                   `json:"id"`
+	Name                     string                   `json:"name"`
+	Size                     int                      `json:"size"`
+	Type                     string                   `json:"type"`
+	Status                   string                   `json:"status"`
+	CreatedAt                time.Time                `json:"created_at"`
+	InstanceID               *string                  `json:"instance_id"`
+	Instances                []VolumeAttachedInstance `json:"instances"`
+	Location                 string                   `json:"location"`
+	Contract                 string                   `json:"contract,omitempty"`
+	IsOSVolume               bool                     `json:"is_os_volume"`
+	Target                   *string                  `json:"target"`
+	SSHKeyIDs                []string                 `json:"ssh_key_ids"`
+	PseudoPath               *string                  `json:"pseudo_path"`
+	CreateDirectoryCommand   *string                  `json:"create_directory_command"`
+	MountCommand             *string                  `json:"mount_command"`
+	FilesystemToFstabCommand *string                  `json:"filesystem_to_fstab_command"`
+	BaseHourlyCost           float64                  `json:"base_hourly_cost"`
+	MonthlyPrice             float64                  `json:"monthly_price"`
+	Currency                 string                   `json:"currency"`
+	LongTerm                 *VolumeLongTerm          `json:"long_term"`
 }
 
 // VolumeType represents available volume type specifications
