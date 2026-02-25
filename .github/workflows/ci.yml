@@ -137,7 +137,7 @@ jobs:
       - name: Set up Go (with security fixes)
         uses: actions/setup-go@v5
         with:
-          go-version: "1.24.12"
+          go-version: "1.24.13"
           cache: true
 
       - name: Add Go bin to PATH
