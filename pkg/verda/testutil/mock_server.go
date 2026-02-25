@@ -155,7 +155,7 @@ type VolumeAttachedInstance struct {
 	IP                  *string `json:"ip"`
 	InstanceType        string  `json:"instance_type"`
 	Status              string  `json:"status"`
-	OSVolumeID          string  `json:"os_volume_id"`
+	OSVolumeID          *string `json:"os_volume_id"`
 	Hostname            string  `json:"hostname"`
 }
 
