@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [v1.2.2] - 2026-02-25
+### Changed
+- chore(volumes): Add missing attributes for shared filesystem volumes
+
 ## [v1.2.1] - 2026-02-05
 ### Added
 - feat(client): Add User-Agent header support with `WithUserAgent()` option
