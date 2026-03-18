@@ -59,7 +59,7 @@ func TestNewClient(t *testing.T) {
 			opts: []ClientOption{
 				WithClientID("test_id"),
 				WithClientSecret("test_secret"),
-				WithUserAgent("my-terraform/1.4.2"),
+				WithUserAgent("terraform-provider-verda/1.4.2"),
 			},
 			wantError: false,
 		},
@@ -341,14 +341,14 @@ func TestWithUserAgent(t *testing.T) {
 		client, err := NewClient(
 			WithClientID("test_id"),
 			WithClientSecret("test_secret"),
-			WithUserAgent("my-terraform/1.4.2"),
+			WithUserAgent("terraform-provider-verda/1.4.2"),
 		)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if client.UserAgent != "my-terraform/1.4.2" {
-			t.Errorf("expected UserAgent 'my-terraform/1.4.2', got %q", client.UserAgent)
+		if client.UserAgent != "terraform-provider-verda/1.4.2" {
+			t.Errorf("expected UserAgent 'terraform-provider-verda/1.4.2', got %q", client.UserAgent)
 		}
 	})
 

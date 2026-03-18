@@ -63,6 +63,30 @@ func TestBuildUserAgent(t *testing.T) {
 			expectedPrefix: "my-product-terraform-provider/1.4.2 terraform/1.6.5",
 			expectedSuffix: "verdacloud-sdk-go/",
 		},
+		{
+			name:           "CRLF characters are stripped",
+			customUA:       "my-app/1.0\r\nEvil-Header: injected",
+			expectedPrefix: "my-app/1.0Evil-Header: injected",
+			expectedSuffix: "verdacloud-sdk-go/",
+		},
+		{
+			name:           "null bytes and control chars are stripped",
+			customUA:       "my-app/1.0\x00\x01\x1F",
+			expectedPrefix: "my-app/1.0",
+			expectedSuffix: "verdacloud-sdk-go/",
+		},
+		{
+			name:           "only control chars returns default",
+			customUA:       "\r\n\x00",
+			expectedPrefix: "verdacloud-sdk-go/",
+			expectedSuffix: "",
+		},
+		{
+			name:           "whitespace-only returns default",
+			customUA:       "   ",
+			expectedPrefix: "verdacloud-sdk-go/",
+			expectedSuffix: "",
+		},
 	}
 
 	for _, tt := range tests {
@@ -83,6 +107,33 @@ func TestBuildUserAgent(t *testing.T) {
 			if !strings.Contains(result, "verdacloud-sdk-go/") {
 				t.Errorf("BuildUserAgent(%q) should always contain 'verdacloud-sdk-go/', got %q",
 					tt.customUA, result)
+			}
+		})
+	}
+}
+
+func TestSanitizeUserAgent(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"clean input unchanged", "my-app/1.0", "my-app/1.0"},
+		{"strips CR LF", "a\r\nb", "ab"},
+		{"strips null byte", "a\x00b", "ab"},
+		{"strips all control chars", "\x01\x02\x1F\x7F", ""},
+		{"strips DEL char", "a\x7Fb", "ab"},
+		{"trims surrounding whitespace", "  my-app/1.0  ", "my-app/1.0"},
+		{"preserves internal spaces", "my-app/1.0 terraform/1.6", "my-app/1.0 terraform/1.6"},
+		{"caps at 256 characters", strings.Repeat("a", 300), strings.Repeat("a", 256)},
+		{"empty string stays empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := sanitizeUserAgent(tt.input)
+			if result != tt.expected {
+				t.Errorf("sanitizeUserAgent(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
 	}
