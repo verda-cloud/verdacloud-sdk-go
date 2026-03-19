@@ -590,13 +590,13 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 		clientSecret = tokenReq.ClientSecret
 	} else {
 		// Parse form data
-		if err := r.ParseForm(); err != nil {
+		if err := r.ParseForm(); err != nil { //nolint:gosec // G120: test mock server, not production
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		grantType = r.FormValue("grant_type")
-		clientID = r.FormValue("client_id")
-		clientSecret = r.FormValue("client_secret")
+		grantType = r.FormValue("grant_type")       //nolint:gosec // G120: test mock server
+		clientID = r.FormValue("client_id")         //nolint:gosec // G120: test mock server
+		clientSecret = r.FormValue("client_secret") //nolint:gosec // G120: test mock server
 	}
 
 	if grantType == "" || clientID == "" || clientSecret == "" {
@@ -625,7 +625,7 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 	osVolumeID := "vol_os_123"
 
 	instances := []Instance{
-		{
+		{ //nolint:gosec // G101: test fixture, not real credentials
 			ID:              "inst_123",
 			IP:              &ip,
 			Status:          StatusRunning,
@@ -672,7 +672,7 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 	scriptID := "script_123"
 	osVolumeID := "vol_os_123"
 
-	instance := Instance{
+	instance := Instance{ //nolint:gosec // G101: test fixture, not real credentials
 		ID:              instanceID,
 		IP:              &ip,
 		Status:          StatusRunning,
@@ -731,7 +731,7 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 	ip := mockIPAddress
 	osVolumeID := "vol_os_new_123"
 
-	instance := Instance{
+	instance := Instance{ //nolint:gosec // G101: test fixture, not real credentials
 		ID:              "inst_new_123",
 		IP:              &ip,
 		Status:          StatusPending,

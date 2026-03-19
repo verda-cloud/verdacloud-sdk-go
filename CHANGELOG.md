@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking**: `Delete` and `Discontinue` add `deletePermanently bool` parameter
 - `Action` properly handles 202 (success), 204 (already in state), 207 (partial failure), 400, 404
 - Remove `omitempty` from `VolumeIDs` to distinguish nil (API default) from empty array (no volumes)
+- Bump minimum Go version to 1.25 (fixes GO-2026-4602, GO-2026-4601 stdlib vulnerabilities)
+- Update CI test matrix from Go 1.23/1.24 to Go 1.24/1.25
 
 ## [v1.2.2] - 2026-02-25
 ### Changed
