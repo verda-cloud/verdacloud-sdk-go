@@ -769,8 +769,24 @@ func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Mock successful action - API returns 202 Accepted with empty body
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
+
+	type actionResult struct {
+		Action     string `json:"action"`
+		InstanceID string `json:"instanceId"`
+		Status     string `json:"status"`
+	}
+
+	var results []actionResult
+	for _, id := range req.ID {
+		results = append(results, actionResult{
+			Action:     req.Action,
+			InstanceID: id,
+			Status:     "success",
+		})
+	}
+	writeJSON(w, results)
 }
 
 func (ms *MockServer) handleGetBalance(w http.ResponseWriter, _ *http.Request) {
