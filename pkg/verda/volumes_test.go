@@ -175,6 +175,46 @@ func TestVolumeService_GetVolume(t *testing.T) {
 	})
 }
 
+func TestVolumeService_ListTrashVolumes(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
+		volumes := []TrashedVolume{
+			{
+				Volume: Volume{
+					ID:       "vol_trash_123",
+					Name:     "Trashed Volume",
+					Size:     100,
+					Type:     VolumeTypeNVMe,
+					Status:   VolumeStatusDeleted,
+					Location: LocationFIN01,
+				},
+				IsPermanentlyDeleted: false,
+			},
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(volumes)
+	})
+
+	t.Run("list trashed volumes", func(t *testing.T) {
+		ctx := context.Background()
+		volumes, err := client.Volumes.ListTrashVolumes(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(volumes) != 1 {
+			t.Fatalf("expected 1 trashed volume, got %d", len(volumes))
+		}
+		if volumes[0].ID != "vol_trash_123" {
+			t.Fatalf("expected trashed volume ID vol_trash_123, got %s", volumes[0].ID)
+		}
+	})
+}
+
 func TestVolumeService_CreateVolume(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
@@ -245,7 +285,22 @@ func TestVolumeService_DeleteVolume(t *testing.T) {
 
 	// Set up mock response for volume deletion
 	mockServer.SetHandler(http.MethodDelete, "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNoContent)
+		if r.URL.RawQuery != "" {
+			t.Fatalf("expected delete volume request without query parameters, got %s", r.URL.RawQuery)
+		}
+
+		var req DeleteVolumeRequest
+		if r.ContentLength > 0 {
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatalf("failed decoding delete request body: %v", err)
+			}
+		}
+
+		if req.IsPermanent != nil && !*req.IsPermanent {
+			t.Fatalf("expected is_permanent to be true when present")
+		}
+
+		w.WriteHeader(http.StatusAccepted)
 	})
 
 	t.Run("delete volume", func(t *testing.T) {
@@ -400,6 +455,17 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 				_, _ = w.Write([]byte("name required"))
 				return
 			}
+			locationCode, _ := actionReq["location_code"].(string)
+			if locationCode != LocationFIN01 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("location_code required"))
+				return
+			}
+			if _, hasType := actionReq["type"]; hasType {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte("type should not be sent for clone"))
+				return
+			}
 			// Return array of volume IDs (matching Python SDK behavior)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
@@ -547,9 +613,15 @@ func TestVolumeService_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("attach volume to non-existent instance", func(t *testing.T) {
-		mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/attach", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"error": "Instance not found"}`))
+		mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+			var actionReq VolumeActionRequest
+			_ = json.NewDecoder(r.Body).Decode(&actionReq)
+			if actionReq.Action == VolumeActionAttach && actionReq.InstanceID == "nonexistent" {
+				w.WriteHeader(http.StatusNotFound)
+				_, _ = w.Write([]byte(`{"error": "Instance not found"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		})
 
 		req := VolumeAttachRequest{
@@ -564,9 +636,15 @@ func TestVolumeService_ErrorHandling(t *testing.T) {
 	})
 
 	t.Run("resize volume to smaller size", func(t *testing.T) {
-		mockServer.SetHandler(http.MethodPost, "/volumes/vol_123/resize", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusBadRequest)
-			_, _ = w.Write([]byte(`{"error": "Cannot shrink volume"}`))
+		mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+			var actionReq VolumeActionRequest
+			_ = json.NewDecoder(r.Body).Decode(&actionReq)
+			if actionReq.Action == VolumeActionResize && actionReq.Size == 50 {
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = w.Write([]byte(`{"error": "Cannot shrink volume"}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		})
 
 		req := VolumeResizeRequest{

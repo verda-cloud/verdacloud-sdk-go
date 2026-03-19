@@ -77,11 +77,13 @@ type CreateInstanceRequest struct {
 
 // VolumeCreateRequest represents a volume to be created
 type VolumeCreateRequest struct {
-	Size              int    `json:"size"`
-	Type              string `json:"type"`
-	Name              string `json:"name"`
-	LocationCode      string `json:"location_code,omitempty"`
-	OnSpotDiscontinue string `json:"on_spot_discontinue,omitempty"`
+	Size              int      `json:"size"`
+	Type              string   `json:"type"`
+	Name              string   `json:"name"`
+	LocationCode      string   `json:"location_code,omitempty"`
+	OnSpotDiscontinue string   `json:"on_spot_discontinue,omitempty"`
+	InstanceID        *string  `json:"instance_id,omitempty"`
+	InstanceIDs       []string `json:"instance_ids,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -96,11 +98,15 @@ type VolumeDetachRequest struct {
 
 // VolumeActionRequest represents an action to perform on volumes
 type VolumeActionRequest struct {
-	ID     string `json:"id"`
-	Action string `json:"action"`
-	Name   string `json:"name,omitempty"`
-	Type   string `json:"type,omitempty"`
-	Size   int    `json:"size,omitempty"`
+	ID           string   `json:"id"`
+	Action       string   `json:"action"`
+	Name         string   `json:"name,omitempty"`
+	Type         string   `json:"type,omitempty"`
+	Size         int      `json:"size,omitempty"`
+	InstanceID   string   `json:"instance_id,omitempty"`
+	InstanceIDs  []string `json:"instance_ids,omitempty"`
+	IsPermanent  *bool    `json:"is_permanent,omitempty"`
+	LocationCode string   `json:"location_code,omitempty"`
 }
 
 // VolumeCloneRequest represents a request to clone a volume
@@ -117,6 +123,11 @@ type VolumeResizeRequest struct {
 // VolumeRenameRequest represents a request to rename a volume
 type VolumeRenameRequest struct {
 	Name string `json:"name"`
+}
+
+// DeleteVolumeRequest represents options for deleting a volume.
+type DeleteVolumeRequest struct {
+	IsPermanent *bool `json:"is_permanent,omitempty"`
 }
 
 // OSVolumeCreateRequest represents OS volume configuration
@@ -202,6 +213,13 @@ type Volume struct {
 	MonthlyPrice             float64                  `json:"monthly_price"`
 	Currency                 string                   `json:"currency"`
 	LongTerm                 *VolumeLongTerm          `json:"long_term"`
+}
+
+// TrashedVolume represents a volume returned by /volumes/trash.
+type TrashedVolume struct {
+	Volume
+	DeletedAt            time.Time `json:"deleted_at"`
+	IsPermanentlyDeleted bool      `json:"is_permanently_deleted"`
 }
 
 // VolumeType represents available volume type specifications
