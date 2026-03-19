@@ -15,10 +15,19 @@ type InstanceService struct {
 }
 
 func (s *InstanceService) Get(ctx context.Context, status string) ([]Instance, error) {
+	return s.GetWithOptions(ctx, InstanceListOptions{Status: status})
+}
+
+func (s *InstanceService) GetWithOptions(ctx context.Context, options InstanceListOptions) ([]Instance, error) {
 	path := "/instances"
-	if status != "" {
-		params := url.Values{}
-		params.Set("status", status)
+	params := url.Values{}
+	if options.Status != "" {
+		params.Set("status", options.Status)
+	}
+	if options.ComputeID != "" {
+		params.Set("computeId", options.ComputeID)
+	}
+	if len(params) > 0 {
 		path += "?" + params.Encode()
 	}
 
@@ -96,14 +105,27 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 }
 
 func (s *InstanceService) Action(ctx context.Context, ids []string, action string, volumeIDs []string) error {
+	_, err := s.ActionDetailed(ctx, ids, action, volumeIDs, nil)
+	return err
+}
+
+func (s *InstanceService) ActionDetailed(ctx context.Context, ids []string, action string, volumeIDs []string, deletePermanently *bool) ([]InstanceActionResult, error) {
 	req := InstanceActionRequest{
-		Action:    action,
-		ID:        ids,
-		VolumeIDs: volumeIDs,
+		Action:            action,
+		ID:                ids,
+		VolumeIDs:         volumeIDs,
+		DeletePermanently: deletePermanently,
 	}
 
-	_, _, err := putRequest[any](ctx, s.client, "/instances", req)
-	return err
+	results, resp, err := putRequest[[]InstanceActionResult](ctx, s.client, "/instances", req)
+	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusNoContent {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return results, nil
 }
 
 func (s *InstanceService) GetLocationAvailabilities(ctx context.Context) ([]LocationAvailability, error) {
@@ -171,6 +193,11 @@ func (s *InstanceService) Shutdown(ctx context.Context, ids ...string) error {
 
 func (s *InstanceService) Delete(ctx context.Context, volumeIDs []string, ids ...string) error {
 	return s.Action(ctx, ids, ActionDelete, volumeIDs)
+}
+
+func (s *InstanceService) DeletePermanently(ctx context.Context, volumeIDs []string, ids ...string) ([]InstanceActionResult, error) {
+	deletePermanently := true
+	return s.ActionDetailed(ctx, ids, ActionDelete, volumeIDs, &deletePermanently)
 }
 
 func (s *InstanceService) Discontinue(ctx context.Context, ids ...string) error {

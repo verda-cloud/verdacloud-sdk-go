@@ -77,10 +77,11 @@ type CreateInstanceRequest struct {
 
 // VolumeCreateRequest represents a volume to be created
 type VolumeCreateRequest struct {
-	Size         int    `json:"size"`
-	Type         string `json:"type"`
-	Name         string `json:"name"`
-	LocationCode string `json:"location_code,omitempty"`
+	Size              int    `json:"size"`
+	Type              string `json:"type"`
+	Name              string `json:"name"`
+	LocationCode      string `json:"location_code,omitempty"`
+	OnSpotDiscontinue string `json:"on_spot_discontinue,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -126,9 +127,26 @@ type OSVolumeCreateRequest struct {
 
 // InstanceActionRequest represents an action to perform on instances
 type InstanceActionRequest struct {
-	Action    string   `json:"action"`
-	ID        []string `json:"id"`
-	VolumeIDs []string `json:"volume_ids,omitempty"`
+	Action            string   `json:"action"`
+	ID                []string `json:"id"`
+	VolumeIDs         []string `json:"volume_ids,omitempty"`
+	DeletePermanently *bool    `json:"delete_permanently,omitempty"`
+}
+
+// InstanceListOptions represents the supported filters for listing instances.
+type InstanceListOptions struct {
+	Status    string
+	ComputeID string
+}
+
+// InstanceActionResult represents the per-instance action result returned by the
+// instances action endpoint when the API includes a response body.
+type InstanceActionResult struct {
+	InstanceID string  `json:"instanceId"`
+	Action     string  `json:"action"`
+	Status     string  `json:"status"`
+	Error      *string `json:"error,omitempty"`
+	StatusCode int     `json:"statusCode,omitempty"`
 }
 
 // InstanceAvailability represents instance availability information
@@ -323,19 +341,20 @@ const (
 // Instance status constants
 // Instance status constants
 const (
-	StatusNew          = "new"
-	StatusOrdered      = "ordered"
-	StatusProvisioning = "provisioning"
-	StatusValidating   = "validating"
-	StatusRunning      = "running"
-	StatusOffline      = "offline"
-	StatusPending      = "pending"
-	StatusDiscontinued = "discontinued"
-	StatusUnknown      = "unknown"
-	StatusNotFound     = "notfound"
-	StatusError        = "error"
-	StatusDeleting     = "deleting"
-	StatusNoCapacity   = "no_capacity"
+	StatusNew                = "new"
+	StatusOrdered            = "ordered"
+	StatusProvisioning       = "provisioning"
+	StatusValidating         = "validating"
+	StatusRunning            = "running"
+	StatusOffline            = "offline"
+	StatusPending            = "pending"
+	StatusDiscontinued       = "discontinued"
+	StatusUnknown            = "unknown"
+	StatusNotFound           = "notfound"
+	StatusError              = "error"
+	StatusDeleting           = "deleting"
+	StatusNoCapacity         = "no_capacity"
+	StatusInstallationFailed = "installation_failed"
 )
 
 // Default location (used when no location is specified)
@@ -352,6 +371,13 @@ const (
 	VolumeTypeNVMeLocalStorage  = "NVMe_Local_Storage"
 	VolumeTypeNVMeSharedCluster = "NVMe_Shared_Cluster"
 	VolumeTypeNVMeOSCluster     = "NVMe_OS_Cluster"
+)
+
+// Volume on-spot discontinue behavior constants.
+const (
+	VolumeOnSpotDiscontinueKeepDetached = "keep_detached"
+	VolumeOnSpotDiscontinueMoveToTrash  = "move_to_trash"
+	VolumeOnSpotDiscontinueDelete       = "delete_permanently"
 )
 
 // Volume status constants - these match the actual API values
