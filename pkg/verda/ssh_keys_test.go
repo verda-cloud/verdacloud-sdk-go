@@ -2,6 +2,8 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -114,6 +116,51 @@ func TestSSHKeyService_GetSSHKeyByID(t *testing.T) {
 			if key.PublicKey == "" {
 				t.Error("key missing PublicKey")
 			}
+		}
+	})
+
+	t.Run("supports legacy array response", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/ssh-keys/key_legacy", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]SSHKey{
+				{
+					ID:        "key_legacy",
+					Name:      "Legacy Key",
+					PublicKey: "ssh-rsa LEGACY",
+				},
+			})
+		})
+
+		ctx := context.Background()
+		key, err := client.SSHKeys.GetSSHKeyByID(ctx, "key_legacy")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if key.ID != "key_legacy" {
+			t.Fatalf("expected legacy key ID, got %s", key.ID)
+		}
+	})
+
+	t.Run("falls back to deprecated sshkeys path", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/ssh-keys/key_fallback", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		mockServer.SetHandler(http.MethodGet, "/sshkeys/key_fallback", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(SSHKey{
+				ID:        "key_fallback",
+				Name:      "Fallback Key",
+				PublicKey: "ssh-rsa FALLBACK",
+			})
+		})
+
+		ctx := context.Background()
+		key, err := client.SSHKeys.GetSSHKeyByID(ctx, "key_fallback")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if key.ID != "key_fallback" {
+			t.Fatalf("expected fallback key ID, got %s", key.ID)
 		}
 	})
 }

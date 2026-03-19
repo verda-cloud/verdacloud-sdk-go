@@ -924,8 +924,7 @@ func (ms *MockServer) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Return as an array (to match the real API)
-	writeJSON(w, []SSHKey{key})
+	writeJSON(w, key)
 }
 
 func (ms *MockServer) handleCreateSSHKey(w http.ResponseWriter, r *http.Request) {
