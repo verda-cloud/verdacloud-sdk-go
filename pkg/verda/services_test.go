@@ -85,7 +85,7 @@ func TestSSHKeyService_GetSSHKeyByIDFromServices(t *testing.T) {
 			Fingerprint: "SHA256:abc123...",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]testutil.SSHKey{key})
+		_ = json.NewEncoder(w).Encode(key)
 	}
 	mockServer.SetHandler(http.MethodGet, "/ssh-keys/key_123", mockServerHandler)
 	mockServer.SetHandler(http.MethodGet, "/sshkeys/key_123", mockServerHandler)
