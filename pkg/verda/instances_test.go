@@ -301,7 +301,7 @@ func TestInstanceService_Action(t *testing.T) {
 
 	t.Run("action detailed returns results", func(t *testing.T) {
 		ctx := context.Background()
-		results, err := client.Instances.ActionDetailed(ctx, []string{"inst_123", "inst_456"}, ActionShutdown, nil, nil)
+		results, err := client.Instances.ActionDetailed(ctx, []string{"inst_123", "inst_456"}, ActionShutdown, nil, false)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

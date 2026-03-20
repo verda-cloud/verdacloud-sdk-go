@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- feat(instances): Add OpenAPI-aligned instance list filters plus typed action helper wrappers
 - Add spot volume removal policy (`on_spot_discontinue`) and related constants
 - Add `delete_permanently` field to `InstanceActionRequest`
 - Add `InstanceActionResult` type for action responses and handle response code properly

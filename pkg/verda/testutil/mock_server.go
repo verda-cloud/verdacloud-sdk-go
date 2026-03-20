@@ -825,9 +825,18 @@ func (ms *MockServer) handleInstanceAction(w http.ResponseWriter, r *http.Reques
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	results := make([]InstanceActionResult, 0, len(req.ID))
+
+	type instanceActionResult struct {
+		InstanceID string `json:"instanceId"`
+		Action     string `json:"action"`
+		Status     string `json:"status"`
+		Error      string `json:"error,omitempty"`
+		StatusCode int    `json:"statusCode,omitempty"`
+	}
+
+	results := make([]instanceActionResult, 0, len(req.ID))
 	for _, instanceID := range req.ID {
-		results = append(results, InstanceActionResult{
+		results = append(results, instanceActionResult{
 			InstanceID: instanceID,
 			Action:     req.Action,
 			Status:     "success",
