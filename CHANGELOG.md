@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update CI test matrix from Go 1.23/1.24 to Go 1.24/1.25
 
 ### Fixed
+- fix(volumes): Align delete requests, trash listing, and clone payloads with the OpenAPI volume contract
+- fix(testutil): Deduplicate mock server PATCH handlers to satisfy golangci-lint
 - Deduplicate mock server PATCH handlers to satisfy golangci-lint
 
 ## [v1.2.2] - 2026-02-25

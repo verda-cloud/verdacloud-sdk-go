@@ -43,6 +43,15 @@ func (s *VolumeService) GetVolume(ctx context.Context, id string) (*Volume, erro
 	return &volume, nil
 }
 
+func (s *VolumeService) ListTrashVolumes(ctx context.Context) ([]TrashedVolume, error) {
+	volumes, _, err := getRequest[[]TrashedVolume](ctx, s.client, "/volumes/trash")
+	if err != nil {
+		return nil, err
+	}
+
+	return volumes, nil
+}
+
 func (s *VolumeService) CreateVolume(ctx context.Context, req VolumeCreateRequest) (string, error) {
 	if req.LocationCode == "" {
 		req.LocationCode = LocationFIN01
@@ -75,44 +84,46 @@ func (s *VolumeService) createVolumeWithPlainTextResponse(ctx context.Context, r
 
 func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool) error {
 	path := fmt.Sprintf("/volumes/%s", id)
+
+	var req *DeleteVolumeRequest
 	if force {
-		path += "?force=true"
+		isPermanent := true
+		req = &DeleteVolumeRequest{IsPermanent: &isPermanent}
 	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err := deleteRequestWithBody(ctx, s.client, path, req)
 	return err
 }
 
 // AttachVolume attaches a volume - instance must be shut down first
 func (s *VolumeService) AttachVolume(ctx context.Context, volumeID string, req VolumeAttachRequest) error {
-	// Use map to combine action fields with instance_id
-	payload := map[string]interface{}{
-		"id":          volumeID,
-		"action":      VolumeActionAttach,
-		"instance_id": req.InstanceID,
+	actionReq := VolumeActionRequest{
+		ID:         volumeID,
+		Action:     VolumeActionAttach,
+		InstanceID: req.InstanceID,
 	}
-	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }
 
 // DetachVolume detaches a volume - instance must be shut down first
 func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req VolumeDetachRequest) error {
-	payload := map[string]interface{}{
-		"id":          volumeID,
-		"action":      VolumeActionDetach,
-		"instance_id": req.InstanceID,
+	actionReq := VolumeActionRequest{
+		ID:         volumeID,
+		Action:     VolumeActionDetach,
+		InstanceID: req.InstanceID,
 	}
-	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", payload)
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }
 
 // CloneVolume clones a volume and returns the new volume ID
 func (s *VolumeService) CloneVolume(ctx context.Context, volumeID string, req VolumeCloneRequest) (string, error) {
 	actionReq := VolumeActionRequest{
-		ID:     volumeID,
-		Action: VolumeActionClone,
-		Name:   req.Name,
-		Type:   req.LocationCode, // Note: Python SDK uses 'type' field for location
+		ID:           volumeID,
+		Action:       VolumeActionClone,
+		Name:         req.Name,
+		LocationCode: req.LocationCode,
 	}
 
 	resp, err := s.client.makeRequest(ctx, http.MethodPut, "/volumes", actionReq)
