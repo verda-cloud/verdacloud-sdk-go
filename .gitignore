@@ -51,6 +51,7 @@ tmp/
 # AI Coder
 .cursor/
 .claude/
+.codex/
 
 # backup files
 *.bak*

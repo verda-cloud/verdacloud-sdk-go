@@ -384,6 +384,18 @@ Check the [example/](example/) directory for complete examples:
 make example
 ```
 
+## AI-Assisted Development
+
+This repository includes AI-readable documentation to help any AI assistant quickly understand the codebase:
+
+| File | Purpose |
+|------|---------|
+| [`AGENTS.md`](AGENTS.md) | Entry point for AI agents — key files, conventions, quick reference |
+| [`.ai/SKILL.md`](.ai/SKILL.md) | Full codebase guide — directory structure, architecture, patterns |
+| [`.ai/architecture.md`](.ai/architecture.md) | Deep dive — request flow, struct layouts, middleware, auth, errors |
+
+Works with Cursor, Copilot, Codex, Claude Code, and any tool that reads repository context files.
+
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
