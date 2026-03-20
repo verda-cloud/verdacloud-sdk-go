@@ -46,6 +46,7 @@ temp/
 tmp/
 *.tmp
 *.log
+.nvimlog
 
 # AI Coder
 .cursor/

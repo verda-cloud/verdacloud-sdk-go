@@ -2,6 +2,17 @@ package verda
 
 import "context"
 
+// Image represents an OS image for instances
+type Image struct {
+	ID        string   `json:"id"`
+	ImageType string   `json:"image_type"`
+	Name      string   `json:"name"`
+	IsDefault bool     `json:"is_default"`
+	IsCluster bool     `json:"is_cluster"`
+	Details   []string `json:"details"`
+	Category  string   `json:"category"`
+}
+
 type ImagesService struct {
 	client *Client
 }

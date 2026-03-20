@@ -278,7 +278,7 @@ client, _ := verda.NewClient(
 No credentials needed, uses mocks:
 
 ```bash
-make test-unit
+make test
 
 # With coverage report
 make coverage
@@ -301,13 +301,11 @@ make test-integration
 ```bash
 # Setup
 make setup            # Install tools and configure hooks
-make install-tools    # Install golangci-lint and pre-commit
-make setup-hooks      # Configure Git hooks
 
 # Testing
-make test-unit        # Run unit tests
+make test             # Run unit tests
 make test-integration # Run integration tests
-make test-all         # Run both
+make test-smoke       # Run smoke tests (quick CRUD lifecycle)
 
 # Code Quality
 make check            # Run format, lint, and tests

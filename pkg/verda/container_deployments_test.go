@@ -446,3 +446,138 @@ func TestContainerDeploymentsService_GetSecrets(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateCreateDeploymentRequest(t *testing.T) {
+	t.Run("valid request passes", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:1.25.3",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{
+					QueueLoad: &QueueLoadTrigger{Threshold: 1},
+				},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("latest tag rejected", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:latest",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for latest tag, got nil")
+		}
+	})
+
+	t.Run("no tag rejected (defaults to latest)", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for image without tag, got nil")
+		}
+	})
+
+	t.Run("missing scale_down_policy rejected", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:1.25.3",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for missing scale_down_policy, got nil")
+		}
+	})
+
+	t.Run("queue_load threshold < 1 rejected", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:1.25.3",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{
+					QueueLoad: &QueueLoadTrigger{Threshold: 0.5},
+				},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for queue_load threshold < 1, got nil")
+		}
+	})
+}

@@ -26,7 +26,7 @@
 
 <!-- Describe the tests you ran and how to reproduce them -->
 
-- [ ] Unit tests pass locally (`make test-unit`)
+- [ ] Unit tests pass locally (`make test`)
 - [ ] Integration tests pass (if applicable, `make test-integration`)
 - [ ] Linting passes (`make lint`)
 - [ ] Code is formatted (`make fmt`)

@@ -378,3 +378,76 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 		_ = jobName
 	})
 }
+
+func TestValidateCreateJobDeploymentRequest(t *testing.T) {
+	t.Run("valid request passes", func(t *testing.T) {
+		req := &CreateJobDeploymentRequest{
+			Name: "test-job",
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image: "alpine:3.19",
+				},
+			},
+			Scaling: &JobScalingOptions{
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
+			},
+		}
+		err := ValidateCreateJobDeploymentRequest(req)
+		if err != nil {
+			t.Errorf("expected no error, got: %v", err)
+		}
+	})
+
+	t.Run("missing deadline_seconds rejected", func(t *testing.T) {
+		req := &CreateJobDeploymentRequest{
+			Name: "test-job",
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image: "alpine:3.19",
+				},
+			},
+			Scaling: &JobScalingOptions{
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+			},
+		}
+		err := ValidateCreateJobDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for missing deadline_seconds, got nil")
+		}
+	})
+
+	t.Run("latest tag rejected", func(t *testing.T) {
+		req := &CreateJobDeploymentRequest{
+			Name: "test-job",
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image: "alpine:latest",
+				},
+			},
+			Scaling: &JobScalingOptions{
+				MaxReplicaCount:        1,
+				QueueMessageTTLSeconds: 300,
+				DeadlineSeconds:        3600,
+			},
+		}
+		err := ValidateCreateJobDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for latest tag, got nil")
+		}
+	})
+}
