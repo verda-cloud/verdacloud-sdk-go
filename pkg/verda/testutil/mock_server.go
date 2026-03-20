@@ -584,6 +584,8 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleGetDeploymentScaling(w, r)
 	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleUpdateDeploymentScaling(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetEnvironmentVariables(w, r)
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleAddEnvironmentVariables(w, r)
 	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
@@ -1780,8 +1782,37 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *
 func (ms *MockServer) handleUpdateContainerDeployment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	if !decodeAndValidateNamedContainers(w, r) {
+	var req map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"error": "invalid JSON"})
 		return
+	}
+
+	if _, hasScaling := req["scaling"]; hasScaling {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]string{"message": "deployment scaling updates must use /container-deployments/{deployment_name}/scaling"})
+		return
+	}
+
+	if containers, ok := req["containers"].([]interface{}); ok && len(containers) > 0 {
+		for i, c := range containers {
+			container, ok := c.(map[string]interface{})
+			if !ok {
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(w, map[string]string{"error": "invalid container format"})
+				return
+			}
+
+			name, hasName := container["name"]
+			if !hasName || name == nil || name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				writeJSON(w, map[string]interface{}{
+					"message": "containers." + string(rune('0'+i)) + ".name should not be null or undefined",
+				})
+				return
+			}
+		}
 	}
 
 	writeBytes(w, []byte(mockUpdatedContainerDeploymentResponse))
@@ -1798,48 +1829,67 @@ func (ms *MockServer) handleUpdateDeploymentScaling(w http.ResponseWriter, _ *ht
 	writeBytes(w, []byte(mockScalingOptionsResponse))
 }
 
+func (ms *MockServer) handleGetEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`[
+		{
+			"container_name": "flux-0",
+			"env": [
+				{
+					"name": "MY_ENV_VAR",
+					"value_or_reference_to_secret": "my-value",
+					"type": "plain"
+				}
+			]
+		}
+	]`))
+}
+
 func (ms *MockServer) handleAddEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-
-	// Sample request:
-	// {
-	//   "container_name": "flux-0",
-	//   "env": [
-	//     {
-	//       "name": "MY_ENV_VAR",
-	//       "value_or_reference_to_secret": "my-value",
-	//       "type": "plain"
-	//     }
-	//   ]
-	// }
-
-	// Returns success with no body or empty object
-	writeBytes(w, []byte(`{}`))
+	writeBytes(w, []byte(`[
+		{
+			"container_name": "flux-0",
+			"env": [
+				{
+					"name": "MY_ENV_VAR",
+					"value_or_reference_to_secret": "my-value",
+					"type": "plain"
+				},
+				{
+					"name": "NEW_ENV_VAR",
+					"value_or_reference_to_secret": "new-value",
+					"type": "plain"
+				}
+			]
+		}
+	]`))
 }
 
 func (ms *MockServer) handleUpdateEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-
-	// Sample request:
-	// {
-	//   "container_name": "flux-0",
-	//   "env": [
-	//     {
-	//       "name": "MY_ENV_VAR",
-	//       "value_or_reference_to_secret": "my-value",
-	//       "type": "plain"
-	//     }
-	//   ]
-	// }
-
-	// Returns success with no body or empty object
-	writeBytes(w, []byte(`{}`))
+	writeBytes(w, []byte(`[
+		{
+			"container_name": "flux-0",
+			"env": [
+				{
+					"name": "MY_ENV_VAR",
+					"value_or_reference_to_secret": "updated-value",
+					"type": "plain"
+				}
+			]
+		}
+	]`))
 }
 
 func (ms *MockServer) handleDeleteEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNoContent)
+	writeBytes(w, []byte(`[
+		{
+			"container_name": "flux-0",
+			"env": []
+		}
+	]`))
 }
 
 func (ms *MockServer) handleGetServerlessComputeResources(w http.ResponseWriter, _ *http.Request) {

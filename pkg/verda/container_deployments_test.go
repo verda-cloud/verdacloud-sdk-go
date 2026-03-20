@@ -256,10 +256,10 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 
 	t.Run("validation - empty deployment name", func(t *testing.T) {
 		ctx := context.Background()
-		maxReplicas := 2
 		req := &UpdateDeploymentRequest{
-			Scaling: &ContainerScalingOptions{
-				MaxReplicaCount: maxReplicas,
+			Compute: &ContainerCompute{
+				Name: "H100",
+				Size: 1,
 			},
 		}
 		_, err := client.ContainerDeployments.UpdateDeployment(ctx, "", req)
@@ -268,19 +268,19 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 		}
 	})
 
-	t.Run("partial update - scaling only", func(t *testing.T) {
+	t.Run("validation - scaling updates must use dedicated endpoint", func(t *testing.T) {
 		ctx := context.Background()
-		maxReplicas := 3
 		req := &UpdateDeploymentRequest{
 			Scaling: &ContainerScalingOptions{
-				MaxReplicaCount: maxReplicas,
+				MaxReplicaCount: 3,
 			},
 		}
-		// This should not fail validation - partial updates are allowed
 		_, err := client.ContainerDeployments.UpdateDeployment(ctx, "test-deployment", req)
-		// The mock server may return an error, but validation should pass
-		if err != nil && err.Error() == "at least one container is required" {
-			t.Error("UpdateDeployment should allow partial updates without containers")
+		if err == nil {
+			t.Fatal("expected error for scaling update on deployment patch")
+		}
+		if err.Error() != "deployment scaling updates must use UpdateDeploymentScaling" {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
@@ -290,7 +290,7 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 			Containers: []CreateDeploymentContainer{
 				{
 					Name:        "my-container",
-					Image:       "nginx:latest",
+					Image:       "nginx:1.25.3",
 					ExposedPort: 8080,
 				},
 			},
@@ -309,16 +309,100 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 		req := &UpdateDeploymentRequest{
 			Containers: []CreateDeploymentContainer{
 				{
-					Image:       "nginx:latest",
+					Image:       "nginx:1.25.3",
 					ExposedPort: 8080,
 					// Name is missing - API requires it for updates
 				},
 			},
 		}
-		// Should fail - API requires container name for updates
 		_, err := client.ContainerDeployments.UpdateDeployment(ctx, "test-deployment", req)
 		if err == nil {
 			t.Error("expected error when container name is missing")
+		}
+	})
+}
+
+func TestContainerDeploymentsService_EnvironmentVariables(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	t.Run("get environment variables", func(t *testing.T) {
+		ctx := context.Background()
+		envSets, err := client.ContainerDeployments.GetEnvironmentVariables(ctx, "flux")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(envSets) != 1 {
+			t.Fatalf("expected 1 environment variable set, got %d", len(envSets))
+		}
+		if envSets[0].ContainerName != "flux-0" {
+			t.Fatalf("expected container name flux-0, got %s", envSets[0].ContainerName)
+		}
+		if len(envSets[0].Env) != 1 {
+			t.Fatalf("expected 1 environment variable, got %d", len(envSets[0].Env))
+		}
+		if envSets[0].Env[0].Name != "MY_ENV_VAR" {
+			t.Fatalf("expected environment variable MY_ENV_VAR, got %s", envSets[0].Env[0].Name)
+		}
+	})
+
+	t.Run("add environment variables", func(t *testing.T) {
+		ctx := context.Background()
+		envSets, err := client.ContainerDeployments.AddEnvironmentVariables(ctx, "flux", &ContainerEnvVarsRequest{
+			ContainerName: "flux-0",
+			Env: []ContainerEnvVar{
+				{
+					Name:                     "NEW_ENV_VAR",
+					ValueOrReferenceToSecret: "new-value",
+					Type:                     "plain",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(envSets) != 1 || len(envSets[0].Env) != 2 {
+			t.Fatalf("expected added environment variables to be returned, got %+v", envSets)
+		}
+	})
+
+	t.Run("update environment variables", func(t *testing.T) {
+		ctx := context.Background()
+		envSets, err := client.ContainerDeployments.UpdateEnvironmentVariables(ctx, "flux", &ContainerEnvVarsRequest{
+			ContainerName: "flux-0",
+			Env: []ContainerEnvVar{
+				{
+					Name:                     "MY_ENV_VAR",
+					ValueOrReferenceToSecret: "updated-value",
+					Type:                     "plain",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(envSets) != 1 || envSets[0].Env[0].ValueOrReferenceToSecret != "updated-value" {
+			t.Fatalf("expected updated environment variables to be returned, got %+v", envSets)
+		}
+	})
+
+	t.Run("delete environment variables", func(t *testing.T) {
+		ctx := context.Background()
+		envSets, err := client.ContainerDeployments.DeleteEnvironmentVariables(ctx, "flux", &DeleteContainerEnvVarsRequest{
+			ContainerName: "flux-0",
+			Env:           []string{"MY_ENV_VAR"},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(envSets) != 1 || len(envSets[0].Env) != 0 {
+			t.Fatalf("expected empty environment variable set after delete, got %+v", envSets)
 		}
 	})
 }

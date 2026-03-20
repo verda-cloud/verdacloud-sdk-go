@@ -620,11 +620,12 @@ type CreateDeploymentContainer struct {
 
 // UpdateDeploymentRequest represents a request to update a deployment
 type UpdateDeploymentRequest struct {
-	IsSpot                    *bool                       `json:"is_spot,omitempty"`
-	Compute                   *ContainerCompute           `json:"compute,omitempty"`
-	ContainerRegistrySettings *ContainerRegistrySettings  `json:"container_registry_settings,omitempty"`
-	Scaling                   *ContainerScalingOptions    `json:"scaling,omitempty"`
-	Containers                []CreateDeploymentContainer `json:"containers,omitempty"`
+	IsSpot                    *bool                      `json:"is_spot,omitempty"`
+	Compute                   *ContainerCompute          `json:"compute,omitempty"`
+	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings,omitempty"`
+	// Deprecated: use UpdateDeploymentScaling with /container-deployments/{name}/scaling.
+	Scaling    *ContainerScalingOptions    `json:"-"`
+	Containers []CreateDeploymentContainer `json:"containers,omitempty"`
 }
 
 // ContainerDeploymentStatus represents the status of a container deployment
@@ -696,6 +697,13 @@ type ReplicaInfo struct {
 // ContainerEnvVarsRequest represents a request to add/update environment variables for container deployments
 // Used by POST and PATCH /container-deployments/{name}/environment-variables
 type ContainerEnvVarsRequest struct {
+	ContainerName string            `json:"container_name"`
+	Env           []ContainerEnvVar `json:"env"`
+}
+
+// DeploymentEnvironmentVariables represents the grouped environment variables
+// returned by the deployment environment variables endpoints.
+type DeploymentEnvironmentVariables struct {
 	ContainerName string            `json:"container_name"`
 	Env           []ContainerEnvVar `json:"env"`
 }

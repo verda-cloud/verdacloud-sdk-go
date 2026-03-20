@@ -362,9 +362,12 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ Failed to get environment variables: %v", err)
 		}
-		t.Logf("✅ Got %d environment variables", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+		t.Logf("✅ Got %d environment variable set(s)", len(envVars))
+		for _, envSet := range envVars {
+			t.Logf("   container: %s", envSet.ContainerName)
+			for _, env := range envSet.Env {
+				t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+			}
 		}
 	})
 
@@ -390,14 +393,14 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			},
 		}
 
-		err := client.ContainerDeployments.AddEnvironmentVariables(ctx, depName, addReq)
+		envSets, err := client.ContainerDeployments.AddEnvironmentVariables(ctx, depName, addReq)
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
 				t.Skip("⚠️  Skipping: API timeout (504)")
 			}
 			t.Fatalf("❌ Failed to add environment variables: %v", err)
 		}
-		t.Logf("✅ Added 2 new environment variables")
+		t.Logf("✅ Added environment variables; API returned %d container env set(s)", len(envSets))
 	})
 
 	// Wait a moment for changes to propagate
@@ -417,9 +420,12 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Fatalf("❌ Failed to get environment variables after add: %v", err)
 		}
 
-		t.Logf("✅ Got %d environment variables after add:", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+		t.Logf("✅ Got %d environment variable set(s) after add:", len(envVars))
+		for _, envSet := range envVars {
+			t.Logf("   container: %s", envSet.ContainerName)
+			for _, env := range envSet.Env {
+				t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+			}
 		}
 	})
 
@@ -440,14 +446,14 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			},
 		}
 
-		err := client.ContainerDeployments.UpdateEnvironmentVariables(ctx, depName, updateReq)
+		envSets, err := client.ContainerDeployments.UpdateEnvironmentVariables(ctx, depName, updateReq)
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
 				t.Skip("⚠️  Skipping: API timeout (504)")
 			}
 			t.Fatalf("❌ Failed to update environment variables: %v", err)
 		}
-		t.Logf("✅ Updated environment variable NEW_VAR_1")
+		t.Logf("✅ Updated environment variable NEW_VAR_1; API returned %d container env set(s)", len(envSets))
 	})
 
 	// Step 12: DELETE environment variables
@@ -463,14 +469,14 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			},
 		}
 
-		err := client.ContainerDeployments.DeleteEnvironmentVariables(ctx, depName, deleteReq)
+		envSets, err := client.ContainerDeployments.DeleteEnvironmentVariables(ctx, depName, deleteReq)
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
 				t.Skip("⚠️  Skipping: API timeout (504)")
 			}
 			t.Fatalf("❌ Failed to delete environment variables: %v", err)
 		}
-		t.Logf("✅ Deleted environment variable NEW_VAR_2")
+		t.Logf("✅ Deleted environment variable NEW_VAR_2; API returned %d container env set(s)", len(envSets))
 	})
 
 	// Step 13: Verify env var deletion
@@ -487,9 +493,12 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Fatalf("❌ Failed to get environment variables after delete: %v", err)
 		}
 
-		t.Logf("✅ Got %d environment variables after delete:", len(envVars))
-		for _, env := range envVars {
-			t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+		t.Logf("✅ Got %d environment variable set(s) after delete:", len(envVars))
+		for _, envSet := range envVars {
+			t.Logf("   container: %s", envSet.ContainerName)
+			for _, env := range envSet.Env {
+				t.Logf("   - %s=%s (type: %s)", env.Name, env.ValueOrReferenceToSecret, env.Type)
+			}
 		}
 	})
 
