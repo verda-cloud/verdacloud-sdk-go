@@ -48,7 +48,7 @@ jobs:
           cache: true
 
       - name: Run unit tests
-        run: make test-unit
+        run: make test
 
       - name: Generate coverage report
         if: matrix.go-version == '1.24'
@@ -183,9 +183,9 @@ jobs:
           go-version: "1.25"
           cache: true
 
-      - name: Run e2e tests
+      - name: Run smoke tests
         if: steps.check-secrets.outputs.available == 'true'
-        run: make test-e2e
+        run: make test-smoke
 
   # All checks passed - used for branch protection
   ci-success:

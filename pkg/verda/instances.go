@@ -41,6 +41,10 @@ func (s *InstanceService) GetByID(ctx context.Context, id string) (*Instance, er
 }
 
 func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest) (*Instance, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
 	if req.LocationCode == "" {
 		req.LocationCode = LocationFIN01
 	}
@@ -97,6 +101,10 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 
 // Action performs an action on one or more instances.
 func (s *InstanceService) Action(ctx context.Context, req InstanceActionRequest) ([]InstanceActionResult, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+
 	resp, err := s.client.makeRequest(ctx, http.MethodPut, "/instances", req)
 	if err != nil {
 		return nil, err

@@ -82,7 +82,7 @@ export VERDA_CLIENT_ID="your_id"
 export VERDA_CLIENT_SECRET="your_secret"
 
 # Run integration tests
-make docker-test-integration
+make test-integration
 ```
 
 ## Code Standards
@@ -98,7 +98,7 @@ make docker-test-integration
 
 - **Unit tests** are required for new features
 - Maintain **>80% code coverage**
-- Tests must pass: `make test-unit`
+- Tests must pass: `make test`
 - Add integration tests when appropriate
 
 ### Documentation
@@ -114,7 +114,7 @@ make docker-test-integration
 
 **Native (fast iteration):**
 ```bash
-make test-unit
+make test
 make lint
 make ci
 ```
@@ -138,7 +138,7 @@ git checkout -b feature/your-feature-name
 vim pkg/verda/client.go
 
 # Test your changes
-make test-unit              # or: make docker-test
+make test                   # or: make docker-test
 
 # Check code quality
 make lint                   # or: make docker-lint
@@ -198,7 +198,7 @@ test(instances): add test for instance creation
 
 ### Before Submitting
 
-1. ✅ All tests pass: `make test-unit`
+1. ✅ All tests pass: `make test`
 2. ✅ Linting passes: `make lint`
 3. ✅ Code is formatted: `make fmt`
 4. ✅ CI checks pass: `make ci`
@@ -284,7 +284,7 @@ func TestClientGet(t *testing.T) {
 
 **Run:**
 ```bash
-make test-unit           # All unit tests
+make test                # All unit tests
 go test -v ./pkg/verda  # Verbose output
 make coverage           # With coverage report
 ```
@@ -351,7 +351,7 @@ vim pkg/verda/buggy_code_test.go
 vim pkg/verda/buggy_code.go
 
 # 4. Verify test passes
-make test-unit
+make test
 
 # 5. Commit and push
 git add .

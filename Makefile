@@ -5,8 +5,9 @@
 # For static analysis and formatting, use pre-commit hooks (see setup-hooks).
 # ============================================================================
 
-.PHONY: help build test-unit test-integration clean coverage
+.PHONY: help build test test-integration test-smoke clean coverage
 .PHONY: lint fmt setup pre-commit
+.PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
 # ============================================================================
@@ -109,11 +110,13 @@ build: ## Build the SDK to verify compilation (no binary output for libraries)
 # - Integration tests: Require API credentials, test real API interaction
 # ============================================================================
 
-test-unit: ## Run unit tests (fast, no external dependencies)
+test: ## Run unit tests (fast, no external dependencies)
 	@echo "→ Running unit tests..."
 	@mkdir -p build
 	@go test -v -race -coverprofile=build/coverage.out ./pkg/verda
 	@echo "✓ Unit tests passed!"
+
+test-unit: test ## Alias for 'test'
 
 test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_CLIENT_SECRET env vars)
 	@echo "→ Running integration tests..."
@@ -134,8 +137,10 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 	@go test -tags=integration -v -timeout=30m ./test/integration
 	@echo "✓ Integration tests passed!"
 
-test-e2e: ## Run e2e tests only: instance, serverless container, serverless job (cheapest resources; cleanup on success and failure)
-	@echo "→ Running e2e tests (instance + serverless container + serverless job)..."
+integration: test-integration ## Alias for 'test-integration'
+
+test-smoke: ## Run smoke tests: CRUD lifecycle for instance, serverless container, serverless job (cheapest resources; cleanup on success and failure)
+	@echo "→ Running smoke tests (instance + serverless container + serverless job)..."
 	@echo "  Required: VERDA_CLIENT_ID and VERDA_CLIENT_SECRET (env only; never commit)"
 	@echo "  Optional: VERDA_BASE_URL (defaults to https://api.verda.com/v1)"
 	@echo "  Timeout: 30 minutes"
@@ -154,7 +159,7 @@ test-e2e: ## Run e2e tests only: instance, serverless container, serverless job 
 		fi; \
 		mkdir -p build; \
 		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
-		echo "✓ E2E tests passed!"; \
+		echo "✓ Smoke tests passed!"; \
 	elif [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
 		echo "  ✗ Missing required environment variables"; \
 		echo "  Either create a .env file or set VERDA_CLIENT_ID and VERDA_CLIENT_SECRET"; \
@@ -163,13 +168,16 @@ test-e2e: ## Run e2e tests only: instance, serverless container, serverless job 
 		echo "  ✅ API URL: $$VERDA_BASE_URL"; \
 		mkdir -p build; \
 		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
-		echo "✓ E2E tests passed!"; \
+		echo "✓ Smoke tests passed!"; \
 	else \
 		echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
 		mkdir -p build; \
 		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
-		echo "✓ E2E tests passed!"; \
+		echo "✓ Smoke tests passed!"; \
 	fi
+
+test-e2e: test-smoke ## Alias for 'test-smoke' (legacy)
+e2e: test-smoke ## Alias for 'test-smoke' (legacy)
 
 coverage: ## Generate test coverage report (HTML output)
 	@echo "→ Generating coverage report..."
@@ -259,10 +267,11 @@ ci: ## Run all CI checks (matches GitHub Actions: format, mod-tidy, lint, build,
 	@$(MAKE) build
 	@echo ""
 	@echo "5. Testing..."
-	@$(MAKE) test-unit
+	@$(MAKE) test
 	@echo ""
 	@echo "✓ All CI checks passed! Ready to push."
 
 .PHONY: setup lint fmt security
-.PHONY: build test-unit test-integration coverage clean mod-tidy update-deps release
+.PHONY: build test test-integration test-smoke coverage clean mod-tidy update-deps release
+.PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci

@@ -46,10 +46,13 @@ temp/
 tmp/
 *.tmp
 *.log
+.nvimlog
 
 # AI Coder
 .cursor/
 .claude/
+.codex/
+.ai/
 
 # backup files
 *.bak*

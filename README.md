@@ -278,7 +278,7 @@ client, _ := verda.NewClient(
 No credentials needed, uses mocks:
 
 ```bash
-make test-unit
+make test
 
 # With coverage report
 make coverage
@@ -301,13 +301,11 @@ make test-integration
 ```bash
 # Setup
 make setup            # Install tools and configure hooks
-make install-tools    # Install golangci-lint and pre-commit
-make setup-hooks      # Configure Git hooks
 
 # Testing
-make test-unit        # Run unit tests
+make test             # Run unit tests
 make test-integration # Run integration tests
-make test-all         # Run both
+make test-smoke       # Run smoke tests (quick CRUD lifecycle)
 
 # Code Quality
 make check            # Run format, lint, and tests
@@ -385,6 +383,18 @@ Check the [example/](example/) directory for complete examples:
 ```bash
 make example
 ```
+
+## AI-Assisted Development
+
+This repository includes AI-readable documentation to help any AI assistant quickly understand the codebase:
+
+| File | Purpose |
+|------|---------|
+| [`AGENTS.md`](AGENTS.md) | Entry point for AI agents — key files, conventions, quick reference |
+| [`.ai/SKILL.md`](.ai/SKILL.md) | Full codebase guide — directory structure, architecture, patterns |
+| [`.ai/architecture.md`](.ai/architecture.md) | Deep dive — request flow, struct layouts, middleware, auth, errors |
+
+Works with Cursor, Copilot, Codex, Claude Code, and any tool that reads repository context files.
 
 ## License
 
