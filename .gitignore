@@ -52,6 +52,7 @@ tmp/
 .cursor/
 .claude/
 .codex/
+.ai/
 
 # backup files
 *.bak*
