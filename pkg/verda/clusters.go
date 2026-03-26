@@ -34,7 +34,7 @@ func (s *ClusterService) Create(ctx context.Context, req CreateClusterRequest) (
 	}
 
 	if req.LocationCode == "" {
-		req.LocationCode = LocationFIN01
+		req.LocationCode = LocationFIN03
 	}
 
 	response, _, err := postRequest[CreateClusterResponse](ctx, s.client, "/clusters", req)

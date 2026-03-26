@@ -48,7 +48,7 @@ func (s *VolumeService) CreateVolume(ctx context.Context, req VolumeCreateReques
 		return "", err
 	}
 	if req.LocationCode == "" {
-		req.LocationCode = LocationFIN01
+		req.LocationCode = LocationFIN03
 	}
 
 	return s.createVolumeWithPlainTextResponse(ctx, req)

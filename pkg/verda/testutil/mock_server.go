@@ -441,7 +441,7 @@ type ClusterImage struct {
 const (
 	StatusRunning = "running"
 	StatusPending = "pending"
-	LocationFIN01 = "FIN-01"
+	LocationFIN03 = "FIN-03"
 	pathInstances = "/instances"
 	// nolint:gosec // G101: This is a URL path, not a credential
 	pathOAuth2Token = "/oauth2/token"
@@ -691,7 +691,7 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 			Storage:         map[string]interface{}{"description": "100GB SSD"},
 			Hostname:        "test-instance",
 			Description:     "Test instance",
-			Location:        LocationFIN01,
+			Location:        LocationFIN03,
 			PricePerHour:    0.50,
 			IsSpot:          false,
 			InstanceType:    "1V100.6V",
@@ -738,7 +738,7 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		Storage:         map[string]interface{}{"description": "100GB SSD"},
 		Hostname:        "test-instance",
 		Description:     "Test instance",
-		Location:        LocationFIN01,
+		Location:        LocationFIN03,
 		PricePerHour:    0.50,
 		IsSpot:          false,
 		InstanceType:    "1V100.6V",
@@ -768,7 +768,7 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 	// Use LocationCode if provided, otherwise default
 	location := req.LocationCode
 	if location == "" {
-		location = LocationFIN01
+		location = LocationFIN03
 	}
 
 	// Use Contract and Pricing if provided, otherwise use defaults
@@ -875,8 +875,8 @@ func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request)
 
 	locations := []Location{
 		{
-			Code:        LocationFIN01,
-			Name:        "Finland 01",
+			Code:        LocationFIN03,
+			Name:        "Finland 03",
 			Country:     "Finland",
 			CountryCode: "FI",
 			Available:   true,
@@ -1172,7 +1172,7 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-			Location:     LocationFIN01,
+			Location:     LocationFIN03,
 			Contract:     "PAY_AS_YOU_GO",
 		},
 	}
@@ -1206,7 +1206,7 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
 		Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
 		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-		Location:     LocationFIN01,
+		Location:     LocationFIN03,
 		Contract:     "PAY_AS_YOU_GO",
 	}
 
@@ -1275,7 +1275,7 @@ func (ms *MockServer) handleGetClusterAvailabilities(w http.ResponseWriter, _ *h
 
 	availabilities := []ClusterAvailability{
 		{
-			LocationCode:   LocationFIN01,
+			LocationCode:   LocationFIN03,
 			Availabilities: []string{"8V100.48V", "16H200", "32H200"},
 		},
 	}
@@ -1521,7 +1521,7 @@ func (ms *MockServer) handleGetInstanceAvailabilities(w http.ResponseWriter, _ *
 
 	availabilities := []LocationAvailability{
 		{
-			LocationCode:   LocationFIN01,
+			LocationCode:   LocationFIN03,
 			Availabilities: []string{"1V100.6V", "8V100.48V"},
 		},
 		{
