@@ -12,6 +12,7 @@ type VolumeType struct {
 	BurstBandwidth       float64         `json:"burst_bandwidth"`
 	ContinuousBandwidth  float64         `json:"continuous_bandwidth"`
 	InternalNetworkSpeed float64         `json:"internal_network_speed"`
+	ThroughputGbps       float64         `json:"throughput_gbps"`
 	IOPS                 string          `json:"iops"`
 }
 
