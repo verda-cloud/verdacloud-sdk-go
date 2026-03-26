@@ -17,7 +17,7 @@ func TestImagesIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("get instance images", func(t *testing.T) {
-		images, err := client.Images.Get(ctx)
+		images, err := client.Images.Get(ctx, "")
 		if err != nil {
 			t.Errorf("failed to get images: %v", err)
 		}
