@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Breaking**: `ImagesService.Get` now takes `instanceType string` as the second argument. Pass `""` to list all images, or an instance type identifier (e.g. `8B300.240V`) to add the `instance_type` query parameter.
+
 ## [v1.4.0] - 2026-03-24
 ### Added
 - Client-side request validation using `ozzo-validation` for all mutating operations

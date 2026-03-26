@@ -1,6 +1,9 @@
 package verda
 
-import "context"
+import (
+	"context"
+	"net/url"
+)
 
 // Image represents an OS image for instances
 type Image struct {
@@ -17,8 +20,17 @@ type ImagesService struct {
 	client *Client
 }
 
-func (s *ImagesService) Get(ctx context.Context) ([]Image, error) {
-	images, _, err := getRequest[[]Image](ctx, s.client, "/images")
+// Get lists OS images. Pass empty instanceType to omit the query parameter, or a value such as
+// "8B300.240V" to filter by instance type (?instance_type=...).
+func (s *ImagesService) Get(ctx context.Context, instanceType string) ([]Image, error) {
+	path := "/images"
+	if instanceType != "" {
+		params := url.Values{}
+		params.Set("instance_type", instanceType)
+		path += "?" + params.Encode()
+	}
+
+	images, _, err := getRequest[[]Image](ctx, s.client, path)
 	if err != nil {
 		return nil, err
 	}
