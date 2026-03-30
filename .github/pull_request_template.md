@@ -12,6 +12,9 @@
 - [ ] ♻️ Code refactoring (no functional changes)
 - [ ] ✅ Test updates
 
+> **Note:** Use [conventional commit](https://www.conventionalcommits.org/) messages (e.g. `feat:`, `fix:`, `chore:`).
+> The changelog is auto-generated from commit messages at release time.
+
 ## Changes Made
 
 -
@@ -19,7 +22,6 @@
 
 ## Checklist
 
-- [ ] I have updated the `## [Unreleased]` section in `CHANGELOG.md`
 - [ ] I have performed a self-review of my own code
 - [ ] I have added tests that prove my fix is effective or that my feature works
 - [ ] New and existing unit tests pass locally (`make test`)

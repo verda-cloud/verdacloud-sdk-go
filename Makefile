@@ -213,17 +213,36 @@ update-deps: ## Update all Go dependencies to their latest versions
 # Release Management
 # ============================================================================
 
-release: ## Prepare a new release by updating version and CHANGELOG.md (usage: make release VERSION=v1.0.0)
+release: ## Prepare a new release (usage: make release VERSION=v1.5.0)
 	@if [ -z "$(VERSION)" ]; then \
 		echo "Error: VERSION is required"; \
-		echo "Usage: make release VERSION=v1.3.0"; \
+		echo "Usage: make release VERSION=v1.5.0"; \
+		exit 1; \
+	fi
+	@if ! command -v git-cliff >/dev/null 2>&1; then \
+		echo "Error: git-cliff is not installed"; \
+		echo "Install: cargo install git-cliff  OR  brew install git-cliff"; \
 		exit 1; \
 	fi
 	@VERSION_NUM=$$(echo "$(VERSION)" | sed 's/^v//'); \
 	echo "→ Updating SDK version to $$VERSION_NUM..."; \
-	sed -i '' "s/fallbackVersion = \".*\"/fallbackVersion = \"$$VERSION_NUM\"/" pkg/verda/version.go; \
+	if [ "$$(uname)" = "Darwin" ]; then \
+		sed -i '' "s/fallbackVersion = \".*\"/fallbackVersion = \"$$VERSION_NUM\"/" pkg/verda/version.go; \
+	else \
+		sed -i "s/fallbackVersion = \".*\"/fallbackVersion = \"$$VERSION_NUM\"/" pkg/verda/version.go; \
+	fi; \
 	echo "✓ Updated pkg/verda/version.go"
-	@scripts/release.sh $(VERSION)
+	@echo "→ Generating CHANGELOG.md with git-cliff..."
+	@git-cliff --tag $(VERSION) -o CHANGELOG.md
+	@echo "✓ Updated CHANGELOG.md"
+
+changelog: ## Preview unreleased changelog entries (requires git-cliff)
+	@if ! command -v git-cliff >/dev/null 2>&1; then \
+		echo "Error: git-cliff is not installed"; \
+		echo "Install: cargo install git-cliff  OR  brew install git-cliff"; \
+		exit 1; \
+	fi
+	@git-cliff --unreleased
 
 # ============================================================================
 # Pre-commit Management
