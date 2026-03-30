@@ -25,21 +25,19 @@ jobs:
           fi
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.25"
           cache: true
 
       - name: Install git-cliff
-        uses: orhun/git-cliff-action@v4
-        with:
-          args: --version
+        run: pip install git-cliff
 
       - name: Run make release
         run: make release VERSION=${{ github.event.inputs.version }}
