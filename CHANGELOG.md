@@ -22,10 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Client-side request validation using `ozzo-validation` for all mutating operations
 - `ValidateCreateDeploymentRequest` and `ValidateCreateJobDeploymentRequest` extended validators
 - `IsLatestTag` helper to detect unversioned container images
+- `LocationFIN03` constant for the FIN-03 datacenter location
 
 ### Changed
 - Co-locate domain types with service files (`*_types.go`) instead of monolithic `types.go`
 - Rename `make test-unit` to `make test`, `make test-e2e` to `make test-smoke` (old names still work)
+
+### Fixed
+- Change default location from `FIN-01` to `FIN-03` for instance, cluster, and volume creation
 
 ## [v1.3.0] - 2026-03-20
 ### Added

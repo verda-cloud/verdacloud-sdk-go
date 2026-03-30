@@ -9,9 +9,10 @@ type Location struct {
 	CountryCode string `json:"country_code"`
 }
 
-// Default location (used when no location is specified)
+// Location constants
 const (
 	LocationFIN01 = "FIN-01"
+	LocationFIN03 = "FIN-03"
 )
 
 type LocationService struct {
