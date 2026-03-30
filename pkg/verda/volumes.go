@@ -48,7 +48,7 @@ func (s *VolumeService) CreateVolume(ctx context.Context, req VolumeCreateReques
 		return "", err
 	}
 	if req.LocationCode == "" {
-		req.LocationCode = LocationFIN01
+		req.LocationCode = LocationFIN03
 	}
 
 	return s.createVolumeWithPlainTextResponse(ctx, req)
@@ -74,6 +74,15 @@ func (s *VolumeService) createVolumeWithPlainTextResponse(ctx context.Context, r
 
 	volumeID := strings.TrimSpace(string(body))
 	return volumeID, nil
+}
+
+// GetVolumesInTrash returns all volumes that are in trash
+func (s *VolumeService) GetVolumesInTrash(ctx context.Context) ([]VolumeInTrash, error) {
+	volumes, _, err := getRequest[[]VolumeInTrash](ctx, s.client, "/volumes/trash")
+	if err != nil {
+		return nil, err
+	}
+	return volumes, nil
 }
 
 func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool) error {

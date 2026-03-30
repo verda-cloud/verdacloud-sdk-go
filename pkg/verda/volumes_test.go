@@ -202,7 +202,7 @@ func TestVolumeService_CreateVolume(t *testing.T) {
 	t.Run("create volume", func(t *testing.T) {
 		req := VolumeCreateRequest{
 			Type:         VolumeTypeNVMe,
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 			Size:         100,
 			Name:         "New Test Volume",
 		}
@@ -413,7 +413,7 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 	t.Run("clone volume", func(t *testing.T) {
 		req := VolumeCloneRequest{
 			Name:         "Cloned Volume",
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 		}
 
 		ctx := context.Background()
@@ -506,6 +506,90 @@ func TestVolumeService_RenameVolume(t *testing.T) {
 	})
 }
 
+func TestVolumeService_GetVolumesInTrash(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	t.Run("success", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
+			volumes := []map[string]interface{}{
+				{
+					"id":                     "vol_trash_1",
+					"name":                   "Deleted Volume",
+					"size":                   100,
+					"type":                   "NVMe",
+					"status":                 "deleted",
+					"created_at":             "2026-01-01T00:00:00Z",
+					"deleted_at":             "2026-03-20T00:00:00Z",
+					"location":               "FIN-01",
+					"contract":               "PAY_AS_YOU_GO",
+					"is_os_volume":           false,
+					"base_hourly_cost":       0.05,
+					"monthly_price":          36.0,
+					"currency":               "USD",
+					"is_permanently_deleted": false,
+				},
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(volumes)
+		})
+
+		ctx := context.Background()
+		volumes, err := client.Volumes.GetVolumesInTrash(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(volumes) != 1 {
+			t.Fatalf("expected 1 volume, got %d", len(volumes))
+		}
+
+		if volumes[0].ID != "vol_trash_1" {
+			t.Errorf("expected volume ID 'vol_trash_1', got '%s'", volumes[0].ID)
+		}
+
+		if volumes[0].Name != "Deleted Volume" {
+			t.Errorf("expected volume name 'Deleted Volume', got '%s'", volumes[0].Name)
+		}
+
+		if volumes[0].IsPermanentlyDeleted {
+			t.Error("expected is_permanently_deleted to be false")
+		}
+	})
+
+	t.Run("empty trash", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]map[string]interface{}{})
+		})
+
+		ctx := context.Background()
+		volumes, err := client.Volumes.GetVolumesInTrash(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if len(volumes) != 0 {
+			t.Errorf("expected 0 volumes, got %d", len(volumes))
+		}
+	})
+
+	t.Run("error response", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte(`{"error": "server error"}`))
+		})
+
+		ctx := context.Background()
+		_, err := client.Volumes.GetVolumesInTrash(ctx)
+		if err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+}
+
 // Test error scenarios
 func TestVolumeService_ErrorHandling(t *testing.T) {
 	mockServer := testutil.NewMockServer()
@@ -534,7 +618,7 @@ func TestVolumeService_ErrorHandling(t *testing.T) {
 
 		req := VolumeCreateRequest{
 			Type:         VolumeTypeNVMe,
-			LocationCode: LocationFIN01,
+			LocationCode: LocationFIN03,
 			Size:         0, // Invalid size
 			Name:         "Invalid Volume",
 		}

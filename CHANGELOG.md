@@ -8,17 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- **Breaking**: `ImagesService.Get` now takes `instanceType string` as the second argument. Pass `""` to list all images, or an instance type identifier (e.g. `8B300.240V`) to add the `instance_type` query parameter.
+- ImagesService.GetImagesByInstanceType now takes `instanceType string` as the second argument to list all images, or an instance type identifier (e.g. `8B300.240V`) to add the `instance_type` query parameter.
+
+### Added
+- GetVolumesInTrash method for retrieving deleted volumes (GET /v1/volumes/trash)
+- VolumeInTrash type for trash volume responses
+- display_name, deploy_warning, p2p, serverless_price, serverless_spot_price, supported_os fields to InstanceTypeInfo
+- throughput_gbps field to VolumeType
+- extension_settings field to Cluster and CreateClusterRequest
+- ExtensionSettingsAutoRenew, ExtensionSettingsPayAsYouGo, ExtensionSettingsEndContract constants
+- instance_id, instance_ids fields to VolumeCreateRequest
+- instance_id, instance_ids, is_permanent, location_code fields to VolumeActionRequest
 
 ## [v1.4.0] - 2026-03-24
 ### Added
 - Client-side request validation using `ozzo-validation` for all mutating operations
 - `ValidateCreateDeploymentRequest` and `ValidateCreateJobDeploymentRequest` extended validators
 - `IsLatestTag` helper to detect unversioned container images
+- `LocationFIN03` constant for the FIN-03 datacenter location
 
 ### Changed
 - Co-locate domain types with service files (`*_types.go`) instead of monolithic `types.go`
 - Rename `make test-unit` to `make test`, `make test-e2e` to `make test-smoke` (old names still work)
+
+### Fixed
+- Change default location from `FIN-01` to `FIN-03` for instance, cluster, and volume creation
 
 ## [v1.3.0] - 2026-03-20
 ### Added

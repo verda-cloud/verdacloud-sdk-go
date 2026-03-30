@@ -45,6 +45,7 @@ type Cluster struct {
 	StartupScriptID   *string               `json:"startup_script_id,omitempty"`
 	AutoRentExtension *bool                 `json:"auto_rent_extension,omitempty"`
 	TurnToPayAsYouGo  *bool                 `json:"turn_to_pay_as_you_go,omitempty"`
+	ExtensionSettings *string               `json:"extension_settings,omitempty"`
 	LongTermPeriod    *string               `json:"long_term_period,omitempty"`
 	WorkerNodes       []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
 	SharedVolumes     []ClusterSharedVolume `json:"shared_volumes,omitempty"`
@@ -73,6 +74,7 @@ type CreateClusterRequest struct {
 	StartupScriptID   *string                 `json:"startup_script_id,omitempty"`
 	AutoRentExtension *bool                   `json:"auto_rent_extension,omitempty"`
 	TurnToPayAsYouGo  *bool                   `json:"turn_to_pay_as_you_go,omitempty"`
+	ExtensionSettings *string                 `json:"extension_settings,omitempty"`
 	SharedVolume      ClusterSharedVolumeSpec `json:"shared_volume"`
 	ExistingVolumes   []ClusterExistingVolume `json:"existing_volumes,omitempty"`
 }
@@ -130,6 +132,13 @@ type ClusterImage struct {
 // Cluster action constants
 const (
 	ClusterActionDiscontinue = "discontinue"
+)
+
+// Cluster extension settings constants
+const (
+	ExtensionSettingsAutoRenew   = "auto_renew"
+	ExtensionSettingsPayAsYouGo  = "pay_as_you_go"
+	ExtensionSettingsEndContract = "end_contract"
 )
 
 // Validate validates the CreateClusterRequest fields
