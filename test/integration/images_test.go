@@ -17,7 +17,7 @@ func TestImagesIntegration(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("get instance images", func(t *testing.T) {
-		images, err := client.Images.Get(ctx, "")
+		images, err := client.Images.Get(ctx)
 		if err != nil {
 			t.Errorf("failed to get images: %v", err)
 		}
@@ -36,6 +36,23 @@ func TestImagesIntegration(t *testing.T) {
 		// Verify we got data
 		if len(images) == 0 {
 			t.Error("expected at least one instance image")
+		}
+	})
+
+	t.Run("get images by instance type", func(t *testing.T) {
+		images, err := client.Images.GetImagesByInstanceType(ctx, "8B300.240V")
+		if err != nil {
+			t.Errorf("failed to get images by instance type: %v", err)
+		}
+		t.Logf("Found %d images for instance type 8B300.240V", len(images))
+
+		if len(images) > 0 {
+			for i, img := range images {
+				if i < 3 {
+					t.Logf("Image: %s (%s) - Default: %v, Category: %s",
+						img.Name, img.ImageType, img.IsDefault, img.Category)
+				}
+			}
 		}
 	})
 

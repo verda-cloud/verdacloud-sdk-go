@@ -17,7 +17,7 @@ func TestImagesService_Get(t *testing.T) {
 
 	t.Run("get instance images", func(t *testing.T) {
 		ctx := context.Background()
-		images, err := client.Images.Get(ctx, "")
+		images, err := client.Images.Get(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -50,7 +50,7 @@ func TestImagesService_Get(t *testing.T) {
 
 	t.Run("verify image fields structure", func(t *testing.T) {
 		ctx := context.Background()
-		images, err := client.Images.Get(ctx, "")
+		images, err := client.Images.Get(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -81,7 +81,7 @@ func TestImagesService_Get(t *testing.T) {
 
 	t.Run("verify at least one default image exists", func(t *testing.T) {
 		ctx := context.Background()
-		images, err := client.Images.Get(ctx, "")
+		images, err := client.Images.Get(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -101,7 +101,7 @@ func TestImagesService_Get(t *testing.T) {
 
 	t.Run("verify images have proper categories", func(t *testing.T) {
 		ctx := context.Background()
-		images, err := client.Images.Get(ctx, "")
+		images, err := client.Images.Get(ctx)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -126,7 +126,7 @@ func TestImagesService_Get(t *testing.T) {
 	})
 }
 
-func TestImagesService_GetWithInstanceTypeQuery(t *testing.T) {
+func TestImagesService_GetImagesByInstanceType(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
@@ -141,7 +141,7 @@ func TestImagesService_GetWithInstanceTypeQuery(t *testing.T) {
 	})
 
 	ctx := context.Background()
-	_, err := client.Images.Get(ctx, "8B300.240V")
+	_, err := client.Images.GetImagesByInstanceType(ctx, "8B300.240V")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -5,6 +5,11 @@ import (
 	"net/url"
 )
 
+const (
+	IMAGE_PATH         = "/images"
+	CLUSTER_IMAGE_PATH = "/images/cluster"
+)
+
 // Image represents an OS image for instances
 type Image struct {
 	ID        string   `json:"id"`
@@ -20,10 +25,18 @@ type ImagesService struct {
 	client *Client
 }
 
-// Get lists OS images. Pass empty instanceType to omit the query parameter, or a value such as
-// "8B300.240V" to filter by instance type (?instance_type=...).
-func (s *ImagesService) Get(ctx context.Context, instanceType string) ([]Image, error) {
-	path := "/images"
+func (s *ImagesService) Get(ctx context.Context) ([]Image, error) {
+	images, _, err := getRequest[[]Image](ctx, s.client, IMAGE_PATH)
+	if err != nil {
+		return nil, err
+	}
+	return images, nil
+}
+
+// GetImagesByInstanceType lists OS images filtered by instance type.
+// Pass a value such as "8B300.240V" to filter by instance type (?instance_type=...).
+func (s *ImagesService) GetImagesByInstanceType(ctx context.Context, instanceType string) ([]Image, error) {
+	path := IMAGE_PATH
 	if instanceType != "" {
 		params := url.Values{}
 		params.Set("instance_type", instanceType)
@@ -38,7 +51,7 @@ func (s *ImagesService) Get(ctx context.Context, instanceType string) ([]Image, 
 }
 
 func (s *ImagesService) GetClusterImages(ctx context.Context) ([]ClusterImage, error) {
-	images, _, err := getRequest[[]ClusterImage](ctx, s.client, "/images/cluster")
+	images, _, err := getRequest[[]ClusterImage](ctx, s.client, CLUSTER_IMAGE_PATH)
 	if err != nil {
 		return nil, err
 	}
