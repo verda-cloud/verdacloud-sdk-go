@@ -76,6 +76,15 @@ func (s *VolumeService) createVolumeWithPlainTextResponse(ctx context.Context, r
 	return volumeID, nil
 }
 
+// GetVolumesInTrash returns all volumes that are in trash
+func (s *VolumeService) GetVolumesInTrash(ctx context.Context) ([]VolumeInTrash, error) {
+	volumes, _, err := getRequest[[]VolumeInTrash](ctx, s.client, "/volumes/trash")
+	if err != nil {
+		return nil, err
+	}
+	return volumes, nil
+}
+
 func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool) error {
 	path := fmt.Sprintf("/volumes/%s", id)
 	if force {

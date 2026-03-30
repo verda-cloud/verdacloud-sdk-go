@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- GetVolumesInTrash method for retrieving deleted volumes (GET /v1/volumes/trash)
+- VolumeInTrash type for trash volume responses
+- display_name, deploy_warning, p2p, serverless_price, serverless_spot_price, supported_os fields to InstanceTypeInfo
+- throughput_gbps field to VolumeType
+- extension_settings field to Cluster and CreateClusterRequest
+- ExtensionSettingsAutoRenew, ExtensionSettingsPayAsYouGo, ExtensionSettingsEndContract constants
+- instance_id, instance_ids fields to VolumeCreateRequest
+- instance_id, instance_ids, is_permanent, location_code fields to VolumeActionRequest
+
 ## [v1.4.0] - 2026-03-24
 ### Added
 - Client-side request validation using `ozzo-validation` for all mutating operations

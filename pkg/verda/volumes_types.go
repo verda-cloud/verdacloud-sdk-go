@@ -8,11 +8,13 @@ import (
 
 // VolumeCreateRequest represents a volume to be created
 type VolumeCreateRequest struct {
-	Size              int    `json:"size"`
-	Type              string `json:"type"`
-	Name              string `json:"name"`
-	LocationCode      string `json:"location_code,omitempty"`
-	OnSpotDiscontinue string `json:"on_spot_discontinue,omitempty"`
+	Size              int      `json:"size"`
+	Type              string   `json:"type"`
+	Name              string   `json:"name"`
+	LocationCode      string   `json:"location_code,omitempty"`
+	OnSpotDiscontinue string   `json:"on_spot_discontinue,omitempty"`
+	InstanceID        string   `json:"instance_id,omitempty"`
+	InstanceIDs       []string `json:"instance_ids,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -27,11 +29,15 @@ type VolumeDetachRequest struct {
 
 // VolumeActionRequest represents an action to perform on volumes
 type VolumeActionRequest struct {
-	ID     string `json:"id"`
-	Action string `json:"action"`
-	Name   string `json:"name,omitempty"`
-	Type   string `json:"type,omitempty"`
-	Size   int    `json:"size,omitempty"`
+	ID           string   `json:"id"`
+	Action       string   `json:"action"`
+	Name         string   `json:"name,omitempty"`
+	Type         string   `json:"type,omitempty"`
+	Size         int      `json:"size,omitempty"`
+	InstanceID   string   `json:"instance_id,omitempty"`
+	InstanceIDs  []string `json:"instance_ids,omitempty"`
+	IsPermanent  bool     `json:"is_permanent,omitempty"`
+	LocationCode string   `json:"location_code,omitempty"`
 }
 
 // VolumeCloneRequest represents a request to clone a volume
@@ -94,6 +100,28 @@ type Volume struct {
 	MonthlyPrice             float64                  `json:"monthly_price"`
 	Currency                 string                   `json:"currency"`
 	LongTerm                 *VolumeLongTerm          `json:"long_term"`
+}
+
+// VolumeInTrash represents a volume that has been moved to trash
+type VolumeInTrash struct {
+	ID                   string                   `json:"id"`
+	Name                 string                   `json:"name"`
+	Size                 int                      `json:"size"`
+	Type                 string                   `json:"type"`
+	Status               string                   `json:"status"`
+	CreatedAt            time.Time                `json:"created_at"`
+	DeletedAt            time.Time                `json:"deleted_at"`
+	InstanceID           *string                  `json:"instance_id"`
+	Instances            []VolumeAttachedInstance `json:"instances"`
+	Location             string                   `json:"location"`
+	Contract             string                   `json:"contract"`
+	IsOSVolume           bool                     `json:"is_os_volume"`
+	Target               *string                  `json:"target"`
+	SSHKeyIDs            []string                 `json:"ssh_key_ids"`
+	BaseHourlyCost       float64                  `json:"base_hourly_cost"`
+	MonthlyPrice         float64                  `json:"monthly_price"`
+	Currency             string                   `json:"currency"`
+	IsPermanentlyDeleted bool                     `json:"is_permanently_deleted"`
 }
 
 // Volume type constants
