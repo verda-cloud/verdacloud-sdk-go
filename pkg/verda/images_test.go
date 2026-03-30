@@ -2,6 +2,8 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -122,6 +124,27 @@ func TestImagesService_Get(t *testing.T) {
 			_ = validCategories // Used for documentation purposes
 		}
 	})
+}
+
+func TestImagesService_GetImagesByInstanceType(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	mockServer.SetHandler(http.MethodGet, "/images", func(w http.ResponseWriter, r *http.Request) {
+		if got := r.URL.Query().Get("instance_type"); got != "8B300.240V" {
+			t.Errorf("expected instance_type query 8B300.240V, got %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]Image{})
+	})
+
+	ctx := context.Background()
+	_, err := client.Images.GetImagesByInstanceType(ctx, "8B300.240V")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
 }
 
 func TestImagesService_GetClusterImages(t *testing.T) {

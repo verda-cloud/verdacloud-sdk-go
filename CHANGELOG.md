@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- ImagesService.GetImagesByInstanceType now takes `instanceType string` as the second argument to list all images, or an instance type identifier (e.g. `8B300.240V`) to add the `instance_type` query parameter.
+
 ### Added
 - GetVolumesInTrash method for retrieving deleted volumes (GET /v1/volumes/trash)
 - VolumeInTrash type for trash volume responses
