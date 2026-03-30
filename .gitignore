@@ -53,6 +53,7 @@ tmp/
 .claude/
 .codex/
 .ai/
+docs/plans/
 
 # backup files
 *.bak*
