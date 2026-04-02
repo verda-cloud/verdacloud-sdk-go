@@ -262,8 +262,9 @@ type VolumeType struct {
 }
 
 type VolumeTypePrice struct {
-	MonthlyPerGB float64 `json:"monthly_per_gb"`
-	Currency     string  `json:"currency"`
+	PricePerMonthPerGB float64 `json:"price_per_month_per_gb"`
+	CPSPerGB           float64 `json:"cps_per_gb"`
+	Currency           string  `json:"currency"`
 }
 
 type Image struct {
@@ -1115,8 +1116,9 @@ func (ms *MockServer) handleGetVolumeTypes(w http.ResponseWriter, _ *http.Reques
 		{
 			Type: "NVMe",
 			Price: VolumeTypePrice{
-				MonthlyPerGB: 0.12,
-				Currency:     "USD",
+				PricePerMonthPerGB: 0.12,
+				CPSPerGB:           4.5662100456621005e-8,
+				Currency:           "usd",
 			},
 			IsSharedFS:           false,
 			BurstBandwidth:       2000,
@@ -1127,8 +1129,9 @@ func (ms *MockServer) handleGetVolumeTypes(w http.ResponseWriter, _ *http.Reques
 		{
 			Type: "NVMe_Shared",
 			Price: VolumeTypePrice{
-				MonthlyPerGB: 0.15,
-				Currency:     "USD",
+				PricePerMonthPerGB: 0.15,
+				CPSPerGB:           5.707762557077625e-8,
+				Currency:           "usd",
 			},
 			IsSharedFS:           true,
 			BurstBandwidth:       3000,
@@ -1139,8 +1142,9 @@ func (ms *MockServer) handleGetVolumeTypes(w http.ResponseWriter, _ *http.Reques
 		{
 			Type: "HDD",
 			Price: VolumeTypePrice{
-				MonthlyPerGB: 0.05,
-				Currency:     "USD",
+				PricePerMonthPerGB: 0.05,
+				CPSPerGB:           1.902587519025875e-8,
+				Currency:           "usd",
 			},
 			IsSharedFS:           false,
 			BurstBandwidth:       500,

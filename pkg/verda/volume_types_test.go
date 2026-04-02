@@ -2,6 +2,7 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -30,8 +31,11 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 			if vt.Type == "" {
 				t.Error("expected volume type to have a Type")
 			}
-			if vt.Price.MonthlyPerGB <= 0 {
+			if vt.Price.PricePerMonthPerGB <= 0 {
 				t.Error("expected volume type to have a positive price per GB")
+			}
+			if vt.Price.MonthlyPerGB != vt.Price.PricePerMonthPerGB {
+				t.Error("expected compatibility price alias to match canonical price")
 			}
 			if vt.Price.Currency == "" {
 				t.Error("expected volume type to have a Currency")
@@ -54,8 +58,11 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 				if vt.Type == "" {
 					t.Errorf("volume type %d missing Type", i)
 				}
-				if vt.Price.MonthlyPerGB <= 0 {
-					t.Errorf("volume type %d has invalid price: %f", i, vt.Price.MonthlyPerGB)
+				if vt.Price.PricePerMonthPerGB <= 0 {
+					t.Errorf("volume type %d has invalid price: %f", i, vt.Price.PricePerMonthPerGB)
+				}
+				if vt.Price.MonthlyPerGB != vt.Price.PricePerMonthPerGB {
+					t.Errorf("volume type %d has mismatched compatibility price: %f vs %f", i, vt.Price.MonthlyPerGB, vt.Price.PricePerMonthPerGB)
 				}
 				if vt.Price.Currency == "" {
 					t.Errorf("volume type %d missing Currency", i)
@@ -114,9 +121,9 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 		if len(volumeTypes) > 0 {
 			for i, vt := range volumeTypes {
 				// Verify price object is populated
-				if vt.Price.MonthlyPerGB <= 0 {
+				if vt.Price.PricePerMonthPerGB <= 0 {
 					t.Errorf("volume type %d (%s) has invalid monthly price: %f",
-						i, vt.Type, vt.Price.MonthlyPerGB)
+						i, vt.Type, vt.Price.PricePerMonthPerGB)
 				}
 				if vt.Price.Currency != "USD" && vt.Price.Currency != "EUR" && vt.Price.Currency != "" {
 					t.Logf("volume type %d (%s) has unusual currency: %s",
@@ -124,6 +131,48 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 				}
 			}
 		}
+	})
+
+	t.Run("decode current and legacy price fields", func(t *testing.T) {
+		t.Run("current api payload", func(t *testing.T) {
+			var price VolumeTypePrice
+			err := json.Unmarshal([]byte(`{
+				"price_per_month_per_gb": 0.2,
+				"cps_per_gb": 7.6103500761035e-8,
+				"currency": "usd"
+			}`), &price)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if price.PricePerMonthPerGB != 0.2 {
+				t.Fatalf("expected canonical monthly price to be decoded, got %f", price.PricePerMonthPerGB)
+			}
+			if price.MonthlyPerGB != 0.2 {
+				t.Fatalf("expected compatibility alias to be populated, got %f", price.MonthlyPerGB)
+			}
+			if price.CPSPerGB <= 0 {
+				t.Fatalf("expected cps_per_gb to be decoded, got %f", price.CPSPerGB)
+			}
+		})
+
+		t.Run("legacy payload", func(t *testing.T) {
+			var price VolumeTypePrice
+			err := json.Unmarshal([]byte(`{
+				"monthly_per_gb": 0.12,
+				"currency": "USD"
+			}`), &price)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if price.PricePerMonthPerGB != 0.12 {
+				t.Fatalf("expected legacy monthly price to map to canonical field, got %f", price.PricePerMonthPerGB)
+			}
+			if price.MonthlyPerGB != 0.12 {
+				t.Fatalf("expected legacy monthly price to populate compatibility alias, got %f", price.MonthlyPerGB)
+			}
+		})
 	})
 
 	t.Run("verify performance metrics", func(t *testing.T) {
