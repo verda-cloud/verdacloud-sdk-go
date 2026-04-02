@@ -28,14 +28,17 @@ func TestVolumeTypesIntegration(t *testing.T) {
 			for i, vt := range volumeTypes {
 				if i < 5 { // Log first 5
 					t.Logf("Volume Type: %s - Price: %f %s/GB/month, Shared: %v, IOPS: %s",
-						vt.Type, vt.Price.MonthlyPerGB, vt.Price.Currency, vt.IsSharedFS, vt.IOPS)
+						vt.Type, vt.Price.PricePerMonthPerGB, vt.Price.Currency, vt.IsSharedFS, vt.IOPS)
 				}
 				if vt.Type == "" {
 					t.Errorf("volume type %d missing Type", i)
 				}
 				// Note: Pricing might be 0 in staging environment
-				if vt.Price.MonthlyPerGB <= 0 {
-					t.Logf("⚠️  volume type %d (%s) has zero/invalid price: %f (this may be expected in staging)", i, vt.Type, vt.Price.MonthlyPerGB)
+				if vt.Price.PricePerMonthPerGB <= 0 {
+					t.Logf("⚠️  volume type %d (%s) has zero/invalid price: %f (this may be expected in staging)", i, vt.Type, vt.Price.PricePerMonthPerGB)
+				}
+				if vt.Price.MonthlyPerGB != vt.Price.PricePerMonthPerGB {
+					t.Errorf("volume type %d has mismatched compatibility price fields", i)
 				}
 				if vt.IOPS == "" {
 					t.Errorf("volume type %d missing IOPS", i)
@@ -118,13 +121,13 @@ func TestVolumeTypesIntegration(t *testing.T) {
 		zeroPriceCount := 0
 		for _, vt := range volumeTypes {
 			// Note: Pricing might be 0 in staging environment
-			if vt.Price.MonthlyPerGB <= 0 {
-				t.Logf("⚠️  volume type %s has zero/invalid price: %f (may be expected in staging)", vt.Type, vt.Price.MonthlyPerGB)
+			if vt.Price.PricePerMonthPerGB <= 0 {
+				t.Logf("⚠️  volume type %s has zero/invalid price: %f (may be expected in staging)", vt.Type, vt.Price.PricePerMonthPerGB)
 				zeroPriceCount++
 			}
 
 			// Log pricing for manual verification
-			t.Logf("Volume type %s: %f %s/GB/month", vt.Type, vt.Price.MonthlyPerGB, vt.Price.Currency)
+			t.Logf("Volume type %s: %f %s/GB/month", vt.Type, vt.Price.PricePerMonthPerGB, vt.Price.Currency)
 		}
 
 		// Only warn if ALL prices are zero - this is likely a staging limitation
