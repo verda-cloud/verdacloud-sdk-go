@@ -7,7 +7,7 @@ import (
 
 const (
 	// fallbackVersion is used when build info is not available (e.g., during development)
-	fallbackVersion = "1.4.1"
+	fallbackVersion = "1.4.2"
 
 	// sdkName is the identifier for this SDK
 	sdkName = "verdacloud-sdk-go"
