@@ -70,7 +70,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 		if len(jobs) == 0 {
 			t.Fatal("expected at least one job deployment")
 		}
-		if got, want := jobs[0].CreatedByUserID, "user-123"; got != want {
+		if got, want := jobs[0].CreatedByUserID, "550e8400-e29b-41d4-a716-446655440000"; got != want {
 			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
@@ -149,7 +149,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 		if job.CreatedAt.IsZero() {
 			t.Error("expected job to have a CreatedAt")
 		}
-		if got, want := job.CreatedByUserID, "user-123"; got != want {
+		if got, want := job.CreatedByUserID, "550e8400-e29b-41d4-a716-446655440000"; got != want {
 			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
@@ -202,7 +202,7 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 		if job == nil {
 			t.Fatal("expected job, got nil")
 		}
-		if got, want := job.CreatedByUserID, "user-123"; got != want {
+		if got, want := job.CreatedByUserID, "550e8400-e29b-41d4-a716-446655440000"; got != want {
 			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
@@ -253,7 +253,7 @@ func TestServerlessJobsService_UpdateJobDeployment(t *testing.T) {
 		if job == nil {
 			t.Fatal("expected job, got nil")
 		}
-		if got, want := job.CreatedByUserID, "user-123"; got != want {
+		if got, want := job.CreatedByUserID, "550e8400-e29b-41d4-a716-446655440000"; got != want {
 			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
