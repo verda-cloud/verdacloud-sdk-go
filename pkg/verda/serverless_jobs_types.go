@@ -9,10 +9,10 @@ import (
 
 // JobDeploymentShortInfo represents summary information about a job deployment
 type JobDeploymentShortInfo struct {
-	Name              string            `json:"name"`
-	CreatedAt         time.Time         `json:"created_at"`
-	Compute           *ContainerCompute `json:"compute"`
-	CreatedByUserID   string            `json:"created_by_user_id"`
+	Name            string            `json:"name"`
+	CreatedAt       time.Time         `json:"created_at"`
+	Compute         *ContainerCompute `json:"compute"`
+	CreatedByUserID string            `json:"created_by_user_id"`
 }
 
 // JobDeployment represents a complete serverless job deployment
