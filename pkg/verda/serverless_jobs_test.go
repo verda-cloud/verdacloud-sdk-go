@@ -33,6 +33,9 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 			if job.CreatedAt.IsZero() {
 				t.Error("expected job to have a CreatedAt")
 			}
+			if job.CreatedByUserID == "" {
+				t.Error("expected job to have a CreatedByUserID")
+			}
 		}
 	})
 
@@ -51,7 +54,24 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 				if job.CreatedAt.IsZero() {
 					t.Errorf("job %d missing CreatedAt", i)
 				}
+				if job.CreatedByUserID == "" {
+					t.Errorf("job %d missing CreatedByUserID", i)
+				}
 			}
+		}
+	})
+
+	t.Run("created_by_user_id is populated", func(t *testing.T) {
+		ctx := context.Background()
+		jobs, err := client.ServerlessJobs.GetJobDeployments(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(jobs) == 0 {
+			t.Fatal("expected at least one job deployment")
+		}
+		if got, want := jobs[0].CreatedByUserID, "user-123"; got != want {
+			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
 }
@@ -129,6 +149,9 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 		if job.CreatedAt.IsZero() {
 			t.Error("expected job to have a CreatedAt")
 		}
+		if got, want := job.CreatedByUserID, "user-123"; got != want {
+			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
+		}
 	})
 }
 
@@ -168,6 +191,20 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 		// Mock server will need a handler for this - for now we'll test the method signature
 		// In a real implementation, we'd add a specific mock handler
 		_ = created // Use the created job to avoid unused variable error
+	})
+
+	t.Run("created_by_user_id is populated", func(t *testing.T) {
+		ctx := context.Background()
+		job, err := client.ServerlessJobs.GetJobDeploymentByName(ctx, "flux-training")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if job == nil {
+			t.Fatal("expected job, got nil")
+		}
+		if got, want := job.CreatedByUserID, "user-123"; got != want {
+			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
+		}
 	})
 }
 
@@ -215,6 +252,9 @@ func TestServerlessJobsService_UpdateJobDeployment(t *testing.T) {
 		}
 		if job == nil {
 			t.Fatal("expected job, got nil")
+		}
+		if got, want := job.CreatedByUserID, "user-123"; got != want {
+			t.Errorf("expected CreatedByUserID %q, got %q", want, got)
 		}
 	})
 
