@@ -45,6 +45,7 @@ type DeploymentContainer struct {
 	Env                 []ContainerEnvVar             `json:"env"`
 	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts"`
 	AutoUpdate          *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	ShouldUseCachedImage bool                         `json:"should_use_cached_image"`
 }
 
 // ContainerImage represents a container image reference
@@ -93,6 +94,7 @@ type CreateDeploymentContainer struct {
 	Env                 []ContainerEnvVar             `json:"env,omitempty"`
 	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts,omitempty"`
 	AutoUpdate          *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	ShouldUseCachedImage *bool                        `json:"should_use_cached_image,omitempty"`
 }
 
 // UpdateDeploymentRequest represents a request to update a deployment
@@ -164,6 +166,9 @@ type ReplicaInfo struct {
 	ID        string    `json:"id"`
 	Status    string    `json:"status"`
 	StartedAt time.Time `json:"started_at"`
+	Image     string    `json:"image,omitempty"`
+	ImageName string    `json:"image_name,omitempty"`
+	ImageTag  string    `json:"image_tag,omitempty"`
 }
 
 // ContainerEnvVarsRequest represents a request to add/update environment variables
