@@ -37,14 +37,15 @@ type RegistryCredentialsRef struct {
 
 // DeploymentContainer represents a container configuration in a deployment response
 type DeploymentContainer struct {
-	Image               ContainerImage                `json:"image"`
-	Name                string                        `json:"name"`
-	ExposedPort         int                           `json:"exposed_port"`
-	Healthcheck         *ContainerHealthcheck         `json:"healthcheck,omitempty"`
-	EntrypointOverrides *ContainerEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
-	Env                 []ContainerEnvVar             `json:"env"`
-	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts"`
-	AutoUpdate          *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	Image                 ContainerImage                `json:"image"`
+	Name                  string                        `json:"name"`
+	ExposedPort           int                           `json:"exposed_port"`
+	Healthcheck           *ContainerHealthcheck         `json:"healthcheck,omitempty"`
+	EntrypointOverrides   *ContainerEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
+	Env                   []ContainerEnvVar             `json:"env"`
+	VolumeMounts          []ContainerVolumeMount        `json:"volume_mounts"`
+	AutoUpdate            *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	ShouldUseCachedImage  bool                          `json:"should_use_cached_image"`
 }
 
 // ContainerImage represents a container image reference
@@ -85,14 +86,15 @@ type CreateDeploymentRequest struct {
 
 // CreateDeploymentContainer represents a container configuration for create/update requests
 type CreateDeploymentContainer struct {
-	Name                string                        `json:"name,omitempty"`
-	Image               string                        `json:"image"`
-	ExposedPort         int                           `json:"exposed_port,omitempty"`
-	Healthcheck         *ContainerHealthcheck         `json:"healthcheck,omitempty"`
-	EntrypointOverrides *ContainerEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
-	Env                 []ContainerEnvVar             `json:"env,omitempty"`
-	VolumeMounts        []ContainerVolumeMount        `json:"volume_mounts,omitempty"`
-	AutoUpdate          *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	Name                 string                        `json:"name,omitempty"`
+	Image                string                        `json:"image"`
+	ExposedPort          int                           `json:"exposed_port,omitempty"`
+	Healthcheck          *ContainerHealthcheck         `json:"healthcheck,omitempty"`
+	EntrypointOverrides  *ContainerEntrypointOverrides `json:"entrypoint_overrides,omitempty"`
+	Env                  []ContainerEnvVar             `json:"env,omitempty"`
+	VolumeMounts         []ContainerVolumeMount        `json:"volume_mounts,omitempty"`
+	AutoUpdate           *ContainerAutoUpdate          `json:"autoupdate,omitempty"`
+	ShouldUseCachedImage bool                          `json:"should_use_cached_image,omitempty"`
 }
 
 // UpdateDeploymentRequest represents a request to update a deployment
