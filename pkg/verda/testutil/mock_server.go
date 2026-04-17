@@ -99,7 +99,8 @@ const mockUpdatedJobDeploymentResponse = `{
 		"max_replica_count": 2,
 		"queue_message_ttl_seconds": 300,
 		"deadline_seconds": 3600
-	}
+	},
+	"created_by_user_id": "550e8400-e29b-41d4-a716-446655440000"
 }`
 
 // TestClientConfig holds configuration for creating test clients
@@ -1978,7 +1979,8 @@ func (ms *MockServer) handleGetJobDeployments(w http.ResponseWriter, _ *http.Req
 			"compute": {
 				"name": "H100",
 				"size": 1
-			}
+			},
+			"created_by_user_id": "550e8400-e29b-41d4-a716-446655440000"
 		}
 	]`
 
@@ -2146,7 +2148,8 @@ func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.R
 		"max_replica_count": 1,
 		"queue_message_ttl_seconds": 300,
 		"deadline_seconds": 600
-	}
+	},
+	"created_by_user_id": "550e8400-e29b-41d4-a716-446655440000"
 	}`
 
 	writeBytes(w, []byte(response))
@@ -2221,7 +2224,8 @@ func (ms *MockServer) handleGetJobDeploymentByName(w http.ResponseWriter, _ *htt
 			"credentials": {
 				"name": "dockerhub-credentials"
 			}
-		}
+		},
+		"created_by_user_id": "550e8400-e29b-41d4-a716-446655440000"
 	}`
 
 	writeBytes(w, []byte(response))
