@@ -80,6 +80,23 @@ jobs:
       - name: Build SDK
         run: make build
 
+  # Apache 2.0 file headers on all *.go files
+  license:
+    name: License Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - name: Check license headers
+        run: make license-check
+
   # Code formatting check
   format:
     name: Format Check
@@ -212,12 +229,12 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, build, format, mod-tidy, vuln-scan, changelog-guard]
+    needs: [lint, test, build, format, mod-tidy, vuln-scan, license, changelog-guard]
     steps:
       - name: Check results
         run: |
           # changelog-guard is skipped on push events, which is fine
-          for result in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.build.result }}" "${{ needs.format.result }}" "${{ needs.mod-tidy.result }}" "${{ needs.vuln-scan.result }}"; do
+          for result in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.build.result }}" "${{ needs.format.result }}" "${{ needs.mod-tidy.result }}" "${{ needs.vuln-scan.result }}" "${{ needs.license.result }}"; do
             if [ "$result" != "success" ]; then
               echo "One or more CI checks failed"
               exit 1

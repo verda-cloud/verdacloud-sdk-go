@@ -14,6 +14,7 @@ These rarely change. Follow them for all contributions:
 - **Error handling**: Return `*APIError` for HTTP errors; `Validate()` returns ozzo-validation errors
 - **Tests**: Unit tests use `testutil.NewMockServer()` + `NewTestClient()`, integration tests use `//go:build integration`
 - **Commits**: Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`)
+- **License headers**: New `.go` files need the Apache 2.0 short header (Copyright 2026 Verda Cloud Oy, same as other Verda repos). Run `make license` to add missing headers; CI runs `make license-check` and fails if a new file lacks the header
 
 ## Codebase Knowledge (auto-generated)
 
