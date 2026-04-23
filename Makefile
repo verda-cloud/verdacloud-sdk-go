@@ -6,7 +6,7 @@
 # ============================================================================
 
 .PHONY: help build test test-integration test-smoke clean coverage
-.PHONY: lint fmt setup pre-commit
+.PHONY: lint fmt license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
@@ -92,6 +92,17 @@ fmt: ## Format Go code (used by CI, pre-commit handles this locally)
 		echo "  ℹ goimports not found, skipping import formatting"; \
 	fi
 	@echo "✓ Formatting complete!"
+
+# License headers: Apache 2.0 on *.go only (excludes vendor). Uses go run so no global install.
+license: ## Add Apache 2.0 file headers to all Go files (excludes ./vendor)
+	@echo "→ Adding license headers to Go files..."
+	@find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 go run github.com/google/addlicense@v1.2.0 -c "Verda Cloud Oy" -l apache -y 2026 -v
+	@echo "✓ License headers added!"
+
+license-check: ## Verify all Go files have the Apache 2.0 header (CI)
+	@echo "→ Checking license headers on Go files..."
+	@find . -name '*.go' -not -path './vendor/*' -print0 | xargs -0 go run github.com/google/addlicense@v1.2.0 -check -c "Verda Cloud Oy" -l apache -y 2026
+	@echo "✓ All Go files have license headers!"
 
 # ============================================================================
 # Building
@@ -258,7 +269,7 @@ pre-commit: ## Run all pre-commit hooks on all files (stages modified files firs
 # CI/CD Targets
 # ============================================================================
 
-ci: ## Run all CI checks (matches GitHub Actions: format, mod-tidy, lint, build, test)
+ci: ## Run all CI checks (format, mod-tidy, license-check, lint, build, test)
 	@echo "→ Running CI checks (same as GitHub Actions)..."
 	@echo ""
 	@echo "1. Format check..."
@@ -279,18 +290,21 @@ ci: ## Run all CI checks (matches GitHub Actions: format, mod-tidy, lint, build,
 		echo "  ✓ go.mod is tidy"; \
 	fi
 	@echo ""
-	@echo "3. Linting..."
+	@echo "3. License header check..."
+	@$(MAKE) license-check
+	@echo ""
+	@echo "4. Linting..."
 	@$(MAKE) lint
 	@echo ""
-	@echo "4. Building..."
+	@echo "5. Building..."
 	@$(MAKE) build
 	@echo ""
-	@echo "5. Testing..."
+	@echo "6. Testing..."
 	@$(MAKE) test
 	@echo ""
 	@echo "✓ All CI checks passed! Ready to push."
 
-.PHONY: setup lint fmt security
+.PHONY: setup lint fmt license license-check security
 .PHONY: build test test-integration test-smoke coverage clean mod-tidy update-deps release
 .PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci
