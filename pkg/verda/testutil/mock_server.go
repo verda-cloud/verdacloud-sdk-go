@@ -16,9 +16,11 @@ package testutil
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -30,6 +32,7 @@ const (
 	pathSSHKeysAlt = "/ssh-keys"
 	pathScripts    = "/scripts"
 	pathClusters   = "/clusters"
+	pathVolumes    = "/volumes"
 )
 
 // Mock data constants
@@ -158,6 +161,7 @@ type Instance struct {
 	Contract        string                 `json:"contract"`
 	Pricing         string                 `json:"pricing"`
 	VolumeIDs       []string               `json:"volume_ids"`
+	Tags            []Tag                  `json:"tags"`
 }
 
 type CreateInstanceRequest struct {
@@ -256,6 +260,20 @@ type Volume struct {
 	MonthlyPrice             float64                  `json:"monthly_price"`
 	Currency                 string                   `json:"currency"`
 	LongTerm                 *VolumeLongTerm          `json:"long_term"`
+	Tags                     []Tag                    `json:"tags"`
+}
+
+// Tag mirrors verda.Tag for mock responses
+type Tag struct {
+	ID    string `json:"id"`
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// TagRequest mirrors verda.TagRequest for decoding mock requests
+type TagRequest struct {
+	Key   string `json:"key"`
+	Value string `json:"value,omitempty"`
 }
 
 type StartupScript struct {
@@ -386,6 +404,7 @@ type Cluster struct {
 	LongTermPeriod    *string                `json:"long_term_period,omitempty"`
 	WorkerNodes       []ClusterWorkerNode    `json:"worker_nodes,omitempty"`
 	SharedVolumes     []ClusterSharedVolume  `json:"shared_volumes,omitempty"`
+	Tags              []Tag                  `json:"tags"`
 }
 
 type ClusterSharedVolumeSpec struct {
@@ -469,6 +488,7 @@ type MockServer struct {
 	mu       sync.RWMutex
 	sshKeys  map[string]SSHKey        // Store created SSH keys
 	scripts  map[string]StartupScript // Store created startup scripts
+	tags     map[string][]Tag         // Store tags per "<basePath>/<resourceID>"
 }
 
 // NewMockServer creates a new mock server
@@ -477,6 +497,7 @@ func NewMockServer() *MockServer {
 		handlers: make(map[string]http.HandlerFunc),
 		sshKeys:  make(map[string]SSHKey),
 		scripts:  make(map[string]StartupScript),
+		tags:     make(map[string][]Tag),
 	}
 
 	ms.server = httptest.NewServer(http.HandlerFunc(ms.handleRequest))
@@ -519,6 +540,12 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodPost && r.URL.Path == pathOAuth2Token:
 		ms.handleAuth(w, r)
+	// Tags - shared shape across instances, volumes and clusters. These must be
+	// matched before the resource-level prefix routes below.
+	case r.Method == http.MethodPost && isTaggableResourcePath(r.URL.Path) && strings.HasSuffix(r.URL.Path, "/tags"):
+		ms.handleAddTag(w, r)
+	case r.Method == http.MethodDelete && isTaggableResourcePath(r.URL.Path) && strings.Contains(r.URL.Path, "/tags/"):
+		ms.handleDeleteTag(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == pathInstances:
 		ms.handleGetInstances(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathInstances+"/"):
@@ -766,6 +793,7 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		Contract:        "PAY_AS_YOU_GO",
 		Pricing:         "FIXED_PRICE",
 		VolumeIDs:       []string{"vol_123", "vol_456"},
+		Tags:            ms.ResourceTags(pathInstances + "/" + instanceID),
 	}
 
 	writeJSON(w, instance)
@@ -1226,6 +1254,7 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
 		Location:     LocationFIN03,
 		Contract:     "PAY_AS_YOU_GO",
+		Tags:         ms.ResourceTags(pathClusters + "/" + clusterID),
 	}
 
 	writeJSON(w, cluster)
@@ -2244,6 +2273,125 @@ func (ms *MockServer) handleGetJobDeploymentByName(w http.ResponseWriter, _ *htt
 // Note: CreateTestClient is implemented in test files to avoid circular imports
 
 // writeJSON writes a JSON response, handling errors appropriately for test mocks
+// isTaggableResourcePath reports whether path belongs to a resource that supports tags
+func isTaggableResourcePath(path string) bool {
+	for _, base := range []string{pathInstances, pathVolumes, pathClusters} {
+		if strings.HasPrefix(path, base+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+// splitTagPath splits a tag request path into the owning resource path
+// (for example "/instances/abc") and the tag key, which is empty for add
+// requests. It expects the escaped path, since tag keys may contain characters
+// that would otherwise be indistinguishable from path separators.
+func splitTagPath(escapedPath string) (resource, key string, ok bool) {
+	idx := strings.Index(escapedPath, "/tags")
+	if idx <= 0 {
+		return "", "", false
+	}
+
+	resource, err := url.PathUnescape(escapedPath[:idx])
+	if err != nil {
+		return "", "", false
+	}
+
+	rest := strings.TrimPrefix(strings.TrimPrefix(escapedPath[idx:], "/tags"), "/")
+	if rest != "" {
+		key, err = url.PathUnescape(rest)
+		if err != nil {
+			return "", "", false
+		}
+	}
+
+	return resource, key, true
+}
+
+// ResourceTags returns the tags currently stored for a resource path such as
+// "/instances/abc". Intended for assertions in tests.
+func (ms *MockServer) ResourceTags(resourcePath string) []Tag {
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	stored := ms.tags[resourcePath]
+	tags := make([]Tag, len(stored))
+	copy(tags, stored)
+	return tags
+}
+
+func (ms *MockServer) handleAddTag(w http.ResponseWriter, r *http.Request) {
+	resource, _, ok := splitTagPath(r.URL.EscapedPath())
+	if !ok {
+		http.NotFound(w, r)
+		return
+	}
+
+	var req TagRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeTagError(w, http.StatusBadRequest, "invalid_json", "request body is not valid JSON")
+		return
+	}
+
+	if req.Key == "" {
+		writeTagError(w, http.StatusBadRequest, "bad_request", "key is required")
+		return
+	}
+
+	// The API lowercases tag keys
+	key := strings.ToLower(req.Key)
+
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	for _, existing := range ms.tags[resource] {
+		if existing.Key == key {
+			writeTagError(w, http.StatusConflict, "conflict", "a tag with this key already exists")
+			return
+		}
+	}
+
+	tag := Tag{
+		ID:    fmt.Sprintf("tag_%s_%d", key, len(ms.tags[resource])),
+		Key:   key,
+		Value: req.Value,
+	}
+	ms.tags[resource] = append(ms.tags[resource], tag)
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, tag)
+}
+
+func (ms *MockServer) handleDeleteTag(w http.ResponseWriter, r *http.Request) {
+	resource, key, ok := splitTagPath(r.URL.EscapedPath())
+	if !ok || key == "" {
+		http.NotFound(w, r)
+		return
+	}
+
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	tags := ms.tags[resource]
+	for i, existing := range tags {
+		if existing.Key == strings.ToLower(key) {
+			ms.tags[resource] = append(tags[:i:i], tags[i+1:]...)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+	}
+
+	writeTagError(w, http.StatusNotFound, "not_found", "tag not found")
+}
+
+func writeTagError(w http.ResponseWriter, status int, code, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	writeJSON(w, map[string]string{"code": code, "message": message})
+}
+
 func writeJSON(w http.ResponseWriter, v interface{}) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("mock server: failed to encode JSON response: %v", err)

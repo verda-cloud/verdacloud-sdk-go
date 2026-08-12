@@ -63,6 +63,7 @@ type Cluster struct {
 	LongTermPeriod    *string               `json:"long_term_period,omitempty"`
 	WorkerNodes       []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
 	SharedVolumes     []ClusterSharedVolume `json:"shared_volumes,omitempty"`
+	Tags              []Tag                 `json:"tags"`
 }
 
 // ClusterSharedVolumeSpec represents the shared volume specification for cluster creation
@@ -91,6 +92,8 @@ type CreateClusterRequest struct {
 	ExtensionSettings *string                 `json:"extension_settings,omitempty"`
 	SharedVolume      ClusterSharedVolumeSpec `json:"shared_volume"`
 	ExistingVolumes   []ClusterExistingVolume `json:"existing_volumes,omitempty"`
+	// Tags are key-value tags applied to the new cluster. Maximum 10.
+	Tags []TagRequest `json:"tags,omitempty"`
 }
 
 // CreateClusterResponse represents the response from creating a cluster
@@ -165,6 +168,7 @@ func (r CreateClusterRequest) Validate() error {
 		validation.Field(&r.SharedVolume, validation.Required),
 		validation.Field(&r.Contract,
 			validation.In("PAY_AS_YOU_GO", "LONG_TERM")),
+		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
 	)
 }
 

@@ -207,3 +207,17 @@ func (s *VolumeService) RenameVolume(ctx context.Context, volumeID string, req V
 	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err
 }
+
+// AddTag adds a single key-value tag to a volume. Maximum 10 tags per volume.
+// Leave req.Value empty for a freeform tag.
+//
+// Keys are lowercased by the API. Adding a key that already exists returns an
+// *APIError with StatusCode 409 — delete the tag first to change its value.
+func (s *VolumeService) AddTag(ctx context.Context, volumeID string, req TagRequest) (*Tag, error) {
+	return addResourceTag(ctx, s.client, "/volumes", volumeID, req)
+}
+
+// DeleteTag removes the tag with the given key from a volume.
+func (s *VolumeService) DeleteTag(ctx context.Context, volumeID, key string) error {
+	return deleteResourceTag(ctx, s.client, "/volumes", volumeID, key)
+}

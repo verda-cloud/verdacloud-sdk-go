@@ -260,3 +260,17 @@ func (s *InstanceService) Transfer(ctx context.Context, ids ...string) error {
 	_, err := s.Action(ctx, InstanceActionRequest{Action: ActionTransfer, ID: ids})
 	return err
 }
+
+// AddTag adds a single key-value tag to an instance. Maximum 10 tags per instance.
+// Leave req.Value empty for a freeform tag.
+//
+// Keys are lowercased by the API. Adding a key that already exists returns an
+// *APIError with StatusCode 409 — delete the tag first to change its value.
+func (s *InstanceService) AddTag(ctx context.Context, instanceID string, req TagRequest) (*Tag, error) {
+	return addResourceTag(ctx, s.client, "/instances", instanceID, req)
+}
+
+// DeleteTag removes the tag with the given key from an instance.
+func (s *InstanceService) DeleteTag(ctx context.Context, instanceID, key string) error {
+	return deleteResourceTag(ctx, s.client, "/instances", instanceID, key)
+}
