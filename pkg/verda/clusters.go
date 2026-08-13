@@ -138,3 +138,17 @@ func (s *ClusterService) GetImages(ctx context.Context) ([]ClusterImage, error) 
 
 	return images, nil
 }
+
+// AddTag adds a single key-value tag to a cluster. Maximum 10 tags per cluster.
+// Leave req.Value empty for a freeform tag.
+//
+// Keys are lowercased by the API. Adding a key that already exists returns an
+// *APIError with StatusCode 409 — delete the tag first to change its value.
+func (s *ClusterService) AddTag(ctx context.Context, clusterID string, req TagRequest) (*Tag, error) {
+	return addResourceTag(ctx, s.client, "/clusters", clusterID, req)
+}
+
+// DeleteTag removes the tag with the given key from a cluster.
+func (s *ClusterService) DeleteTag(ctx context.Context, clusterID, key string) error {
+	return deleteResourceTag(ctx, s.client, "/clusters", clusterID, key)
+}

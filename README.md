@@ -150,6 +150,63 @@ volumes, err := client.Volumes.Get(ctx)
 volume, err := client.Volumes.GetByID(ctx, "volume_id")
 ```
 
+### Tags
+
+Instances, volumes and clusters can carry up to 10 key-value tags each. Keys are lowercased by the
+API, and a tag with no value is a "freeform" tag.
+
+```go
+// Tag a resource at creation time
+instance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
+    InstanceType: "1V100.6V",
+    Image:        "ubuntu-24.04-cuda-12.8-open-docker",
+    Hostname:     "my-instance",
+    Description:  "Tagged instance",
+    Tags: []verda.TagRequest{
+        {Key: "environment", Value: "production"},
+        {Key: "benchmark"}, // freeform tag, no value
+    },
+})
+
+// Add a tag to an existing resource
+tag, err := client.Instances.AddTag(ctx, instance.ID, verda.TagRequest{
+    Key:   "team",
+    Value: "platform",
+})
+
+// The same methods exist on volumes and clusters
+_, err = client.Volumes.AddTag(ctx, volumeID, verda.TagRequest{Key: "environment", Value: "test"})
+_, err = client.Clusters.AddTag(ctx, clusterID, verda.TagRequest{Key: "environment", Value: "test"})
+
+// Remove a tag by key
+err = client.Instances.DeleteTag(ctx, instance.ID, "team")
+```
+
+Tags are returned on the resource itself:
+
+```go
+instance, err := client.Instances.GetByID(ctx, instanceID)
+for _, tag := range instance.Tags {
+    fmt.Printf("%s=%s (%s)\n", tag.Key, tag.Value, tag.ID)
+}
+```
+
+There is no update endpoint. Adding a key that already exists returns a `*verda.APIError` with
+`StatusCode` 409, so changing a value means deleting the tag first:
+
+```go
+if _, err := client.Instances.AddTag(ctx, instanceID, tagReq); err != nil {
+    var apiErr *verda.APIError
+    if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusConflict {
+        if err := client.Instances.DeleteTag(ctx, instanceID, tagReq.Key); err != nil {
+            return err
+        }
+        _, err = client.Instances.AddTag(ctx, instanceID, tagReq)
+    }
+    return err
+}
+```
+
 ### Other Services
 
 ```go

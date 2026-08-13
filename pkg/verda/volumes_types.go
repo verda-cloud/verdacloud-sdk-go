@@ -29,6 +29,13 @@ type VolumeCreateRequest struct {
 	OnSpotDiscontinue string   `json:"on_spot_discontinue,omitempty"`
 	InstanceID        string   `json:"instance_id,omitempty"`
 	InstanceIDs       []string `json:"instance_ids,omitempty"`
+	// Tags are key-value tags applied to the new volume. Maximum 10.
+	//
+	// Only honoured when creating a volume directly via CreateVolume. This type is
+	// also reused for volumes nested inside CreateInstanceRequest, where the API
+	// does not accept tags — tag those volumes with AddTag after the instance is
+	// created.
+	Tags []TagRequest `json:"tags,omitempty"`
 }
 
 // VolumeAttachRequest represents a request to attach a volume to an instance
@@ -114,6 +121,7 @@ type Volume struct {
 	MonthlyPrice             float64                  `json:"monthly_price"`
 	Currency                 string                   `json:"currency"`
 	LongTerm                 *VolumeLongTerm          `json:"long_term"`
+	Tags                     []Tag                    `json:"tags"`
 }
 
 // VolumeInTrash represents a volume that has been moved to trash
@@ -136,6 +144,7 @@ type VolumeInTrash struct {
 	MonthlyPrice         float64                  `json:"monthly_price"`
 	Currency             string                   `json:"currency"`
 	IsPermanentlyDeleted bool                     `json:"is_permanently_deleted"`
+	Tags                 []Tag                    `json:"tags"`
 }
 
 // Volume type constants
@@ -185,6 +194,7 @@ func (r VolumeCreateRequest) Validate() error {
 			validation.In(VolumeTypeHDD, VolumeTypeNVMe, VolumeTypeHDDShared,
 				VolumeTypeNVMeShared, VolumeTypeNVMeLocalStorage,
 				VolumeTypeNVMeSharedCluster, VolumeTypeNVMeOSCluster)),
+		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
 	)
 }
 

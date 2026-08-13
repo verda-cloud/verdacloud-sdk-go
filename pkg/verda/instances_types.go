@@ -69,6 +69,7 @@ type Instance struct {
 	Contract        string          `json:"contract"`
 	Pricing         string          `json:"pricing"`
 	VolumeIDs       []string        `json:"volume_ids"`
+	Tags            []Tag           `json:"tags"`
 }
 
 // CreateInstanceRequest represents the request to create an instance
@@ -87,6 +88,8 @@ type CreateInstanceRequest struct {
 	OSVolume        *OSVolumeCreateRequest `json:"os_volume,omitempty"`
 	IsSpot          bool                   `json:"is_spot,omitempty"`
 	Coupon          *string                `json:"coupon,omitempty"`
+	// Tags are key-value tags applied to the new instance. Maximum 10.
+	Tags []TagRequest `json:"tags,omitempty"`
 }
 
 // OSVolumeCreateRequest represents OS volume configuration
@@ -166,6 +169,7 @@ func (r CreateInstanceRequest) Validate() error {
 			validation.In("LONG_TERM", "PAY_AS_YOU_GO", "SPOT")),
 		validation.Field(&r.OSVolume),
 		validation.Field(&r.Volumes),
+		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
 	)
 }
 
