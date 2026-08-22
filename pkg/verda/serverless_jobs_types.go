@@ -23,9 +23,10 @@ import (
 
 // JobDeploymentShortInfo represents summary information about a job deployment
 type JobDeploymentShortInfo struct {
-	Name      string            `json:"name"`
-	CreatedAt time.Time         `json:"created_at"`
-	Compute   *ContainerCompute `json:"compute"`
+	Name            string            `json:"name"`
+	CreatedAt       time.Time         `json:"created_at"`
+	Compute         *ContainerCompute `json:"compute"`
+	CreatedByUserID string            `json:"created_by_user_id"`
 }
 
 // JobDeployment represents a complete serverless job deployment
@@ -37,6 +38,7 @@ type JobDeployment struct {
 	Compute                   *ContainerCompute          `json:"compute"`
 	ContainerRegistrySettings *ContainerRegistrySettings `json:"container_registry_settings"`
 	Scaling                   *JobScalingOptions         `json:"scaling,omitempty"`
+	CreatedByUserID           string                     `json:"created_by_user_id"`
 }
 
 // CreateJobDeploymentRequest represents a request to create a new job deployment
