@@ -48,6 +48,13 @@ type VolumeDetachRequest struct {
 	InstanceID string `json:"instance_id"`
 }
 
+// DeleteVolumeRequest is the body for DELETE /volumes/{id}. IsPermanent must be
+// sent explicitly — the API defaults it to false, which is a soft delete into
+// trash, so it deliberately carries no omitempty tag.
+type DeleteVolumeRequest struct {
+	IsPermanent bool `json:"is_permanent"`
+}
+
 // VolumeActionRequest represents an action to perform on volumes
 type VolumeActionRequest struct {
 	ID           string   `json:"id"`

@@ -257,26 +257,50 @@ func TestVolumeService_DeleteVolume(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
-	// Set up mock response for volume deletion
+	// The permanence flag belongs in the request body as is_permanent, not in the
+	// query string. Capture both so the test fails if it ever moves back.
+	var gotBody map[string]interface{}
+	var gotQuery string
 	mockServer.SetHandler(http.MethodDelete, "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
+		gotBody = nil
+		gotQuery = r.URL.RawQuery
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	t.Run("delete volume", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.Volumes.DeleteVolume(ctx, "vol_123", false)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	tests := []struct {
+		name        string
+		isPermanent bool
+	}{
+		{"soft delete sends is_permanent false", false},
+		{"permanent delete sends is_permanent true", true},
+	}
 
-	t.Run("delete volume with force", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.Volumes.DeleteVolume(ctx, "vol_123", true)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			err := client.Volumes.DeleteVolume(ctx, "vol_123", tt.isPermanent)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if gotBody == nil {
+				t.Fatal("expected a request body, got none")
+			}
+
+			isPermanent, ok := gotBody["is_permanent"]
+			if !ok {
+				t.Fatalf("request body is missing is_permanent: %v", gotBody)
+			}
+			if isPermanent != tt.isPermanent {
+				t.Errorf("expected is_permanent %v, got %v", tt.isPermanent, isPermanent)
+			}
+
+			if gotQuery != "" {
+				t.Errorf("expected no query parameters, got %q", gotQuery)
+			}
+		})
+	}
 }
 
 func TestVolumeService_AttachVolume(t *testing.T) {

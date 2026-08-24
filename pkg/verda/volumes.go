@@ -99,13 +99,15 @@ func (s *VolumeService) GetVolumesInTrash(ctx context.Context) ([]VolumeInTrash,
 	return volumes, nil
 }
 
-func (s *VolumeService) DeleteVolume(ctx context.Context, id string, force bool) error {
+// DeleteVolume deletes a volume. When isPermanent is false the volume is moved
+// to trash and CONTINUES TO BE BILLED (monthly_price stays non-zero) until it is
+// permanently removed — use RestoreVolume to bring it back. Pass true to delete
+// it outright.
+func (s *VolumeService) DeleteVolume(ctx context.Context, id string, isPermanent bool) error {
 	path := fmt.Sprintf("/volumes/%s", id)
-	if force {
-		path += "?force=true"
-	}
+	req := DeleteVolumeRequest{IsPermanent: isPermanent}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err := deleteRequestWithBody(ctx, s.client, path, req)
 	return err
 }
 
