@@ -426,9 +426,11 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 	client := NewTestClient(mockServer)
 
 	// Set up mock response for volume clone using PUT /volumes with action
+	var gotBody map[string]interface{}
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
 		var actionReq map[string]interface{}
 		_ = json.NewDecoder(r.Body).Decode(&actionReq)
+		gotBody = actionReq
 
 		action, _ := actionReq["action"].(string)
 		if action == VolumeActionClone {
@@ -457,11 +459,35 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 		ctx := context.Background()
 		newVolumeID, err := client.Volumes.CloneVolume(ctx, "vol_123", req)
 		if err != nil {
-			t.Errorf("unexpected error: %v", err)
+			t.Fatalf("unexpected error: %v", err)
 		}
 
 		if newVolumeID != "vol_cloned_456" {
 			t.Errorf("expected volume ID 'vol_cloned_456', got '%s'", newVolumeID)
+		}
+
+		// The target location goes in location_code. It used to be sent as "type",
+		// which the API rejects with a bare 400, and which would silently ask for a
+		// volume type change instead of a cross-location clone.
+		if got := gotBody["location_code"]; got != LocationFIN03 {
+			t.Errorf("expected location_code %q, got %v", LocationFIN03, got)
+		}
+
+		if got, ok := gotBody["type"]; ok {
+			t.Errorf("expected no type field in clone request, got %v", got)
+		}
+	})
+
+	t.Run("clone volume without location", func(t *testing.T) {
+		ctx := context.Background()
+		if _, err := client.Volumes.CloneVolume(ctx, "vol_123", VolumeCloneRequest{Name: "Cloned Volume"}); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		// An empty LocationCode is omitempty, so the clone stays in the source
+		// volume's location rather than asking the API for location "".
+		if got, ok := gotBody["location_code"]; ok {
+			t.Errorf("expected no location_code field, got %v", got)
 		}
 	})
 }

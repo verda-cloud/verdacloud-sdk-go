@@ -139,16 +139,25 @@ func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req V
 	return err
 }
 
-// CloneVolume clones a volume and returns the new volume ID
+// CloneVolume clones a volume and returns the new volume ID. The clone inherits
+// the source volume's type; set req.LocationCode to clone into a different
+// location, which the API performs asynchronously (the destination volume starts
+// out with status "cloning").
+//
+// Shared filesystems cannot be cloned — the API rejects those with
+// "Shared volumes cannot be cloned".
 func (s *VolumeService) CloneVolume(ctx context.Context, volumeID string, req VolumeCloneRequest) (string, error) {
 	if err := req.Validate(); err != nil {
 		return "", err
 	}
+	// Type is deliberately left unset: it selects the target volume type, not the
+	// target location, and an unset (omitempty) type makes the clone inherit the
+	// source volume's type.
 	actionReq := VolumeActionRequest{
-		ID:     volumeID,
-		Action: VolumeActionClone,
-		Name:   req.Name,
-		Type:   req.LocationCode, // Note: Python SDK uses 'type' field for location
+		ID:           volumeID,
+		Action:       VolumeActionClone,
+		Name:         req.Name,
+		LocationCode: req.LocationCode,
 	}
 
 	resp, err := s.client.makeRequest(ctx, http.MethodPut, "/volumes", actionReq)
