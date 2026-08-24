@@ -142,7 +142,8 @@ func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req V
 // CloneVolume clones a volume and returns the new volume ID. The clone inherits
 // the source volume's type; set req.LocationCode to clone into a different
 // location, which the API performs asynchronously (the destination volume starts
-// out with status "cloning").
+// out with status "cloning"). Cancel an in-flight clone with CancelVolumeAction
+// on the returned ID.
 //
 // Shared filesystems cannot be cloned — the API rejects those with
 // "Shared volumes cannot be cloned".
@@ -201,6 +202,30 @@ func (s *VolumeService) ResizeVolume(ctx context.Context, volumeID string, req V
 		ID:     volumeID,
 		Action: VolumeActionResize,
 		Size:   req.Size,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
+	return err
+}
+
+// RestoreVolume brings a soft-deleted volume back out of trash. Volumes deleted
+// with DeleteVolume(ctx, id, false) can be restored; permanently deleted ones
+// cannot.
+func (s *VolumeService) RestoreVolume(ctx context.Context, volumeID string) error {
+	actionReq := VolumeActionRequest{
+		ID:     volumeID,
+		Action: VolumeActionRestore,
+	}
+	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
+	return err
+}
+
+// CancelVolumeAction interrupts an in-flight volume action. For a cross-location
+// clone, pass the DESTINATION volume ID returned by CloneVolume — the partially
+// cloned volume is then discarded rather than moved to trash.
+func (s *VolumeService) CancelVolumeAction(ctx context.Context, volumeID string) error {
+	actionReq := VolumeActionRequest{
+		ID:     volumeID,
+		Action: VolumeActionCancel,
 	}
 	_, err := putRequestAllowEmptyResponse(ctx, s.client, "/volumes", actionReq)
 	return err

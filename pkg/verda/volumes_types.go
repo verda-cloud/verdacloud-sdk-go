@@ -182,14 +182,19 @@ const (
 	VolumeStatusCanceling = "canceling"
 )
 
-// Volume action constants
+// Volume action constants - the full set accepted by PUT /volumes
 const (
-	VolumeActionAttach = "attach"
-	VolumeActionDetach = "detach"
-	VolumeActionRename = "rename"
-	VolumeActionResize = "resize"
-	VolumeActionDelete = "delete"
-	VolumeActionClone  = "clone"
+	VolumeActionAttach   = "attach"
+	VolumeActionDetach   = "detach"
+	VolumeActionRename   = "rename"
+	VolumeActionResize   = "resize"
+	VolumeActionDelete   = "delete"
+	VolumeActionClone    = "clone"
+	VolumeActionRestore  = "restore"
+	VolumeActionCancel   = "cancel"
+	VolumeActionExport   = "export"
+	VolumeActionTransfer = "transfer"
+	VolumeActionCreate   = "create"
 )
 
 // Validate validates the VolumeCreateRequest fields

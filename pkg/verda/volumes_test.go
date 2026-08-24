@@ -492,6 +492,58 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 	})
 }
 
+func TestVolumeService_RestoreVolume(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	var gotBody map[string]interface{}
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	ctx := context.Background()
+	if err := client.Volumes.RestoreVolume(ctx, "vol_123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := gotBody["action"]; got != VolumeActionRestore {
+		t.Errorf("expected action %q, got %v", VolumeActionRestore, got)
+	}
+
+	if got := gotBody["id"]; got != "vol_123" {
+		t.Errorf("expected id 'vol_123', got %v", got)
+	}
+}
+
+func TestVolumeService_CancelVolumeAction(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	var gotBody map[string]interface{}
+	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	ctx := context.Background()
+	if err := client.Volumes.CancelVolumeAction(ctx, "vol_cloned_456"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if got := gotBody["action"]; got != VolumeActionCancel {
+		t.Errorf("expected action %q, got %v", VolumeActionCancel, got)
+	}
+
+	if got := gotBody["id"]; got != "vol_cloned_456" {
+		t.Errorf("expected id 'vol_cloned_456', got %v", got)
+	}
+}
+
 func TestVolumeService_ResizeVolume(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
