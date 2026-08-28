@@ -48,6 +48,13 @@ type VolumeDetachRequest struct {
 	InstanceID string `json:"instance_id"`
 }
 
+// DeleteVolumeRequest is the body for DELETE /volumes/{id}. IsPermanent must be
+// sent explicitly — the API defaults it to false, which is a soft delete into
+// trash, so it deliberately carries no omitempty tag.
+type DeleteVolumeRequest struct {
+	IsPermanent bool `json:"is_permanent"`
+}
+
 // VolumeActionRequest represents an action to perform on volumes
 type VolumeActionRequest struct {
 	ID           string   `json:"id"`
@@ -175,14 +182,19 @@ const (
 	VolumeStatusCanceling = "canceling"
 )
 
-// Volume action constants
+// Volume action constants - the full set accepted by PUT /volumes
 const (
-	VolumeActionAttach = "attach"
-	VolumeActionDetach = "detach"
-	VolumeActionRename = "rename"
-	VolumeActionResize = "resize"
-	VolumeActionDelete = "delete"
-	VolumeActionClone  = "clone"
+	VolumeActionAttach   = "attach"
+	VolumeActionDetach   = "detach"
+	VolumeActionRename   = "rename"
+	VolumeActionResize   = "resize"
+	VolumeActionDelete   = "delete"
+	VolumeActionClone    = "clone"
+	VolumeActionRestore  = "restore"
+	VolumeActionCancel   = "cancel"
+	VolumeActionExport   = "export"
+	VolumeActionTransfer = "transfer"
+	VolumeActionCreate   = "create"
 )
 
 // Validate validates the VolumeCreateRequest fields

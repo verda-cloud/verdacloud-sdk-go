@@ -26,6 +26,7 @@ type Location struct {
 // Location constants
 const (
 	LocationFIN01 = "FIN-01"
+	LocationFIN02 = "FIN-02"
 	LocationFIN03 = "FIN-03"
 )
 

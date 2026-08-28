@@ -542,4 +542,8 @@ func TestVolumeClone_Integration(t *testing.T) {
 	if clonedVolume.Type != "NVMe" {
 		t.Errorf("expected cloned volume type 'NVMe', got '%s'", clonedVolume.Type)
 	}
+
+	if clonedVolume.Location != verda.LocationFIN03 {
+		t.Errorf("expected cloned volume location '%s', got '%s'", verda.LocationFIN03, clonedVolume.Location)
+	}
 }
