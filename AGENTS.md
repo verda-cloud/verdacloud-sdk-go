@@ -130,6 +130,7 @@ Quick reference for navigating the codebase:
 | Cross-domain types | `pkg/verda/types.go` |
 | Shared validation helpers | `pkg/verda/validation.go` |
 | Service example | `pkg/verda/instances.go` + `instances_types.go` |
+| Nested-resource service example | `pkg/verda/private_networks.go` + `private_networks_types.go` |
 | Test helpers | `pkg/verda/test_helpers.go`, `testutil/mock_server.go` |
 | Integration test helpers | `test/integration/helpers.go` |
 | Usage example | `example/main.go` |

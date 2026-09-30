@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"fmt"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -43,33 +44,37 @@ type InstanceStorage struct {
 	Description string `json:"description"`
 }
 
-// Instance represents a Verda instance
+// Instance represents a Verda instance.
+// PrivateIP, PrivateNetworkID and SubnetID are nil for classic (non-VPC) instances.
 type Instance struct {
-	ID              string          `json:"id"`
-	IP              *string         `json:"ip"`
-	Status          string          `json:"status"`
-	CreatedAt       time.Time       `json:"created_at"`
-	CPU             InstanceCPU     `json:"cpu"`
-	GPU             InstanceGPU     `json:"gpu"`
-	GPUMemory       InstanceMemory  `json:"gpu_memory"`
-	Memory          InstanceMemory  `json:"memory"`
-	Storage         InstanceStorage `json:"storage"`
-	Hostname        string          `json:"hostname"`
-	Description     string          `json:"description"`
-	Location        string          `json:"location"`
-	PricePerHour    FlexibleFloat   `json:"price_per_hour"`
-	IsSpot          bool            `json:"is_spot"`
-	InstanceType    string          `json:"instance_type"`
-	Image           string          `json:"image"`
-	OSName          string          `json:"os_name"`
-	StartupScriptID *string         `json:"startup_script_id"`
-	SSHKeyIDs       []string        `json:"ssh_key_ids"`
-	OSVolumeID      *string         `json:"os_volume_id"`
-	JupyterToken    string          `json:"jupyter_token"`
-	Contract        string          `json:"contract"`
-	Pricing         string          `json:"pricing"`
-	VolumeIDs       []string        `json:"volume_ids"`
-	Tags            []Tag           `json:"tags"`
+	ID               string          `json:"id"`
+	IP               *string         `json:"ip"`
+	PrivateIP        *string         `json:"private_ip"`
+	PrivateNetworkID *string         `json:"private_network_id"`
+	SubnetID         *string         `json:"subnet_id"`
+	Status           string          `json:"status"`
+	CreatedAt        time.Time       `json:"created_at"`
+	CPU              InstanceCPU     `json:"cpu"`
+	GPU              InstanceGPU     `json:"gpu"`
+	GPUMemory        InstanceMemory  `json:"gpu_memory"`
+	Memory           InstanceMemory  `json:"memory"`
+	Storage          InstanceStorage `json:"storage"`
+	Hostname         string          `json:"hostname"`
+	Description      string          `json:"description"`
+	Location         string          `json:"location"`
+	PricePerHour     FlexibleFloat   `json:"price_per_hour"`
+	IsSpot           bool            `json:"is_spot"`
+	InstanceType     string          `json:"instance_type"`
+	Image            string          `json:"image"`
+	OSName           string          `json:"os_name"`
+	StartupScriptID  *string         `json:"startup_script_id"`
+	SSHKeyIDs        []string        `json:"ssh_key_ids"`
+	OSVolumeID       *string         `json:"os_volume_id"`
+	JupyterToken     string          `json:"jupyter_token"`
+	Contract         string          `json:"contract"`
+	Pricing          string          `json:"pricing"`
+	VolumeIDs        []string        `json:"volume_ids"`
+	Tags             []Tag           `json:"tags"`
 }
 
 // CreateInstanceRequest represents the request to create an instance
@@ -88,6 +93,17 @@ type CreateInstanceRequest struct {
 	OSVolume        *OSVolumeCreateRequest `json:"os_volume,omitempty"`
 	IsSpot          bool                   `json:"is_spot,omitempty"`
 	Coupon          *string                `json:"coupon,omitempty"`
+	// Network and Subnet select the private network attachment for the instance.
+	// Omitting both takes the project's default network and its default subnet
+	// in the instance's location when the IPs request a private network.
+	Network string `json:"network,omitempty"`
+	Subnet  string `json:"subnet,omitempty"`
+	// PrivateIP and PublicIP must be set together or not at all: IPAllocAuto,
+	// IPAllocNone, or a literal IPv4 (see IPAllocIPv4). PublicIP may only be
+	// IPAllocNone when a private address is assigned. Both omitted means
+	// platform default.
+	PrivateIP *IPAllocation `json:"private_ip,omitempty"`
+	PublicIP  *IPAllocation `json:"public_ip,omitempty"`
 	// Tags are key-value tags applied to the new instance. Maximum 10.
 	Tags []TagRequest `json:"tags,omitempty"`
 }
@@ -160,7 +176,7 @@ const (
 
 // Validate validates the CreateInstanceRequest fields
 func (r CreateInstanceRequest) Validate() error {
-	return validation.ValidateStruct(&r,
+	err := validation.ValidateStruct(&r,
 		validation.Field(&r.InstanceType, validation.Required),
 		validation.Field(&r.Image, validation.Required),
 		validation.Field(&r.Hostname, validation.Required),
@@ -171,6 +187,33 @@ func (r CreateInstanceRequest) Validate() error {
 		validation.Field(&r.Volumes),
 		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
 	)
+	if err != nil {
+		return err
+	}
+
+	return r.validateNetworkFields()
+}
+
+// validateNetworkFields enforces the API's private/public IP pairing rules
+func (r CreateInstanceRequest) validateNetworkFields() error {
+	if (r.PrivateIP == nil) != (r.PublicIP == nil) {
+		return fmt.Errorf("private_ip and public_ip must be set together when either is set")
+	}
+
+	for _, alloc := range []*IPAllocation{r.PrivateIP, r.PublicIP} {
+		if alloc == nil {
+			continue
+		}
+		if err := alloc.Validate(); err != nil {
+			return err
+		}
+	}
+
+	if r.PrivateIP != nil && *r.PrivateIP == IPAllocNone && *r.PublicIP == IPAllocNone {
+		return fmt.Errorf("private_ip and public_ip cannot both be %q", IPAllocNone)
+	}
+
+	return nil
 }
 
 // Validate validates the OSVolumeCreateRequest fields

@@ -207,6 +207,47 @@ if _, err := client.Instances.AddTag(ctx, instanceID, tagReq); err != nil {
 }
 ```
 
+### Private Networks
+
+```go
+ctx := context.Background()
+
+// Create a network, then a subnet in a location
+network, err := client.PrivateNetworks.Create(ctx, verda.CreatePrivateNetworkRequest{
+    Name: "prod-net",
+    Mode: verda.NetworkModeCustom, // or verda.NetworkModeAuto: subnets per location on first use
+})
+subnet, err := client.PrivateNetworks.CreateSubnet(ctx, network.ID, verda.CreateSubnetRequest{
+    LocationCode: "FIN-01",
+    Name:         "workers",
+    CIDR:         "10.0.0.0/24",
+})
+
+// Route the subnet's internet traffic through an instance (must have a public IP)
+route, err := client.PrivateNetworks.CreateRoute(ctx, network.ID, subnet.ID, verda.CreateRouteRequest{
+    Destination: "0.0.0.0/0",
+    InstanceID:  instanceID,
+})
+
+// Deploy an instance onto the network
+private, public := verda.IPAllocAuto, verda.IPAllocAuto
+instance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
+    InstanceType: "CPU.4V.16G",
+    Image:        "ubuntu-24.04",
+    Hostname:     "vpc-worker",
+    Description:  "worker on prod-net",
+    LocationCode: "FIN-01",
+    Network:      network.ID, // or Subnet: subnet.ID
+    PrivateIP:    &private,   // IPAllocAuto, IPAllocNone, or verda.IPAllocIPv4("10.0.0.5")
+    PublicIP:     &public,    // must be set together with PrivateIP
+})
+```
+
+`private_ip` and `public_ip` must be set together: `auto` allocates an address, `none` means
+none (a public `none` requires a private address), or pass a literal IPv4 your project holds.
+Omitting both fields gives the platform default. Instance responses
+expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
+
 ### Other Services
 
 ```go

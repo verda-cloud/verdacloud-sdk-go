@@ -23,6 +23,8 @@ package verda
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/netip"
 	"strconv"
 )
 
@@ -62,3 +64,36 @@ func (f FlexibleFloat) MarshalJSON() ([]byte, error) {
 func (f FlexibleFloat) Float64() float64 {
 	return float64(f)
 }
+
+// IPAllocation is an IP assignment directive for instance creation:
+// IPAllocAuto, IPAllocNone, or a literal IPv4 address.
+type IPAllocation string
+
+const (
+	IPAllocAuto IPAllocation = "auto"
+	IPAllocNone IPAllocation = "none"
+)
+
+// IPAllocIPv4 wraps a literal IPv4 address, validating its format.
+func IPAllocIPv4(ip string) (IPAllocation, error) {
+	addr, err := netip.ParseAddr(ip)
+	if err != nil || !addr.Is4() {
+		return "", fmt.Errorf("invalid IPv4 address: %q", ip)
+	}
+	return IPAllocation(ip), nil
+}
+
+// Validate checks the value is "auto", "none", or a valid IPv4 address.
+func (a IPAllocation) Validate() error {
+	switch a {
+	case IPAllocAuto, IPAllocNone:
+		return nil
+	}
+	addr, err := netip.ParseAddr(string(a))
+	if err != nil || !addr.Is4() {
+		return fmt.Errorf("must be %q, %q, or a valid IPv4 address, got %q", IPAllocAuto, IPAllocNone, string(a))
+	}
+	return nil
+}
+
+func (a IPAllocation) String() string { return string(a) }

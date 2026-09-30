@@ -58,6 +58,7 @@ type Client struct {
 	ContainerTypes       *ContainerTypesService
 	Clusters             *ClusterService
 	LongTerm             *LongTermService
+	PrivateNetworks      *PrivateNetworkService
 	ContainerDeployments *ContainerDeploymentsService
 	ServerlessJobs       *ServerlessJobsService
 }
@@ -112,6 +113,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.ContainerTypes = &ContainerTypesService{client: client}
 	client.Clusters = &ClusterService{client: client}
 	client.LongTerm = &LongTermService{client: client}
+	client.PrivateNetworks = &PrivateNetworkService{client: client}
 	client.ContainerDeployments = &ContainerDeploymentsService{client: client}
 	client.ServerlessJobs = &ServerlessJobsService{client: client}
 
