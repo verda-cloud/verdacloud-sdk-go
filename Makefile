@@ -78,7 +78,7 @@ security: ## Run security checks (gosec + govulncheck)
 	@echo "  2. Running govulncheck..."
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "    Installing govulncheck..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+		go install golang.org/x/vuln/cmd/govulncheck@v1.7.0; \
 	fi
 	@govulncheck ./...
 	@echo "✓ Security checks complete!"
