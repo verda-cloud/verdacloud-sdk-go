@@ -197,7 +197,7 @@ func (r CreateInstanceRequest) Validate() error {
 // validateNetworkFields enforces the API's private/public IP pairing rules
 func (r CreateInstanceRequest) validateNetworkFields() error {
 	if (r.PrivateIP == nil) != (r.PublicIP == nil) {
-		return fmt.Errorf("private_ip and public_ip must be set together when either is set")
+		return fmt.Errorf("private_ip and public_ip must both be set (or both omitted); to skip one address, set it to %q and the other to %q or an IPv4 address", IPAllocNone, IPAllocAuto)
 	}
 
 	for _, alloc := range []*IPAllocation{r.PrivateIP, r.PublicIP} {

@@ -209,6 +209,9 @@ if _, err := client.Instances.AddTag(ctx, instanceID, tagReq); err != nil {
 
 ### Private Networks
 
+> **Experimental**: Private network support is experimental. The API and the SDK types for it
+> may change in backwards-incompatible ways.
+
 ```go
 ctx := context.Background()
 
