@@ -177,6 +177,142 @@ func TestInstanceService_Create(t *testing.T) {
 			t.Errorf("expected 2 SSH keys, got %d", len(instance.SSHKeyIDs))
 		}
 	})
+
+	t.Run("create instance on private network", func(t *testing.T) {
+		privateIP := IPAllocAuto
+		publicIP := IPAllocAuto
+		req := CreateInstanceRequest{
+			InstanceType: "CPU.4V.16G",
+			Image:        "ubuntu-24.04",
+			Hostname:     "vpc-instance",
+			Description:  "instance on a private network",
+			Network:      "pn_123",
+			Subnet:       "sn_123",
+			PrivateIP:    &privateIP,
+			PublicIP:     &publicIP,
+		}
+
+		ctx := context.Background()
+		instance, err := client.Instances.Create(ctx, req)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if instance == nil {
+			t.Fatal("expected instance, got nil")
+		}
+
+		if instance.PrivateIP == nil || *instance.PrivateIP != "10.0.0.5" {
+			t.Errorf("expected assigned private IP 10.0.0.5, got %v", instance.PrivateIP)
+		}
+
+		if instance.PrivateNetworkID == nil || *instance.PrivateNetworkID != "pn_123" {
+			t.Errorf("expected private network pn_123, got %v", instance.PrivateNetworkID)
+		}
+
+		if instance.SubnetID == nil || *instance.SubnetID != "sn_123" {
+			t.Errorf("expected subnet sn_123, got %v", instance.SubnetID)
+		}
+	})
+
+	t.Run("create instance with literal IPs", func(t *testing.T) {
+		privateIP, err := IPAllocIPv4("10.0.0.7")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		publicIP, err := IPAllocIPv4("203.0.113.10")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		req := CreateInstanceRequest{
+			InstanceType: "CPU.4V.16G",
+			Image:        "ubuntu-24.04",
+			Hostname:     "vpc-static",
+			Description:  "instance with literal IPs",
+			PrivateIP:    &privateIP,
+			PublicIP:     &publicIP,
+		}
+
+		ctx := context.Background()
+		instance, err := client.Instances.Create(ctx, req)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if instance.PrivateIP == nil || *instance.PrivateIP != "10.0.0.7" {
+			t.Errorf("expected private IP 10.0.0.7, got %v", instance.PrivateIP)
+		}
+	})
+
+	t.Run("create instance without public IP", func(t *testing.T) {
+		privateIP := IPAllocAuto
+		publicIP := IPAllocNone
+		req := CreateInstanceRequest{
+			InstanceType: "CPU.4V.16G",
+			Image:        "ubuntu-24.04",
+			Hostname:     "vpc-private-only",
+			Description:  "instance without a public address",
+			PrivateIP:    &privateIP,
+			PublicIP:     &publicIP,
+		}
+
+		ctx := context.Background()
+		instance, err := client.Instances.Create(ctx, req)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if instance.IP != nil {
+			t.Errorf("expected no public IP, got %v", *instance.IP)
+		}
+
+		if instance.PrivateIP == nil {
+			t.Error("expected assigned private IP")
+		}
+	})
+
+	t.Run("network field validation", func(t *testing.T) {
+		privateIP := IPAllocAuto
+		publicIP := IPAllocNone
+		bogusIP := IPAllocation("999.1.1.1")
+
+		base := CreateInstanceRequest{
+			InstanceType: "CPU.4V.16G",
+			Image:        "ubuntu-24.04",
+			Hostname:     "vpc-invalid",
+			Description:  "invalid network config",
+		}
+
+		ctx := context.Background()
+
+		onlyPrivate := base
+		onlyPrivate.PrivateIP = &privateIP
+		if _, err := client.Instances.Create(ctx, onlyPrivate); err == nil {
+			t.Error("expected error when only private_ip is set")
+		}
+
+		onlyPublic := base
+		onlyPublic.PublicIP = &privateIP
+		if _, err := client.Instances.Create(ctx, onlyPublic); err == nil {
+			t.Error("expected error when only public_ip is set")
+		}
+
+		bothNone := base
+		noneIP := IPAllocNone
+		bothNone.PrivateIP = &noneIP
+		bothNone.PublicIP = &publicIP
+		if _, err := client.Instances.Create(ctx, bothNone); err == nil {
+			t.Error("expected error when both IPs are \"none\"")
+		}
+
+		badFormat := base
+		badFormat.PrivateIP = &bogusIP
+		badFormat.PublicIP = &privateIP
+		if _, err := client.Instances.Create(ctx, badFormat); err == nil {
+			t.Error("expected error for malformed IP allocation")
+		}
+	})
 }
 
 func TestInstanceService_CreateSpotWithDiscontinuePolicy(t *testing.T) {
