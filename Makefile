@@ -243,8 +243,17 @@ release: ## Prepare a new release (usage: make release VERSION=v1.5.0)
 		sed -i "s/fallbackVersion = \".*\"/fallbackVersion = \"$$VERSION_NUM\"/" pkg/verda/version.go; \
 	fi; \
 	echo "✓ Updated pkg/verda/version.go"
-	@echo "→ Generating CHANGELOG.md with git-cliff..."
-	@git-cliff --tag $(VERSION) -o CHANGELOG.md
+	@# Release tags are not guaranteed to be ancestors of main (older releases were
+	@# tagged on squash-merged release branches), so git-cliff's own tag detection
+	@# can't be trusted. Use an explicit range from the highest existing tag and
+	@# prepend only the new section, leaving the existing history untouched.
+	@PREV_TAG=$$(git tag --list 'v*' --sort=-v:refname | head -n1); \
+	if [ -z "$$PREV_TAG" ]; then \
+		echo "Error: no previous v* tag found"; \
+		exit 1; \
+	fi; \
+	echo "→ Prepending $(VERSION) ($$PREV_TAG..HEAD) to CHANGELOG.md with git-cliff..."; \
+	git-cliff "$$PREV_TAG..HEAD" --tag $(VERSION) --prepend CHANGELOG.md
 	@echo "✓ Updated CHANGELOG.md"
 
 changelog: ## Preview unreleased changelog entries (requires git-cliff)

@@ -1,5 +1,11 @@
 name: Release
 
+# Two-phase release:
+#   1. prepare (manual): bumps version + changelog on release/vX.Y.Z and opens a PR to main.
+#   2. publish (on merge of that PR): tags the merge commit on main and creates the GitHub release.
+# Tagging only after the merge keeps every release tag reachable from main and makes
+# PR approval the actual release gate.
+
 on:
   workflow_dispatch:
     inputs:
@@ -7,20 +13,29 @@ on:
         description: "Release version (e.g. v1.5.0)"
         required: true
         type: string
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Release
+  prepare:
+    name: Prepare release PR
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.inputs.version }}
     steps:
-      - name: Validate version format
+      - name: Validate inputs
         run: |
-          VERSION="${{ github.event.inputs.version }}"
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Error: Version must match vX.Y.Z (e.g. v1.5.0)"
+            exit 1
+          fi
+          if [[ "${{ github.ref }}" != "refs/heads/main" ]]; then
+            echo "Error: Releases must be prepared from main (got ${{ github.ref }})"
             exit 1
           fi
 
@@ -29,6 +44,17 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
           fetch-depth: 0
+
+      - name: Check version is unused
+        run: |
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "Error: tag ${VERSION} already exists"
+            exit 1
+          fi
+          if git ls-remote --exit-code --heads origin "release/${VERSION}" >/dev/null; then
+            echo "Error: branch release/${VERSION} already exists"
+            exit 1
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -40,11 +66,10 @@ jobs:
         run: pip install git-cliff
 
       - name: Run make release
-        run: make release VERSION=${{ github.event.inputs.version }}
+        run: make release VERSION="${VERSION}"
 
-      - name: Commit, tag, and push release branch
+      - name: Commit and push release branch
         run: |
-          VERSION="${{ github.event.inputs.version }}"
           BRANCH="release/${VERSION}"
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -52,13 +77,67 @@ jobs:
           git checkout -b "${BRANCH}"
           git add -A
           git commit -m "chore(release): ${VERSION}"
-          git tag "${VERSION}"
-          git push origin "${BRANCH}" --tags
+          git push origin "${BRANCH}"
+
+      - name: Create PR to merge release into main
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          gh pr create \
+            --base main \
+            --head "release/${VERSION}" \
+            --title "chore(release): ${VERSION}" \
+            --body "Automated release PR for ${VERSION}. Merges changelog and version updates into main.
+
+          Review CHANGELOG.md before approving. Merging this PR tags the merge commit as ${VERSION} and publishes the GitHub release."
+
+  publish:
+    name: Tag and publish release
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
+      startsWith(github.event.pull_request.head.ref, 'release/v') &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    env:
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          VERSION="${HEAD_REF#release/}"
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: branch ${HEAD_REF} does not match release/vX.Y.Z"
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout merge commit
+        uses: actions/checkout@v6
+        with:
+          token: ${{ secrets.RELEASE_TOKEN }}
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+
+      - name: Tag merge commit
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if git rev-parse -q --verify "refs/tags/${VERSION}" >/dev/null; then
+            echo "Error: tag ${VERSION} already exists"
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin https://x-access-token:${{ secrets.RELEASE_TOKEN }}@github.com/${{ github.repository }}
+          git tag "${VERSION}" "${MERGE_SHA}"
+          git push origin "refs/tags/${VERSION}"
 
       - name: Extract changelog for release
-        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ github.event.inputs.version }}"
           NOTES=$(awk -v ver="$VERSION" '
             $0 ~ "## \\[" ver "\\]" { found=1; next }
             found && /^## \[/ { exit }
@@ -70,18 +149,9 @@ jobs:
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          gh release create ${{ github.event.inputs.version }} \
-            --title "${{ github.event.inputs.version }}" \
+          gh release create "${VERSION}" \
+            --verify-tag \
+            --title "${VERSION}" \
             --notes-file /tmp/release-notes.md
-
-      - name: Create PR to merge release into main
-        env:
-          GH_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          VERSION="${{ github.event.inputs.version }}"
-          gh pr create \
-            --base main \
-            --head "release/${VERSION}" \
-            --title "chore(release): ${VERSION}" \
-            --body "Automated release PR for ${VERSION}. Merges changelog and version updates into main."
