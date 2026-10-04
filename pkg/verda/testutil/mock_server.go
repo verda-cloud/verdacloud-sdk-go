@@ -137,31 +137,34 @@ func NewTestClientConfig(mockServer *MockServer) TestClientConfig {
 
 // Mock types to avoid circular imports
 type Instance struct {
-	ID              string                 `json:"id"`
-	IP              *string                `json:"ip"`
-	Status          string                 `json:"status"`
-	CreatedAt       time.Time              `json:"created_at"`
-	CPU             map[string]interface{} `json:"cpu"`
-	GPU             map[string]interface{} `json:"gpu"`
-	GPUMemory       map[string]interface{} `json:"gpu_memory"`
-	Memory          map[string]interface{} `json:"memory"`
-	Storage         map[string]interface{} `json:"storage"`
-	Hostname        string                 `json:"hostname"`
-	Description     string                 `json:"description"`
-	Location        string                 `json:"location"`
-	PricePerHour    float64                `json:"price_per_hour"`
-	IsSpot          bool                   `json:"is_spot"`
-	InstanceType    string                 `json:"instance_type"`
-	Image           string                 `json:"image"`
-	OSName          string                 `json:"os_name"`
-	StartupScriptID *string                `json:"startup_script_id"`
-	SSHKeyIDs       []string               `json:"ssh_key_ids"`
-	OSVolumeID      *string                `json:"os_volume_id"`
-	JupyterToken    string                 `json:"jupyter_token"`
-	Contract        string                 `json:"contract"`
-	Pricing         string                 `json:"pricing"`
-	VolumeIDs       []string               `json:"volume_ids"`
-	Tags            []Tag                  `json:"tags"`
+	ID               string                 `json:"id"`
+	IP               *string                `json:"ip"`
+	PrivateIP        *string                `json:"private_ip"`
+	PrivateNetworkID *string                `json:"private_network_id"`
+	SubnetID         *string                `json:"subnet_id"`
+	Status           string                 `json:"status"`
+	CreatedAt        time.Time              `json:"created_at"`
+	CPU              map[string]interface{} `json:"cpu"`
+	GPU              map[string]interface{} `json:"gpu"`
+	GPUMemory        map[string]interface{} `json:"gpu_memory"`
+	Memory           map[string]interface{} `json:"memory"`
+	Storage          map[string]interface{} `json:"storage"`
+	Hostname         string                 `json:"hostname"`
+	Description      string                 `json:"description"`
+	Location         string                 `json:"location"`
+	PricePerHour     float64                `json:"price_per_hour"`
+	IsSpot           bool                   `json:"is_spot"`
+	InstanceType     string                 `json:"instance_type"`
+	Image            string                 `json:"image"`
+	OSName           string                 `json:"os_name"`
+	StartupScriptID  *string                `json:"startup_script_id"`
+	SSHKeyIDs        []string               `json:"ssh_key_ids"`
+	OSVolumeID       *string                `json:"os_volume_id"`
+	JupyterToken     string                 `json:"jupyter_token"`
+	Contract         string                 `json:"contract"`
+	Pricing          string                 `json:"pricing"`
+	VolumeIDs        []string               `json:"volume_ids"`
+	Tags             []Tag                  `json:"tags"`
 }
 
 type CreateInstanceRequest struct {
@@ -179,6 +182,10 @@ type CreateInstanceRequest struct {
 	OSVolume        *OSVolumeCreateRequest `json:"os_volume,omitempty"`
 	IsSpot          bool                   `json:"is_spot,omitempty"`
 	Coupon          *string                `json:"coupon,omitempty"`
+	Network         string                 `json:"network,omitempty"`
+	Subnet          string                 `json:"subnet,omitempty"`
+	PrivateIP       *string                `json:"private_ip,omitempty"`
+	PublicIP        *string                `json:"public_ip,omitempty"`
 }
 
 type VolumeCreateRequest struct {
@@ -212,11 +219,82 @@ type SSHKey struct {
 }
 
 type Location struct {
-	Code        string `json:"code"`
-	Name        string `json:"name"`
-	Country     string `json:"country"`
-	CountryCode string `json:"country_code"`
-	Available   bool   `json:"available"`
+	Code                      string  `json:"code"`
+	Name                      string  `json:"name"`
+	Country                   string  `json:"country"`
+	CountryCode               string  `json:"country_code"`
+	Available                 bool    `json:"available"`
+	IsPrivateNetworksEnabled  bool    `json:"is_private_networks_enabled"`
+	PrivateNetworkAutoSubnet  *string `json:"private_network_auto_subnet"`
+	IsLegacyNetworkingEnabled bool    `json:"is_legacy_networking_enabled"`
+}
+
+type PrivateNetwork struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Mode            string    `json:"mode"`
+	IsDefault       bool      `json:"is_default"`
+	CreatedByUserID string    `json:"created_by_user_id"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+type CreatePrivateNetworkRequest struct {
+	Name      string `json:"name"`
+	Mode      string `json:"mode,omitempty"`
+	IsDefault bool   `json:"is_default,omitempty"`
+}
+
+type UpdatePrivateNetworkRequest struct {
+	Name      *string `json:"name,omitempty"`
+	IsDefault *bool   `json:"is_default,omitempty"`
+}
+
+type AttachedInstance struct {
+	ID        string  `json:"id"`
+	Hostname  string  `json:"hostname"`
+	PrivateIP string  `json:"private_ip"`
+	PublicIP  *string `json:"public_ip"`
+	Status    string  `json:"status"`
+}
+
+type Subnet struct {
+	ID                   string            `json:"id"`
+	Location             Location          `json:"location"`
+	Name                 string            `json:"name"`
+	CIDR                 string            `json:"cidr"`
+	IsDefault            bool              `json:"is_default"`
+	UsedIPCount          int               `json:"used_ip_count"`
+	TotalIPCount         int               `json:"total_ip_count"`
+	DefaultRouteInstance *AttachedInstance `json:"default_route_instance"`
+	CreatedByUserID      string            `json:"created_by_user_id"`
+	CreatedAt            time.Time         `json:"created_at"`
+}
+
+type CreateSubnetRequest struct {
+	LocationCode string `json:"location_code"`
+	Name         string `json:"name"`
+	CIDR         string `json:"cidr"`
+	IsDefault    bool   `json:"is_default,omitempty"`
+}
+
+type UpdateSubnetRequest struct {
+	Name      *string `json:"name,omitempty"`
+	IsDefault *bool   `json:"is_default,omitempty"`
+}
+
+type Route struct {
+	ID              string            `json:"id"`
+	SubnetID        string            `json:"subnet_id"`
+	Location        Location          `json:"location"`
+	Instance        *AttachedInstance `json:"instance"`
+	Destination     string            `json:"destination"`
+	CreatedByUserID string            `json:"created_by_user_id"`
+	CreatedAt       time.Time         `json:"created_at"`
+}
+
+type CreateRouteRequest struct {
+	Destination string `json:"destination"`
+	InstanceID  string `json:"instance_id"`
 }
 
 type VolumeAttachedInstance struct {
@@ -478,7 +556,8 @@ const (
 	LocationFIN03 = "FIN-03"
 	pathInstances = "/instances"
 	// nolint:gosec // G101: This is a URL path, not a credential
-	pathOAuth2Token = "/oauth2/token"
+	pathOAuth2Token     = "/oauth2/token"
+	pathPrivateNetworks = "/private-networks"
 )
 
 // MockServer provides a test HTTP server for mocking Verda API responses
@@ -569,6 +648,33 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleDeleteMultipleSSHKeys(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/locations":
 		ms.handleGetLocations(w, r)
+	// Private Networks - deepest routes first so /routes beats /subnets, which beats the network itself
+	case r.Method == http.MethodPost && r.URL.Path == pathPrivateNetworks:
+		ms.handleCreatePrivateNetwork(w, r)
+	case r.Method == http.MethodGet && r.URL.Path == pathPrivateNetworks:
+		ms.handleGetPrivateNetworks(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.Contains(r.URL.Path, "/routes/"):
+		ms.handleDeletePrivateNetworkRoute(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.HasSuffix(r.URL.Path, "/routes"):
+		ms.handleCreatePrivateNetworkRoute(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.HasSuffix(r.URL.Path, "/routes"):
+		ms.handleGetPrivateNetworkRoutes(w, r)
+	case r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.HasSuffix(r.URL.Path, "/subnets"):
+		ms.handleCreatePrivateNetworkSubnet(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.HasSuffix(r.URL.Path, "/subnets"):
+		ms.handleGetPrivateNetworkSubnets(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.Contains(r.URL.Path, "/subnets/"):
+		ms.handleGetPrivateNetworkSubnet(w, r)
+	case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.Contains(r.URL.Path, "/subnets/"):
+		ms.handleUpdatePrivateNetworkSubnet(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.Contains(r.URL.Path, "/subnets/"):
+		ms.handleDeletePrivateNetworkSubnet(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/"):
+		ms.handleGetPrivateNetwork(w, r)
+	case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/"):
+		ms.handleUpdatePrivateNetwork(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/"):
+		ms.handleDeletePrivateNetwork(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == pathScripts:
 		ms.handleGetScripts(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathScripts+"/"):
@@ -825,34 +931,70 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 		pricing = "FIXED_PRICE"
 	}
 
-	ip := mockIPAddress
+	// Instances get a public IP unless explicitly created with public_ip "none"
+	publicIP := mockIPAddress
+	ip := &publicIP
+	if req.PublicIP != nil && *req.PublicIP == "none" {
+		ip = nil
+	}
 	osVolumeID := "vol_os_new_123"
 
+	// Echo private networking attachment, if requested
+	var privateIP *string
+	if req.PrivateIP != nil {
+		switch *req.PrivateIP {
+		case "auto":
+			assigned := "10.0.0.5"
+			privateIP = &assigned
+		case "none":
+		default:
+			privateIP = req.PrivateIP
+		}
+	}
+
+	var networkID, subnetID *string
+	if privateIP != nil {
+		network := req.Network
+		if network == "" {
+			network = "pn_default_123"
+		}
+		networkID = &network
+
+		subnet := req.Subnet
+		if subnet == "" {
+			subnet = "sn_default_123"
+		}
+		subnetID = &subnet
+	}
+
 	instance := Instance{ //nolint:gosec // G101: test fixture, not real credentials
-		ID:              "inst_new_123",
-		IP:              &ip,
-		Status:          StatusPending,
-		CreatedAt:       time.Now(),
-		CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-		GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-		GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-		Storage:         map[string]interface{}{"description": "100GB SSD"},
-		Hostname:        req.Hostname,
-		Description:     req.Description,
-		Location:        location,
-		PricePerHour:    0.50,
-		IsSpot:          req.IsSpot,
-		InstanceType:    req.InstanceType,
-		Image:           req.Image,
-		OSName:          "Ubuntu 24.04",
-		StartupScriptID: req.StartupScriptID,
-		SSHKeyIDs:       req.SSHKeyIDs,
-		OSVolumeID:      &osVolumeID,
-		JupyterToken:    "b9e6d8517db3a722ccfb309ca599a35f",
-		Contract:        contract,
-		Pricing:         pricing,
-		VolumeIDs:       []string{"vol_new_123"},
+		ID:               "inst_new_123",
+		IP:               ip,
+		PrivateIP:        privateIP,
+		PrivateNetworkID: networkID,
+		SubnetID:         subnetID,
+		Status:           StatusPending,
+		CreatedAt:        time.Now(),
+		CPU:              map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
+		GPU:              map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+		GPUMemory:        map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+		Memory:           map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+		Storage:          map[string]interface{}{"description": "100GB SSD"},
+		Hostname:         req.Hostname,
+		Description:      req.Description,
+		Location:         location,
+		PricePerHour:     0.50,
+		IsSpot:           req.IsSpot,
+		InstanceType:     req.InstanceType,
+		Image:            req.Image,
+		OSName:           "Ubuntu 24.04",
+		StartupScriptID:  req.StartupScriptID,
+		SSHKeyIDs:        req.SSHKeyIDs,
+		OSVolumeID:       &osVolumeID,
+		JupyterToken:     "b9e6d8517db3a722ccfb309ca599a35f",
+		Contract:         contract,
+		Pricing:          pricing,
+		VolumeIDs:        []string{"vol_new_123"},
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -916,17 +1058,248 @@ func (ms *MockServer) handleGetSSHKeys(w http.ResponseWriter, _ *http.Request) {
 func (ms *MockServer) handleGetLocations(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	autoSubnet := "10.99.0.0/20"
 	locations := []Location{
 		{
-			Code:        LocationFIN03,
-			Name:        "Finland 03",
-			Country:     "Finland",
-			CountryCode: "FI",
-			Available:   true,
+			Code:                      LocationFIN03,
+			Name:                      "Finland 03",
+			Country:                   "Finland",
+			CountryCode:               "FI",
+			Available:                 true,
+			IsPrivateNetworksEnabled:  true,
+			PrivateNetworkAutoSubnet:  &autoSubnet,
+			IsLegacyNetworkingEnabled: true,
 		},
 	}
 
 	writeJSON(w, locations)
+}
+
+// mockPrivateNetworkFixture returns the default network fixture with id applied
+func mockPrivateNetworkFixture(id string) PrivateNetwork {
+	return PrivateNetwork{
+		ID:              id,
+		Name:            "prod-net",
+		Mode:            "custom",
+		IsDefault:       true,
+		CreatedByUserID: "7dfc2631-0158-4f74-93f6-6b46dcb90fef",
+		CreatedAt:       time.Now(),
+	}
+}
+
+func mockSubnetFixture(id, locationCode string) Subnet {
+	return Subnet{
+		ID: id,
+		Location: Location{
+			Code: locationCode, Name: "Finland 1", CountryCode: "FI",
+			IsPrivateNetworksEnabled: true,
+		},
+		Name:            "workers",
+		CIDR:            "10.0.0.0/24",
+		IsDefault:       true,
+		UsedIPCount:     3,
+		TotalIPCount:    254,
+		CreatedByUserID: "7dfc2631-0158-4f74-93f6-6b46dcb90fef",
+		CreatedAt:       time.Now(),
+	}
+}
+
+func (ms *MockServer) handleCreatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req CreatePrivateNetworkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	network := mockPrivateNetworkFixture("pn_new_123")
+	network.Name = req.Name
+	if req.Mode != "" {
+		network.Mode = req.Mode
+	}
+	network.IsDefault = req.IsDefault
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, network)
+}
+
+func (ms *MockServer) handleGetPrivateNetworks(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, []PrivateNetwork{mockPrivateNetworkFixture("pn_123")})
+}
+
+func (ms *MockServer) handleGetPrivateNetwork(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 3 {
+		http.NotFound(w, r)
+		return
+	}
+
+	writeJSON(w, mockPrivateNetworkFixture(parts[2]))
+}
+
+func (ms *MockServer) handleUpdatePrivateNetwork(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 3 {
+		http.NotFound(w, r)
+		return
+	}
+
+	var req UpdatePrivateNetworkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	network := mockPrivateNetworkFixture(parts[2])
+	if req.Name != nil {
+		network.Name = *req.Name
+	}
+	if req.IsDefault != nil {
+		network.IsDefault = *req.IsDefault
+	}
+
+	writeJSON(w, network)
+}
+
+func (ms *MockServer) handleDeletePrivateNetwork(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleCreatePrivateNetworkSubnet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req CreateSubnetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LocationCode == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	subnet := mockSubnetFixture("sn_new_123", req.LocationCode)
+	subnet.Name = req.Name
+	subnet.CIDR = req.CIDR
+	subnet.IsDefault = req.IsDefault
+
+	w.WriteHeader(http.StatusCreated)
+	writeJSON(w, subnet)
+}
+
+func (ms *MockServer) handleGetPrivateNetworkSubnets(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeJSON(w, []Subnet{mockSubnetFixture("sn_123", "FIN-01")})
+}
+
+func (ms *MockServer) handleGetPrivateNetworkSubnet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	subnetID, locationCode := subnetLocation(r.URL.Path)
+	writeJSON(w, mockSubnetFixture(subnetID, locationCode))
+}
+
+func (ms *MockServer) handleUpdatePrivateNetworkSubnet(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req UpdateSubnetRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	subnetID, locationCode := subnetLocation(r.URL.Path)
+	subnet := mockSubnetFixture(subnetID, locationCode)
+	if req.Name != nil {
+		subnet.Name = *req.Name
+	}
+	if req.IsDefault != nil {
+		subnet.IsDefault = *req.IsDefault
+	}
+
+	writeJSON(w, subnet)
+}
+
+func (ms *MockServer) handleDeletePrivateNetworkSubnet(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleCreatePrivateNetworkRoute(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	var req CreateRouteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	subnetID, locationCode := subnetLocation(r.URL.Path)
+	publicIP := mockIPAddress
+	route := Route{
+		ID:       "rt_new_123",
+		SubnetID: subnetID,
+		Location: Location{
+			Code: locationCode, Name: "Finland 1", CountryCode: "FI",
+			IsPrivateNetworksEnabled: true,
+		},
+		Instance: &AttachedInstance{
+			ID:        req.InstanceID,
+			Hostname:  "hazy-star-swims-fin-01",
+			PrivateIP: "10.0.0.5",
+			PublicIP:  &publicIP,
+			Status:    StatusRunning,
+		},
+		Destination:     req.Destination,
+		CreatedByUserID: "7dfc2631-0158-4f74-93f6-6b46dcb90fef",
+		CreatedAt:       time.Now(),
+	}
+
+	writeJSON(w, route)
+}
+
+func (ms *MockServer) handleGetPrivateNetworkRoutes(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	subnetID, locationCode := subnetLocation(r.URL.Path)
+	publicIP := mockIPAddress
+	routes := []Route{
+		{
+			ID:       "rt_123",
+			SubnetID: subnetID,
+			Location: Location{
+				Code: locationCode, Name: "Finland 1", CountryCode: "FI",
+				IsPrivateNetworksEnabled: true,
+			},
+			Instance: &AttachedInstance{
+				ID:        "inst_route_123",
+				Hostname:  "hazy-star-swims-fin-01",
+				PrivateIP: "10.0.0.5",
+				PublicIP:  &publicIP,
+				Status:    StatusRunning,
+			},
+			Destination:     "0.0.0.0/0",
+			CreatedByUserID: "7dfc2631-0158-4f74-93f6-6b46dcb90fef",
+			CreatedAt:       time.Now(),
+		},
+	}
+
+	writeJSON(w, routes)
+}
+
+func (ms *MockServer) handleDeletePrivateNetworkRoute(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// subnetLocation extracts the subnet ID and derives a location code hint from
+// /private-networks/{id}/subnets/{subnetId}[/...] paths
+func subnetLocation(path string) (subnetID, locationCode string) {
+	parts := strings.Split(path, "/")
+	if len(parts) > 4 {
+		subnetID = parts[4]
+	}
+	return subnetID, "FIN-01"
 }
 
 func (ms *MockServer) handleGetSSHKey(w http.ResponseWriter, r *http.Request) {

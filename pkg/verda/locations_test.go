@@ -50,5 +50,17 @@ func TestLocationsService_Get(t *testing.T) {
 		if location.CountryCode == "" {
 			t.Error("expected country code to not be empty")
 		}
+
+		if !location.IsPrivateNetworksEnabled {
+			t.Error("expected private networks to be enabled")
+		}
+
+		if location.PrivateNetworkAutoSubnet == nil || *location.PrivateNetworkAutoSubnet == "" {
+			t.Error("expected private network auto subnet range")
+		}
+
+		if !location.IsLegacyNetworkingEnabled {
+			t.Error("expected legacy networking to be enabled")
+		}
 	})
 }

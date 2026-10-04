@@ -21,6 +21,13 @@ type Location struct {
 	Code        string `json:"code"`
 	Name        string `json:"name"`
 	CountryCode string `json:"country_code"`
+	// IsPrivateNetworksEnabled reports whether private networks can be deployed here
+	IsPrivateNetworksEnabled bool `json:"is_private_networks_enabled"`
+	// PrivateNetworkAutoSubnet is the range an "auto"-mode subnet gets here;
+	// nil where private networks are off
+	PrivateNetworkAutoSubnet *string `json:"private_network_auto_subnet"`
+	// IsLegacyNetworkingEnabled reports whether classic (non-VPC) instances can be deployed here
+	IsLegacyNetworkingEnabled bool `json:"is_legacy_networking_enabled"`
 }
 
 // Location constants
