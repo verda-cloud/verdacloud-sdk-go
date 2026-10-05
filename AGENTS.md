@@ -10,6 +10,7 @@ These rarely change. Follow them for all contributions:
 - **Service naming**: Singular form (`InstanceService`, not `InstancesService`)
 - **All methods take `context.Context`** as first parameter
 - **Request validation**: Implement `Validate() error` using `ozzo-validation`; called by service methods before HTTP requests
+- **Filtered listing**: List endpoints with query parameters use `List(ctx, *List<Resources>Options)` on the service, with `nil` meaning no filters (see `InstanceService.List`). The options struct lives in `<resource>_types.go`, has a `Validate()`, and every field is optional (zero value = not sent). Reuse shared filter types (`TagFilter`). When a service gains `List`, mark its old list method `// Deprecated: Use List.` and keep it working; don't add `List` to other services unless asked
 - **Type organization**: `types.go` for cross-domain utilities only; domain types in `*_types.go`
 - **Error handling**: Return `*APIError` for HTTP errors; `Validate()` returns ozzo-validation errors
 - **Tests**: Unit tests use `testutil.NewMockServer()` + `NewTestClient()`, integration tests use `//go:build integration`

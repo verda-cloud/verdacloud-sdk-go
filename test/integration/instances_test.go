@@ -235,7 +235,7 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 			t.Skip("⏭️  Skipping - instance was not created")
 		}
 
-		instances, err := client.Instances.Get(ctx, "")
+		instances, err := client.Instances.List(ctx, nil)
 		if err != nil {
 			t.Fatalf("❌ Failed to list instances: %v", err)
 		}
@@ -297,7 +297,7 @@ func TestListInstances_Integration(t *testing.T) {
 	client := getTestClient(t)
 	ctx := context.Background()
 
-	instances, err := client.Instances.Get(ctx, "")
+	instances, err := client.Instances.List(ctx, nil)
 	if err != nil {
 		t.Fatalf("❌ Failed to list instances: %v", err)
 	}

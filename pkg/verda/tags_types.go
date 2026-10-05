@@ -15,6 +15,9 @@
 package verda
 
 import (
+	"fmt"
+	"strings"
+
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
@@ -48,4 +51,36 @@ func (r TagRequest) Validate() error {
 		validation.Field(&r.Key, validation.Required, validation.Length(0, TagKeyMaxLength)),
 		validation.Field(&r.Value, validation.Length(0, TagValueMaxLength)),
 	)
+}
+
+// TagFilter matches resources carrying a tag. An empty Value matches the key
+// with any value, otherwise the value must match exactly.
+type TagFilter struct {
+	Key   string
+	Value string
+}
+
+// String returns the filter in the API query format: "key" or "key=value".
+func (filter TagFilter) String() string {
+	if filter.Value == "" {
+		return filter.Key
+	}
+	return filter.Key + "=" + filter.Value
+}
+
+// Validate validates the TagFilter fields
+func (filter TagFilter) Validate() error {
+	return validation.ValidateStruct(&filter,
+		validation.Field(&filter.Key, validation.Required, validation.Length(0, TagKeyMaxLength), validation.By(validateTagFilterKey)),
+		validation.Field(&filter.Value, validation.Length(0, TagValueMaxLength)),
+	)
+}
+
+// The API splits filters at the first "=", so a key containing one is ambiguous.
+func validateTagFilterKey(value any) error {
+	key, _ := value.(string)
+	if strings.Contains(key, "=") {
+		return fmt.Errorf("must not contain '=', got %q", key)
+	}
+	return nil
 }

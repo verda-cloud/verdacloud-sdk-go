@@ -54,6 +54,43 @@ func TestTagRequest_Validate(t *testing.T) {
 	}
 }
 
+func TestTagFilter_Validate(t *testing.T) {
+	tests := []struct {
+		name      string
+		filter    TagFilter
+		expectErr bool
+	}{
+		{"key and value", TagFilter{Key: "environment", Value: "production"}, false},
+		{"key only", TagFilter{Key: "benchmark"}, false},
+		{"value containing equals", TagFilter{Key: "k", Value: "a=b"}, false},
+		{"missing key", TagFilter{Value: "production"}, true},
+		{"key containing equals", TagFilter{Key: "a=b"}, true},
+		{"key over max length", TagFilter{Key: strings.Repeat("a", TagKeyMaxLength+1)}, true},
+		{"value over max length", TagFilter{Key: "k", Value: strings.Repeat("a", TagValueMaxLength+1)}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.filter.Validate()
+			if tt.expectErr && err == nil {
+				t.Error("expected validation error, got nil")
+			}
+			if !tt.expectErr && err != nil {
+				t.Errorf("unexpected validation error: %v", err)
+			}
+		})
+	}
+}
+
+func TestTagFilter_String(t *testing.T) {
+	if got := (TagFilter{Key: "benchmark"}).String(); got != "benchmark" {
+		t.Errorf("expected 'benchmark', got %q", got)
+	}
+	if got := (TagFilter{Key: "environment", Value: "production"}).String(); got != "environment=production" {
+		t.Errorf("expected 'environment=production', got %q", got)
+	}
+}
+
 func TestTagRequest_FreeformSerialization(t *testing.T) {
 	t.Run("value omitted when empty", func(t *testing.T) {
 		body, err := json.Marshal(TagRequest{Key: "benchmark"})

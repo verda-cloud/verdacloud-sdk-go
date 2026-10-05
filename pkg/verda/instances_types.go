@@ -77,6 +77,21 @@ type Instance struct {
 	Tags             []Tag           `json:"tags"`
 }
 
+// ListInstancesOptions filters the instances returned by InstanceService.List
+type ListInstancesOptions struct {
+	// Status limits results to instances with this status. Optional.
+	Status string
+	// Tags limits results to instances carrying every listed tag. Optional.
+	Tags []TagFilter
+}
+
+// Validate validates the ListInstancesOptions fields
+func (opts ListInstancesOptions) Validate() error {
+	return validation.ValidateStruct(&opts,
+		validation.Field(&opts.Tags),
+	)
+}
+
 // CreateInstanceRequest represents the request to create an instance
 type CreateInstanceRequest struct {
 	InstanceType    string                 `json:"instance_type"`
