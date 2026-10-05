@@ -39,7 +39,7 @@ func main() {
     }
 
     ctx := context.Background()
-    instances, err := client.Instances.Get(ctx, "")
+    instances, err := client.Instances.List(ctx, nil)
     if err != nil {
         log.Fatal(err)
     }
@@ -66,7 +66,7 @@ func postRequest[T any](ctx context.Context, client *Client, url string, reqBody
 func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *Response, error)
 ```
 
-Service methods like `client.Instances.Get()` and `client.SSHKeys.Create()` use these internally. This means:
+Service methods like `client.Instances.List()` and `client.SSHKeys.Create()` use these internally. This means:
 - Compile-time type checking
 - Consistent middleware application (auth, retries, logging)
 - Thread-safe request isolation
@@ -100,8 +100,17 @@ Default middleware includes: authentication, JSON content-type, exponential back
 ```go
 ctx := context.Background()
 
-// List instances
-instances, err := client.Instances.Get(ctx, "")
+// List all instances
+instances, err := client.Instances.List(ctx, nil)
+
+// List running instances carrying every given tag; a filter without Value matches any value
+instances, err = client.Instances.List(ctx, &verda.ListInstancesOptions{
+    Status: verda.StatusRunning,
+    Tags: []verda.TagFilter{
+        {Key: "environment", Value: "production"},
+        {Key: "benchmark"},
+    },
+})
 
 // Get specific instance
 instance, err := client.Instances.GetByID(ctx, "instance_id")
@@ -271,7 +280,7 @@ script, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptReques
 ### Error Handling
 
 ```go
-instances, err := client.Instances.Get(ctx, "")
+instances, err := client.Instances.List(ctx, nil)
 if err != nil {
     if apiErr, ok := err.(*verda.APIError); ok {
         fmt.Printf("API error %d: %s\n", apiErr.StatusCode, apiErr.Message)

@@ -28,12 +28,31 @@ type InstanceService struct {
 	client *Client
 }
 
+// Get returns instances, optionally filtered by status.
+//
+// Deprecated: Use List.
 func (s *InstanceService) Get(ctx context.Context, status string) ([]Instance, error) {
+	return s.List(ctx, &ListInstancesOptions{Status: status})
+}
+
+// List returns instances matching all of the given filters. A nil opts lists all instances.
+func (s *InstanceService) List(ctx context.Context, opts *ListInstancesOptions) ([]Instance, error) {
 	path := "/instances"
-	if status != "" {
+	if opts != nil {
+		if err := opts.Validate(); err != nil {
+			return nil, err
+		}
+
 		params := url.Values{}
-		params.Set("status", status)
-		path += "?" + params.Encode()
+		if opts.Status != "" {
+			params.Set("status", opts.Status)
+		}
+		for _, tag := range opts.Tags {
+			params.Add("tag", tag.String())
+		}
+		if len(params) > 0 {
+			path += "?" + params.Encode()
+		}
 	}
 
 	instances, _, err := getRequest[[]Instance](ctx, s.client, path)

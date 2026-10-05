@@ -58,7 +58,7 @@ func main() {
 
 	// Example: List all instances
 	fmt.Println("\n=== Instances ===")
-	instances, err := client.Instances.Get(ctx, "")
+	instances, err := client.Instances.List(ctx, nil)
 	if err != nil {
 		log.Printf("Error getting instances: %v", err)
 	} else {

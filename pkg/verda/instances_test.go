@@ -69,6 +69,72 @@ func TestInstanceService_Get(t *testing.T) {
 	})
 }
 
+func TestInstanceService_List(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(mockServer)
+
+	t.Run("sends status and repeated tag filters", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/instances", func(w http.ResponseWriter, r *http.Request) {
+			query := r.URL.Query()
+			if got := query.Get("status"); got != StatusRunning {
+				t.Errorf("expected status %q, got %q", StatusRunning, got)
+			}
+			tags := query["tag"]
+			if len(tags) != 2 || tags[0] != "environment=production" || tags[1] != "benchmark" {
+				t.Errorf("expected tags [environment=production benchmark], got %v", tags)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]Instance{{ID: "inst_123"}})
+		})
+
+		instances, err := client.Instances.List(context.Background(), &ListInstancesOptions{
+			Status: StatusRunning,
+			Tags: []TagFilter{
+				{Key: "environment", Value: "production"},
+				{Key: "benchmark"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(instances) != 1 || instances[0].ID != "inst_123" {
+			t.Errorf("unexpected instances: %+v", instances)
+		}
+	})
+
+	t.Run("sends no query without filters", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/instances", func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.RawQuery != "" {
+				t.Errorf("expected empty query, got %q", r.URL.RawQuery)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode([]Instance{})
+		})
+
+		if _, err := client.Instances.List(context.Background(), nil); err != nil {
+			t.Fatalf("unexpected error with nil options: %v", err)
+		}
+		if _, err := client.Instances.List(context.Background(), &ListInstancesOptions{}); err != nil {
+			t.Fatalf("unexpected error with empty options: %v", err)
+		}
+	})
+
+	t.Run("rejects invalid tag filter before request", func(t *testing.T) {
+		mockServer.SetHandler(http.MethodGet, "/instances", func(w http.ResponseWriter, r *http.Request) {
+			t.Error("request should not be sent for invalid filter")
+		})
+
+		_, err := client.Instances.List(context.Background(), &ListInstancesOptions{
+			Tags: []TagFilter{{Key: "a=b"}},
+		})
+		if err == nil {
+			t.Fatal("expected validation error, got nil")
+		}
+	})
+}
+
 func TestInstanceService_GetByID(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
