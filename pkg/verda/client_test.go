@@ -170,6 +170,23 @@ func TestClientMakeRequest(t *testing.T) {
 
 	client := NewTestClient(mockServer)
 
+	t.Run("preserves caller User-Agent and appends SDK User-Agent", func(t *testing.T) {
+		const callerUserAgent = "terraform-provider-verda/1.4.2"
+		mockServer.SetHandler(http.MethodGet, "/user-agent", func(w http.ResponseWriter, r *http.Request) {
+			if got, want := r.Header.Get("User-Agent"), BuildUserAgent(callerUserAgent); got != want {
+				t.Errorf("expected User-Agent %q, got %q", want, got)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		})
+
+		client := NewTestClientWithUserAgent(mockServer, callerUserAgent)
+		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/user-agent", nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		_ = resp.Body.Close()
+	})
+
 	// Test successful request
 	t.Run("successful request", func(t *testing.T) {
 		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/balance", nil)

@@ -347,6 +347,7 @@ func (c *Client) makeRequest(ctx context.Context, method, path string, body any)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", BuildUserAgent(c.UserAgent))
 
 	bearerToken, err := c.Auth.GetBearerToken()
 	if err != nil {
