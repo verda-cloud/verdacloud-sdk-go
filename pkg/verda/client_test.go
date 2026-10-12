@@ -179,7 +179,7 @@ func TestClientMakeRequest(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Test successful request
 	t.Run("successful request", func(t *testing.T) {
@@ -188,7 +188,9 @@ func TestClientMakeRequest(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 		if resp != nil {
-			_ = resp.Body.Close() //nolint:errcheck // Test code
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("close response body: %v", err)
+			}
 		} else {
 			t.Error("expected response, got nil")
 		}
@@ -202,7 +204,9 @@ func TestClientMakeRequest(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 		if resp != nil {
-			_ = resp.Body.Close() //nolint:errcheck // Test code
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("close response body: %v", err)
+			}
 		} else {
 			t.Error("expected response, got nil")
 		}
@@ -213,7 +217,7 @@ func TestClientHandleResponse(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("successful response parsing", func(t *testing.T) {
 		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/balance", nil)
@@ -304,7 +308,7 @@ func TestClientMiddleware(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("set request middleware", func(t *testing.T) {
 		called := false
@@ -316,7 +320,9 @@ func TestClientMiddleware(t *testing.T) {
 		}
 
 		client.SetRequestMiddleware([]RequestMiddleware{middleware})
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if !called {
 			t.Error("expected request middleware to be called")
@@ -333,7 +339,9 @@ func TestClientMiddleware(t *testing.T) {
 		}
 
 		client.SetResponseMiddleware([]ResponseMiddleware{middleware})
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if !called {
 			t.Error("expected response middleware to be called")
@@ -351,7 +359,9 @@ func TestClientMiddleware(t *testing.T) {
 
 		client.AddRequestMiddleware(middleware)
 		client.ClearRequestMiddleware()
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if called {
 			t.Error("expected request middleware to not be called after clear")
@@ -369,7 +379,9 @@ func TestClientMiddleware(t *testing.T) {
 
 		client.AddResponseMiddleware(middleware)
 		client.ClearResponseMiddleware()
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if called {
 			t.Error("expected response middleware to not be called after clear")
@@ -437,10 +449,13 @@ func TestUserAgentInRequests(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/test-ua", func(w http.ResponseWriter, r *http.Request) {
 			receivedUA = r.Header.Get("User-Agent")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{}`))
+			if _, err := w.Write([]byte(`{}`)); err != nil {
+				t.Errorf("write mock response: %v", err)
+				return
+			}
 		})
 
-		client := NewTestClient(mockServer)
+		client := NewTestClient(t, mockServer)
 		ctx := context.Background()
 
 		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua", nil)
@@ -448,7 +463,9 @@ func TestUserAgentInRequests(t *testing.T) {
 			t.Fatalf("failed to create request: %v", err)
 		}
 
-		_, _ = client.Do(req, nil)
+		if _, err := client.Do(req, nil); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		expectedUA := DefaultUserAgent()
 		if receivedUA != expectedUA {
@@ -461,10 +478,13 @@ func TestUserAgentInRequests(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/test-ua-custom", func(w http.ResponseWriter, r *http.Request) {
 			receivedUA = r.Header.Get("User-Agent")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{}`))
+			if _, err := w.Write([]byte(`{}`)); err != nil {
+				t.Errorf("write mock response: %v", err)
+				return
+			}
 		})
 
-		client := NewTestClientWithUserAgent(mockServer, "my-terraform/1.4.2")
+		client := NewTestClientWithUserAgent(t, mockServer, "my-terraform/1.4.2")
 		ctx := context.Background()
 
 		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua-custom", nil)
@@ -472,7 +492,9 @@ func TestUserAgentInRequests(t *testing.T) {
 			t.Fatalf("failed to create request: %v", err)
 		}
 
-		_, _ = client.Do(req, nil)
+		if _, err := client.Do(req, nil); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		expectedUA := BuildUserAgent("my-terraform/1.4.2")
 		if receivedUA != expectedUA {

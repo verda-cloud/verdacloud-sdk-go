@@ -25,7 +25,7 @@ func TestContainerTypesService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get container types with default currency", func(t *testing.T) {
 		ctx := context.Background()

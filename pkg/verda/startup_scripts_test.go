@@ -25,7 +25,7 @@ func TestStartupScriptService_GetAllStartupScripts(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all startup scripts", func(t *testing.T) {
 		ctx := context.Background()
@@ -80,7 +80,7 @@ func TestStartupScriptService_GetStartupScriptByID(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get startup script by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -136,7 +136,7 @@ func TestStartupScriptService_AddStartupScript(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("add new startup script", func(t *testing.T) {
 		ctx := context.Background()
@@ -197,7 +197,7 @@ func TestStartupScriptService_DeleteStartupScript(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("delete startup script by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -228,7 +228,9 @@ func TestStartupScriptService_DeleteStartupScript(t *testing.T) {
 		err := client.StartupScripts.DeleteStartupScript(ctx, "non_existent_script_id")
 		// Mock server returns success even for non-existent scripts
 		// In production, this might be different
-		_ = err
+		if err != nil {
+			t.Errorf("expected mock deletion to succeed: %v", err)
+		}
 	})
 }
 
@@ -236,7 +238,7 @@ func TestStartupScriptService_DeleteMultipleStartupScripts(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("delete multiple startup scripts", func(t *testing.T) {
 		ctx := context.Background()

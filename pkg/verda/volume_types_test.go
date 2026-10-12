@@ -26,7 +26,7 @@ func TestVolumeTypeService_GetAllVolumeTypes(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all volume types", func(t *testing.T) {
 		ctx := context.Background()

@@ -25,7 +25,7 @@ func TestClusterService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all clusters", func(t *testing.T) {
 		ctx := context.Background()
@@ -44,7 +44,7 @@ func TestClusterService_GetByID(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get cluster by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -68,7 +68,7 @@ func TestClusterService_Create(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("create cluster with minimal config", func(t *testing.T) {
 		req := CreateClusterRequest{
@@ -139,7 +139,7 @@ func TestClusterService_Discontinue(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("discontinue single cluster", func(t *testing.T) {
 		ctx := context.Background()
@@ -163,7 +163,7 @@ func TestClusterService_GetClusterTypes(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get cluster types with default currency", func(t *testing.T) {
 		ctx := context.Background()
@@ -222,7 +222,7 @@ func TestClusterService_GetAvailabilities(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all cluster availabilities", func(t *testing.T) {
 		ctx := context.Background()
@@ -263,7 +263,7 @@ func TestClusterService_CheckClusterTypeAvailability(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("check cluster type availability", func(t *testing.T) {
 		ctx := context.Background()
@@ -292,7 +292,7 @@ func TestClusterService_GetImages(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get cluster images", func(t *testing.T) {
 		ctx := context.Background()

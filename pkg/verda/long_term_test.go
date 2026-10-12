@@ -25,7 +25,7 @@ func TestLongTermService_GetInstancePeriods(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get instance long-term periods", func(t *testing.T) {
 		ctx := context.Background()
@@ -109,7 +109,7 @@ func TestLongTermService_GetPeriods(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get general long-term periods", func(t *testing.T) {
 		ctx := context.Background()
@@ -177,7 +177,7 @@ func TestLongTermService_GetClusterPeriods(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get cluster long-term periods", func(t *testing.T) {
 		ctx := context.Background()
@@ -262,7 +262,7 @@ func TestLongTermService_ComparePeriods(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("compare different period types", func(t *testing.T) {
 		ctx := context.Background()

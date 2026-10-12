@@ -25,7 +25,7 @@ func TestSSHKeyService_GetAllSSHKeys(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all SSH keys", func(t *testing.T) {
 		ctx := context.Background()
@@ -80,7 +80,7 @@ func TestSSHKeyService_GetSSHKeyByID(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get SSH key by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -136,7 +136,7 @@ func TestSSHKeyService_AddSSHKey(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("add new SSH key", func(t *testing.T) {
 		ctx := context.Background()
@@ -200,7 +200,7 @@ func TestSSHKeyService_DeleteSSHKey(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("delete SSH key by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -231,7 +231,9 @@ func TestSSHKeyService_DeleteSSHKey(t *testing.T) {
 		err := client.SSHKeys.DeleteSSHKey(ctx, "non_existent_key_id")
 		// Mock server returns success even for non-existent keys
 		// In production, this might be different
-		_ = err
+		if err != nil {
+			t.Errorf("expected mock deletion to succeed: %v", err)
+		}
 	})
 }
 
@@ -239,7 +241,7 @@ func TestSSHKeyService_DeleteMultipleSSHKeys(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("delete multiple SSH keys", func(t *testing.T) {
 		ctx := context.Background()

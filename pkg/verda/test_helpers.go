@@ -14,9 +14,16 @@
 
 package verda
 
-import "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
+import (
+	"testing"
 
-func NewTestClient(mockServer *testutil.MockServer) *Client {
+	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
+)
+
+// NewTestClient creates a client and fails the calling test if setup fails.
+func NewTestClient(t testing.TB, mockServer *testutil.MockServer) *Client {
+	t.Helper()
+
 	config := testutil.NewTestClientConfig(mockServer)
 	client, err := NewClient(
 		WithBaseURL(config.BaseURL),
@@ -24,12 +31,15 @@ func NewTestClient(mockServer *testutil.MockServer) *Client {
 		WithClientSecret(config.ClientSecret),
 	)
 	if err != nil {
-		panic(err)
+		t.Fatalf("create test client: %v", err)
 	}
 	return client
 }
 
-func NewTestClientWithUserAgent(mockServer *testutil.MockServer, userAgent string) *Client {
+// NewTestClientWithUserAgent creates a client with a custom user agent and fails the calling test if setup fails.
+func NewTestClientWithUserAgent(t testing.TB, mockServer *testutil.MockServer, userAgent string) *Client {
+	t.Helper()
+
 	config := testutil.NewTestClientConfig(mockServer)
 	client, err := NewClient(
 		WithBaseURL(config.BaseURL),
@@ -38,7 +48,7 @@ func NewTestClientWithUserAgent(mockServer *testutil.MockServer, userAgent strin
 		WithUserAgent(userAgent),
 	)
 	if err != nil {
-		panic(err)
+		t.Fatalf("create test client: %v", err)
 	}
 	return client
 }

@@ -39,23 +39,35 @@ func TestStandaloneRequestFunctions(t *testing.T) {
 					{ID: 2, Name: "Jane Smith"},
 				}
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(users)
+				if err := json.NewEncoder(w).Encode(users); err != nil {
+					t.Errorf("mock JSON operation failed: %v", err)
+					return
+				}
 			case "/users/1":
 				user := TestUser{ID: 1, Name: "John Doe"}
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(user)
+				if err := json.NewEncoder(w).Encode(user); err != nil {
+					t.Errorf("mock JSON operation failed: %v", err)
+					return
+				}
 			}
 		case http.MethodPost:
 			if r.URL.Path == "/users" {
 				user := TestUser{ID: 3, Name: "New User"}
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(user)
+				if err := json.NewEncoder(w).Encode(user); err != nil {
+					t.Errorf("mock JSON operation failed: %v", err)
+					return
+				}
 			}
 		case http.MethodPut:
 			if r.URL.Path == "/users/1" {
 				user := TestUser{ID: 1, Name: "Updated User"}
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(user)
+				if err := json.NewEncoder(w).Encode(user); err != nil {
+					t.Errorf("mock JSON operation failed: %v", err)
+					return
+				}
 			}
 		case http.MethodDelete:
 			if r.URL.Path == "/users/1" {
@@ -172,13 +184,19 @@ func TestServiceIntegration(t *testing.T) {
 		case "/balance":
 			balance := Balance{Amount: 100.50, Currency: "USD"}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(balance)
+			if err := json.NewEncoder(w).Encode(balance); err != nil {
+				t.Errorf("mock JSON operation failed: %v", err)
+				return
+			}
 		case "/locations":
 			locations := []Location{
 				{Code: "FIN-01", Name: "Finland 1", CountryCode: "FI"},
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(locations)
+			if err := json.NewEncoder(w).Encode(locations); err != nil {
+				t.Errorf("mock JSON operation failed: %v", err)
+				return
+			}
 		}
 	}))
 	defer server.Close()

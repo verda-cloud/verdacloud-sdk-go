@@ -25,7 +25,7 @@ func TestServerlessJobsService_GetJobDeployments(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all job deployments", func(t *testing.T) {
 		ctx := context.Background()
@@ -74,7 +74,7 @@ func TestServerlessJobsService_CreateJobDeployment(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("create job deployment", func(t *testing.T) {
 		ctx := context.Background()
@@ -150,7 +150,7 @@ func TestServerlessJobsService_GetJobDeploymentByName(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get job by name", func(t *testing.T) {
 		ctx := context.Background()
@@ -189,7 +189,7 @@ func TestServerlessJobsService_UpdateJobDeployment(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("validation - nil request", func(t *testing.T) {
 		ctx := context.Background()
@@ -273,7 +273,7 @@ func TestServerlessJobsService_DeleteJobDeployment(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("delete job deployment", func(t *testing.T) {
 		ctx := context.Background()
@@ -311,7 +311,7 @@ func TestServerlessJobsService_GetJobDeploymentStatus(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get job status", func(t *testing.T) {
 		ctx := context.Background()
@@ -349,7 +349,7 @@ func TestServerlessJobsService_JobOperations(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("test job lifecycle operations", func(t *testing.T) {
 		ctx := context.Background()
