@@ -6,13 +6,15 @@
 # ============================================================================
 
 .PHONY: help build test test-integration test-smoke clean coverage
-.PHONY: lint fmt license license-check setup pre-commit
+.PHONY: versions lint fmt license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
-GO_VERSION := 1.26.9
-GOLANGCI_LINT_VERSION := v2.13.2
+GO_VERSION := 1.25.14
+GOLANGCI_LINT_VERSION := v2.5.0
 GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+GOVULNCHECK_VERSION := v1.7.0
+GOVULNCHECK := GOTOOLCHAIN=go$(GO_VERSION) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
 
 # ============================================================================
 # Help Target - Shows all available commands
@@ -34,12 +36,14 @@ help: ## Show this help message with all available commands
 # Development Setup
 # ============================================================================
 
-setup: ## Complete development environment setup (installs only what's needed)
-	@echo "→ Setting up development environment..."
-	@echo ""
-	@echo "Preparing golangci-lint $(GOLANGCI_LINT_VERSION) with Go $(GO_VERSION)..."
+versions:
+	@echo "→ Tool versions:"
+	@GOTOOLCHAIN=go$(GO_VERSION) go version
 	@$(GOLANGCI_LINT) version
-	@echo "✓ Pinned golangci-lint ready"
+	@echo ""
+
+setup: versions ## Complete development environment setup (installs only what's needed)
+	@echo "→ Setting up development environment..."
 	@echo ""
 	@# Check and install pre-commit hooks if pre-commit is available
 	@if command -v pre-commit >/dev/null 2>&1; then \
@@ -65,21 +69,17 @@ setup: ## Complete development environment setup (installs only what's needed)
 # These targets are used by CI workflows, not for manual use.
 # ============================================================================
 
-lint: ## Run golangci-lint (used by CI, pre-commit handles this locally)
+lint: versions ## Run golangci-lint (used by CI, pre-commit handles this locally)
 	@echo "→ Running golangci-lint..."
 	@$(GOLANGCI_LINT) run ./...
 	@echo "✓ Linting complete!"
 
-security: ## Run security checks (gosec + govulncheck)
+security: versions ## Run security checks (gosec + govulncheck)
 	@echo "→ Running security checks..."
 	@echo "  1. Running gosec (via golangci-lint)..."
 	@$(GOLANGCI_LINT) run --no-config -E gosec ./...
 	@echo "  2. Running govulncheck..."
-	@if ! command -v govulncheck >/dev/null 2>&1; then \
-		echo "    Installing govulncheck..."; \
-		go install golang.org/x/vuln/cmd/govulncheck@v1.7.0; \
-	fi
-	@govulncheck ./...
+	@$(GOVULNCHECK) ./...
 	@echo "✓ Security checks complete!"
 
 fmt: ## Format Go code (used by CI, pre-commit handles this locally)
@@ -267,7 +267,7 @@ changelog: ## Preview unreleased changelog entries (requires git-cliff)
 # Pre-commit Management
 # ============================================================================
 
-pre-commit: ## Run all pre-commit hooks on all files (stages modified files first)
+pre-commit: versions ## Run all pre-commit hooks on all files (stages modified files first)
 	@echo "→ Staging modified files..."
 	@git add -u
 	@echo "→ Running pre-commit hooks on all files..."
