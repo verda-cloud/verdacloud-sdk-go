@@ -25,7 +25,7 @@ func TestInstanceAvailabilityService_GetAllAvailabilities(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all availabilities with default parameters", func(t *testing.T) {
 		ctx := context.Background()
@@ -114,7 +114,7 @@ func TestInstanceAvailabilityService_GetInstanceTypeAvailability(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("check availability for H100 instance type", func(t *testing.T) {
 		ctx := context.Background()

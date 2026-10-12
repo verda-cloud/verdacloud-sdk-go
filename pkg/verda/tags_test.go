@@ -117,7 +117,7 @@ func TestInstanceService_AddTag(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("add tag with value", func(t *testing.T) {
@@ -193,7 +193,7 @@ func TestInstanceService_DeleteTag(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("delete existing tag", func(t *testing.T) {
@@ -264,7 +264,7 @@ func TestVolumeService_Tags(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("add and delete a volume tag", func(t *testing.T) {
@@ -292,7 +292,7 @@ func TestClusterService_Tags(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("add and delete a cluster tag", func(t *testing.T) {
@@ -320,7 +320,7 @@ func TestTagsInResourceResponses(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("instance response carries tags", func(t *testing.T) {
@@ -370,7 +370,7 @@ func TestTagsInResourceResponses(t *testing.T) {
 	t.Run("volume response decodes tags", func(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/volumes/vol_tagged", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			writeTestJSON(w, map[string]interface{}{
+			writeTestJSON(t, w, map[string]interface{}{
 				"id":   "vol_tagged",
 				"name": "tagged-volume",
 				"tags": []map[string]string{

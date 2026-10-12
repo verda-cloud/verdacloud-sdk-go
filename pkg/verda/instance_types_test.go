@@ -25,7 +25,7 @@ func TestInstanceTypesService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get instance types with default currency", func(t *testing.T) {
 		ctx := context.Background()
@@ -166,7 +166,7 @@ func TestInstanceTypesService_GetByInstanceType(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get H100 instance type", func(t *testing.T) {
 		ctx := context.Background()
@@ -285,7 +285,7 @@ func TestInstanceTypesService_GetPriceHistory(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get price history with default parameters", func(t *testing.T) {
 		ctx := context.Background()

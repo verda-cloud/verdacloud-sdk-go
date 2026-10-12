@@ -25,7 +25,7 @@ func TestContainerDeploymentsService_GetDeployments(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all deployments", func(t *testing.T) {
 		ctx := context.Background()
@@ -84,7 +84,7 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("create deployment", func(t *testing.T) {
 		ctx := context.Background()
@@ -258,7 +258,7 @@ func TestContainerDeploymentsService_UpdateDeployment(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("validation - nil request", func(t *testing.T) {
 		ctx := context.Background()
@@ -341,7 +341,7 @@ func TestContainerDeploymentsService_GetServerlessComputeResources(t *testing.T)
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get compute resources", func(t *testing.T) {
 		ctx := context.Background()
@@ -410,7 +410,7 @@ func TestContainerDeploymentsService_GetSecrets(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get secrets", func(t *testing.T) {
 		ctx := context.Background()

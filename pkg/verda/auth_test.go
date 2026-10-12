@@ -28,7 +28,7 @@ func TestAuthService_Authenticate(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("successful authentication", func(t *testing.T) {
 		token, err := client.Auth.Authenticate()
@@ -68,7 +68,7 @@ func TestAuthService_Authenticate(t *testing.T) {
 		})
 
 		// Use valid client but server will return error
-		client := NewTestClient(mockServer)
+		client := NewTestClient(t, mockServer)
 		_, err := client.Auth.Authenticate()
 		if err == nil {
 			t.Error("expected error, got nil")
@@ -80,7 +80,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("successful token refresh", func(t *testing.T) {
 		// First authenticate to get initial token
@@ -106,7 +106,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 	t.Run("refresh without initial token", func(t *testing.T) {
 		// Create new client without prior authentication
-		newClient := NewTestClient(mockServer)
+		newClient := NewTestClient(t, mockServer)
 
 		token, err := newClient.Auth.RefreshToken()
 		if err != nil {
@@ -121,7 +121,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 
 	t.Run("refresh token failure fallback", func(t *testing.T) {
 		// Create client and authenticate first
-		fallbackClient := NewTestClient(mockServer)
+		fallbackClient := NewTestClient(t, mockServer)
 		_, err := fallbackClient.Auth.Authenticate()
 		if err != nil {
 			t.Fatalf("authentication failed: %v", err)
@@ -147,7 +147,10 @@ func TestAuthService_RefreshToken(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(response)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				t.Errorf("mock JSON operation failed: %v", err)
+				return
+			}
 		})
 
 		token, err := fallbackClient.Auth.RefreshToken()
@@ -165,7 +168,7 @@ func TestAuthService_GetValidToken(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get valid token - initial authentication", func(t *testing.T) {
 		token, err := client.Auth.GetValidToken()
@@ -228,7 +231,7 @@ func TestAuthService_IsExpired(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("no token - should be expired", func(t *testing.T) {
 		if !client.Auth.IsExpired() {
@@ -268,7 +271,7 @@ func TestAuthService_GetBearerToken(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get bearer token", func(t *testing.T) {
 		bearerToken, err := client.Auth.GetBearerToken()

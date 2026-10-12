@@ -14,25 +14,41 @@
 
 package verda
 
-import "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
+import (
+	"testing"
 
-func NewTestClient(mockServer *testutil.MockServer) *Client {
+	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
+)
+
+// NewTestClient creates a client and fails the calling test if setup fails.
+func NewTestClient(t testing.TB, mockServer *testutil.MockServer) *Client {
+	t.Helper()
+
 	config := testutil.NewTestClientConfig(mockServer)
-	client, _ := NewClient(
+	client, err := NewClient(
 		WithBaseURL(config.BaseURL),
 		WithClientID(config.ClientID),
 		WithClientSecret(config.ClientSecret),
 	)
+	if err != nil {
+		t.Fatalf("create test client: %v", err)
+	}
 	return client
 }
 
-func NewTestClientWithUserAgent(mockServer *testutil.MockServer, userAgent string) *Client {
+// NewTestClientWithUserAgent creates a client with a custom user agent and fails the calling test if setup fails.
+func NewTestClientWithUserAgent(t testing.TB, mockServer *testutil.MockServer, userAgent string) *Client {
+	t.Helper()
+
 	config := testutil.NewTestClientConfig(mockServer)
-	client, _ := NewClient(
+	client, err := NewClient(
 		WithBaseURL(config.BaseURL),
 		WithClientID(config.ClientID),
 		WithClientSecret(config.ClientSecret),
 		WithUserAgent(userAgent),
 	)
+	if err != nil {
+		t.Fatalf("create test client: %v", err)
+	}
 	return client
 }

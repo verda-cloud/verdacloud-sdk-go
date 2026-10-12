@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"testing"
 
@@ -29,7 +28,7 @@ func TestInstanceService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all instances", func(t *testing.T) {
 		ctx := context.Background()
@@ -73,7 +72,7 @@ func TestInstanceService_List(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("sends status and repeated tag filters", func(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/instances", func(w http.ResponseWriter, r *http.Request) {
@@ -86,7 +85,10 @@ func TestInstanceService_List(t *testing.T) {
 				t.Errorf("expected tags [environment=production benchmark], got %v", tags)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]Instance{{ID: "inst_123"}})
+			if err := json.NewEncoder(w).Encode([]Instance{{ID: "inst_123"}}); err != nil {
+				t.Errorf("mock JSON operation failed: %v", err)
+				return
+			}
 		})
 
 		instances, err := client.Instances.List(context.Background(), &ListInstancesOptions{
@@ -110,7 +112,10 @@ func TestInstanceService_List(t *testing.T) {
 				t.Errorf("expected empty query, got %q", r.URL.RawQuery)
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode([]Instance{})
+			if err := json.NewEncoder(w).Encode([]Instance{}); err != nil {
+				t.Errorf("mock JSON operation failed: %v", err)
+				return
+			}
 		})
 
 		if _, err := client.Instances.List(context.Background(), nil); err != nil {
@@ -139,7 +144,7 @@ func TestInstanceService_GetByID(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get instance by ID", func(t *testing.T) {
 		ctx := context.Background()
@@ -167,7 +172,7 @@ func TestInstanceService_Create(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("create instance with minimal config", func(t *testing.T) {
 		req := CreateInstanceRequest{
@@ -385,7 +390,7 @@ func TestInstanceService_CreateSpotWithDiscontinuePolicy(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("create spot instance with on_spot_discontinue on os_volume", func(t *testing.T) {
 		req := CreateInstanceRequest{
@@ -452,7 +457,7 @@ func TestInstanceService_Action(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("202 single instance returns results", func(t *testing.T) {
 		ctx := context.Background()
@@ -574,7 +579,7 @@ func TestInstanceService_Action_204_AlreadyInState(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	results, err := client.Instances.Action(ctx, InstanceActionRequest{
@@ -596,13 +601,13 @@ func TestInstanceService_Action_207_PartialFailure(t *testing.T) {
 	mockServer.SetHandler("PUT", "/instances", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMultiStatus)
-		writeTestJSON(w, []map[string]interface{}{
+		writeTestJSON(t, w, []map[string]interface{}{
 			{"action": "shutdown", "instanceId": "inst_123", "status": "success"},
 			{"action": "shutdown", "instanceId": "inst_456", "status": "error", "error": "instance not found", "statusCode": 404},
 		})
 	})
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	results, err := client.Instances.Action(ctx, InstanceActionRequest{
@@ -638,7 +643,7 @@ func TestInstanceService_Action_400_BadRequest(t *testing.T) {
 		testutil.ErrorResponse(w, http.StatusBadRequest, "action not allowed in current state")
 	})
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	results, err := client.Instances.Action(ctx, InstanceActionRequest{
@@ -671,7 +676,7 @@ func TestInstanceService_Action_404_NotFound(t *testing.T) {
 		testutil.ErrorResponse(w, http.StatusNotFound, "instance not found")
 	})
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	results, err := client.Instances.Action(ctx, InstanceActionRequest{
@@ -700,7 +705,7 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("boot instance", func(t *testing.T) {
 		ctx := context.Background()
@@ -807,9 +812,10 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 	})
 }
 
-func writeTestJSON(w http.ResponseWriter, v interface{}) {
+func writeTestJSON(t testing.TB, w http.ResponseWriter, v interface{}) {
+	t.Helper()
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("test: failed to encode JSON: %v", err)
+		t.Errorf("encode mock JSON response: %v", err)
 	}
 }
 

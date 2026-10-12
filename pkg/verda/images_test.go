@@ -27,7 +27,7 @@ func TestImagesService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get instance images", func(t *testing.T) {
 		ctx := context.Background()
@@ -144,14 +144,17 @@ func TestImagesService_GetImagesByInstanceType(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	mockServer.SetHandler(http.MethodGet, "/images", func(w http.ResponseWriter, r *http.Request) {
 		if got := r.URL.Query().Get("instance_type"); got != "8B300.240V" {
 			t.Errorf("expected instance_type query 8B300.240V, got %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]Image{})
+		if err := json.NewEncoder(w).Encode([]Image{}); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	})
 
 	ctx := context.Background()
@@ -165,7 +168,7 @@ func TestImagesService_GetClusterImages(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get cluster images", func(t *testing.T) {
 		ctx := context.Background()

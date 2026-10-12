@@ -28,7 +28,7 @@ func TestBalanceService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get balance", func(t *testing.T) {
 		ctx := context.Background()
@@ -56,7 +56,7 @@ func TestSSHKeyService_GetAllSSHKeysFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all SSH keys", func(t *testing.T) {
 		ctx := context.Background()
@@ -88,7 +88,7 @@ func TestSSHKeyService_GetSSHKeyByIDFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for specific SSH key (both old and new paths)
 	mockServerHandler := func(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +99,10 @@ func TestSSHKeyService_GetSSHKeyByIDFromServices(t *testing.T) {
 			Fingerprint: "SHA256:abc123...",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode([]testutil.SSHKey{key})
+		if err := json.NewEncoder(w).Encode([]testutil.SSHKey{key}); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	}
 	mockServer.SetHandler(http.MethodGet, "/ssh-keys/key_123", mockServerHandler)
 	mockServer.SetHandler(http.MethodGet, "/sshkeys/key_123", mockServerHandler)
@@ -129,12 +132,15 @@ func TestSSHKeyService_AddSSHKeyFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for SSH key creation (both old and new paths)
 	createHandler := func(w http.ResponseWriter, r *http.Request) {
 		var req CreateSSHKeyRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 
 		key := testutil.SSHKey{
 			ID:          "key_new_123",
@@ -145,7 +151,10 @@ func TestSSHKeyService_AddSSHKeyFromServices(t *testing.T) {
 
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte(key.ID))
+		if _, err := w.Write([]byte(key.ID)); err != nil {
+			t.Errorf("write mock response: %v", err)
+			return
+		}
 	}
 	mockServer.SetHandler(http.MethodPost, "/ssh-keys", createHandler)
 	mockServer.SetHandler(http.MethodPost, "/sshkeys", createHandler)
@@ -180,7 +189,7 @@ func TestSSHKeyService_DeleteSSHKeyFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for SSH key deletion
 	mockServer.SetHandler(http.MethodDelete, "/ssh-keys/key_123", func(w http.ResponseWriter, r *http.Request) {
@@ -201,7 +210,7 @@ func TestLocationService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("get all locations", func(t *testing.T) {
 		ctx := context.Background()
@@ -234,7 +243,7 @@ func TestVolumeService_ListVolumesFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for volumes
 	mockServer.SetHandler(http.MethodGet, "/volumes", func(w http.ResponseWriter, r *http.Request) {
@@ -248,7 +257,10 @@ func TestVolumeService_ListVolumesFromServices(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(volumes)
+		if err := json.NewEncoder(w).Encode(volumes); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	})
 
 	t.Run("get all volumes", func(t *testing.T) {
@@ -277,7 +289,7 @@ func TestVolumeService_GetVolumeFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for specific volume
 	mockServer.SetHandler(http.MethodGet, "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
@@ -289,7 +301,10 @@ func TestVolumeService_GetVolumeFromServices(t *testing.T) {
 			Status: "in-use",
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(volume)
+		if err := json.NewEncoder(w).Encode(volume); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	})
 
 	t.Run("get volume by ID", func(t *testing.T) {
@@ -318,7 +333,7 @@ func TestStartupScriptService_GetAllStartupScriptsFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for startup scripts
 	mockServer.SetHandler(http.MethodGet, "/scripts", func(w http.ResponseWriter, r *http.Request) {
@@ -330,7 +345,10 @@ func TestStartupScriptService_GetAllStartupScriptsFromServices(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(scripts)
+		if err := json.NewEncoder(w).Encode(scripts); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	})
 
 	t.Run("get all startup scripts", func(t *testing.T) {
@@ -359,17 +377,23 @@ func TestStartupScriptService_AddStartupScriptFromServices(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for startup script creation (returns plain text ID)
 	mockServer.SetHandler(http.MethodPost, "/scripts", func(w http.ResponseWriter, r *http.Request) {
 		var req CreateStartupScriptRequest
-		_ = json.NewDecoder(r.Body).Decode(&req)
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 
 		// Return plain text ID (matching real API behavior)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusCreated)
-		_, _ = w.Write([]byte("script_new_123"))
+		if _, err := w.Write([]byte("script_new_123")); err != nil {
+			t.Errorf("write mock response: %v", err)
+			return
+		}
 	})
 
 	// Set up mock response for GetByID (returns array)
@@ -382,7 +406,10 @@ func TestStartupScriptService_AddStartupScriptFromServices(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(scripts)
+		if err := json.NewEncoder(w).Encode(scripts); err != nil {
+			t.Errorf("mock JSON operation failed: %v", err)
+			return
+		}
 	})
 
 	t.Run("create startup script", func(t *testing.T) {

@@ -339,7 +339,11 @@ func TestExponentialBackoffRetryMiddleware_ExponentialDelay(t *testing.T) {
 		Path:   "/test",
 	}
 
-	_ = handler(ctx)
+	err := handler(ctx)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected retry exhaustion to return API error 503, got %v", err)
+	}
 
 	// Should have 3 delays (between attempts 1-2, 2-3, 3-4)
 	if len(delays) != 3 {
@@ -402,7 +406,11 @@ func TestExponentialBackoffRetryMiddleware_MaxDelay(t *testing.T) {
 		Path:   "/test",
 	}
 
-	_ = handler(ctx)
+	err := handler(ctx)
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("expected retry exhaustion to return API error 503, got %v", err)
+	}
 
 	// With 100ms base, we get: 100, 200, 400, 800, 1600ms (all under 30s cap)
 	// The cap of 30s won't be hit with these small delays, but we test
@@ -481,7 +489,7 @@ func TestAuthenticationMiddleware(t *testing.T) {
 		})
 
 		// Create a client using the mock server
-		client := NewTestClient(mockServer)
+		client := NewTestClient(t, mockServer)
 
 		middleware := AuthenticationMiddleware()
 		handler := middleware(func(ctx *RequestContext) error {

@@ -25,7 +25,7 @@ func TestPrivateNetworkService_Networks(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("create network", func(t *testing.T) {
@@ -123,7 +123,7 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("create subnet", func(t *testing.T) {
@@ -217,7 +217,7 @@ func TestPrivateNetworkService_Routes(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
 	t.Run("create route", func(t *testing.T) {

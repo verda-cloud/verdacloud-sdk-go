@@ -16,11 +16,22 @@ package verda
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
+
+type closeErrorBody struct {
+	io.Reader
+}
+
+func (*closeErrorBody) Close() error {
+	return errors.New("close failed")
+}
 
 func TestNewClient(t *testing.T) {
 	tests := []struct {
@@ -168,7 +179,7 @@ func TestClientMakeRequest(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	// Test successful request
 	t.Run("successful request", func(t *testing.T) {
@@ -177,7 +188,9 @@ func TestClientMakeRequest(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 		if resp != nil {
-			_ = resp.Body.Close() //nolint:errcheck // Test code
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("close response body: %v", err)
+			}
 		} else {
 			t.Error("expected response, got nil")
 		}
@@ -191,7 +204,9 @@ func TestClientMakeRequest(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 		if resp != nil {
-			_ = resp.Body.Close() //nolint:errcheck // Test code
+			if err := resp.Body.Close(); err != nil {
+				t.Errorf("close response body: %v", err)
+			}
 		} else {
 			t.Error("expected response, got nil")
 		}
@@ -202,7 +217,7 @@ func TestClientHandleResponse(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("successful response parsing", func(t *testing.T) {
 		resp, err := client.makeRequest(context.Background(), http.MethodGet, "/balance", nil)
@@ -252,13 +267,48 @@ func TestClientHandleResponse(t *testing.T) {
 			}
 		}
 	})
+
+	t.Run("successful response survives close error", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body: &closeErrorBody{
+				Reader: strings.NewReader(`{"amount":100.5,"currency":"USD"}`),
+			},
+		}
+
+		var balance Balance
+		if err := client.handleResponse(resp, &balance); err != nil {
+			t.Fatalf("unexpected error handling response: %v", err)
+		}
+		if balance.Amount != 100.5 || balance.Currency != "USD" {
+			t.Fatalf("unexpected decoded balance: %+v", balance)
+		}
+	})
+
+	t.Run("API error survives close error", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body: &closeErrorBody{
+				Reader: strings.NewReader(`{"code":"rate_limited","message":"Too Many Requests"}`),
+			},
+		}
+
+		err := client.handleResponse(resp, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected APIError, got %T: %v", err, err)
+		}
+		if apiErr.StatusCode != http.StatusTooManyRequests || apiErr.Code != "rate_limited" {
+			t.Fatalf("unexpected API error: %+v", apiErr)
+		}
+	})
 }
 
 func TestClientMiddleware(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
-	client := NewTestClient(mockServer)
+	client := NewTestClient(t, mockServer)
 
 	t.Run("set request middleware", func(t *testing.T) {
 		called := false
@@ -270,7 +320,9 @@ func TestClientMiddleware(t *testing.T) {
 		}
 
 		client.SetRequestMiddleware([]RequestMiddleware{middleware})
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if !called {
 			t.Error("expected request middleware to be called")
@@ -287,7 +339,9 @@ func TestClientMiddleware(t *testing.T) {
 		}
 
 		client.SetResponseMiddleware([]ResponseMiddleware{middleware})
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if !called {
 			t.Error("expected response middleware to be called")
@@ -305,7 +359,9 @@ func TestClientMiddleware(t *testing.T) {
 
 		client.AddRequestMiddleware(middleware)
 		client.ClearRequestMiddleware()
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if called {
 			t.Error("expected request middleware to not be called after clear")
@@ -323,7 +379,9 @@ func TestClientMiddleware(t *testing.T) {
 
 		client.AddResponseMiddleware(middleware)
 		client.ClearResponseMiddleware()
-		_, _ = client.Balance.Get(context.Background())
+		if _, err := client.Balance.Get(context.Background()); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		if called {
 			t.Error("expected response middleware to not be called after clear")
@@ -391,10 +449,13 @@ func TestUserAgentInRequests(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/test-ua", func(w http.ResponseWriter, r *http.Request) {
 			receivedUA = r.Header.Get("User-Agent")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{}`))
+			if _, err := w.Write([]byte(`{}`)); err != nil {
+				t.Errorf("write mock response: %v", err)
+				return
+			}
 		})
 
-		client := NewTestClient(mockServer)
+		client := NewTestClient(t, mockServer)
 		ctx := context.Background()
 
 		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua", nil)
@@ -402,7 +463,9 @@ func TestUserAgentInRequests(t *testing.T) {
 			t.Fatalf("failed to create request: %v", err)
 		}
 
-		_, _ = client.Do(req, nil)
+		if _, err := client.Do(req, nil); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		expectedUA := DefaultUserAgent()
 		if receivedUA != expectedUA {
@@ -415,10 +478,13 @@ func TestUserAgentInRequests(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/test-ua-custom", func(w http.ResponseWriter, r *http.Request) {
 			receivedUA = r.Header.Get("User-Agent")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{}`))
+			if _, err := w.Write([]byte(`{}`)); err != nil {
+				t.Errorf("write mock response: %v", err)
+				return
+			}
 		})
 
-		client := NewTestClientWithUserAgent(mockServer, "my-terraform/1.4.2")
+		client := NewTestClientWithUserAgent(t, mockServer, "my-terraform/1.4.2")
 		ctx := context.Background()
 
 		req, err := client.NewRequest(ctx, http.MethodGet, "/test-ua-custom", nil)
@@ -426,7 +492,9 @@ func TestUserAgentInRequests(t *testing.T) {
 			t.Fatalf("failed to create request: %v", err)
 		}
 
-		_, _ = client.Do(req, nil)
+		if _, err := client.Do(req, nil); err != nil {
+			t.Fatalf("request failed: %v", err)
+		}
 
 		expectedUA := BuildUserAgent("my-terraform/1.4.2")
 		if receivedUA != expectedUA {
