@@ -10,6 +10,10 @@
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
+GO_VERSION := 1.26.9
+GOLANGCI_LINT_VERSION := v2.13.2
+GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
 # ============================================================================
 # Help Target - Shows all available commands
 # ============================================================================
@@ -33,14 +37,9 @@ help: ## Show this help message with all available commands
 setup: ## Complete development environment setup (installs only what's needed)
 	@echo "→ Setting up development environment..."
 	@echo ""
-	@# Check and install golangci-lint if needed
-	@if ! command -v golangci-lint >/dev/null 2>&1; then \
-		echo "Installing golangci-lint v2.5.0..."; \
-		go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.5.0; \
-		echo "✓ golangci-lint installed"; \
-	else \
-		echo "✓ golangci-lint already installed ($$(golangci-lint --version))"; \
-	fi
+	@echo "Preparing golangci-lint $(GOLANGCI_LINT_VERSION) with Go $(GO_VERSION)..."
+	@$(GOLANGCI_LINT) version
+	@echo "✓ Pinned golangci-lint ready"
 	@echo ""
 	@# Check and install pre-commit hooks if pre-commit is available
 	@if command -v pre-commit >/dev/null 2>&1; then \
@@ -68,13 +67,13 @@ setup: ## Complete development environment setup (installs only what's needed)
 
 lint: ## Run golangci-lint (used by CI, pre-commit handles this locally)
 	@echo "→ Running golangci-lint..."
-	@golangci-lint run ./...
+	@$(GOLANGCI_LINT) run ./...
 	@echo "✓ Linting complete!"
 
 security: ## Run security checks (gosec + govulncheck)
 	@echo "→ Running security checks..."
 	@echo "  1. Running gosec (via golangci-lint)..."
-	@golangci-lint run --no-config -E gosec ./...
+	@$(GOLANGCI_LINT) run --no-config -E gosec ./...
 	@echo "  2. Running govulncheck..."
 	@if ! command -v govulncheck >/dev/null 2>&1; then \
 		echo "    Installing govulncheck..."; \

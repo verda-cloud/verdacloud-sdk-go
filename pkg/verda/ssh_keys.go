@@ -17,7 +17,6 @@ package verda
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -92,21 +91,14 @@ func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req *Cr
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read error response: %w", err)
-		}
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	body, err := readAndCloseResponseBody(resp)
+	if err != nil {
+		return nil, err
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
 	}
 
 	keyID := strings.TrimSpace(string(body))

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -250,10 +251,9 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 
 	wrappedResp := &Response{Response: resp}
 
-	bodyBytes, readErr := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	if readErr != nil {
-		return wrappedResp, fmt.Errorf("failed to read response body: %w", readErr)
+	bodyBytes, err := readAndCloseResponseBody(resp)
+	if err != nil {
+		return wrappedResp, err
 	}
 
 	var parseErr error
@@ -363,13 +363,9 @@ func (c *Client) makeRequest(ctx context.Context, method, path string, body any)
 }
 
 func (c *Client) handleResponse(resp *http.Response, result any) error {
-	defer func() {
-		_ = resp.Body.Close()
-	}()
-
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %w", err)
+		return err
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
@@ -396,4 +392,17 @@ func (c *Client) handleResponse(resp *http.Response, result any) error {
 	}
 
 	return nil
+}
+
+func readAndCloseResponseBody(resp *http.Response) ([]byte, error) {
+	body, readErr := io.ReadAll(resp.Body)
+	closeErr := resp.Body.Close()
+	if readErr != nil {
+		readErr = fmt.Errorf("failed to read response body: %w", readErr)
+		if closeErr != nil {
+			return nil, errors.Join(readErr, fmt.Errorf("failed to close response body: %w", closeErr))
+		}
+		return nil, readErr
+	}
+	return body, nil
 }

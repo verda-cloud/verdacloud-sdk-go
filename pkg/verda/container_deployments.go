@@ -206,17 +206,8 @@ func (s *ContainerDeploymentsService) GetEnvironmentVariables(ctx context.Contex
 }
 
 func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
-	if deploymentName == "" {
-		return fmt.Errorf("deploymentName is required")
-	}
-	if req == nil {
-		return fmt.Errorf("request cannot be nil")
-	}
-	if req.ContainerName == "" {
-		return fmt.Errorf("container_name is required")
-	}
-	if len(req.Env) == 0 {
-		return fmt.Errorf("env array cannot be empty")
+	if err := validateContainerEnvVarsRequest(deploymentName, req); err != nil {
+		return err
 	}
 	path := fmt.Sprintf("/container-deployments/%s/environment-variables", deploymentName)
 	_, _, err := postRequest[interface{}](ctx, s.client, path, req)
@@ -224,6 +215,15 @@ func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Contex
 }
 
 func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Context, deploymentName string, req *ContainerEnvVarsRequest) error {
+	if err := validateContainerEnvVarsRequest(deploymentName, req); err != nil {
+		return err
+	}
+	path := fmt.Sprintf("/container-deployments/%s/environment-variables", deploymentName)
+	_, _, err := patchRequest[interface{}](ctx, s.client, path, req)
+	return err
+}
+
+func validateContainerEnvVarsRequest(deploymentName string, req *ContainerEnvVarsRequest) error {
 	if deploymentName == "" {
 		return fmt.Errorf("deploymentName is required")
 	}
@@ -236,9 +236,7 @@ func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Con
 	if len(req.Env) == 0 {
 		return fmt.Errorf("env array cannot be empty")
 	}
-	path := fmt.Sprintf("/container-deployments/%s/environment-variables", deploymentName)
-	_, _, err := patchRequest[interface{}](ctx, s.client, path, req)
-	return err
+	return nil
 }
 
 func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Context, deploymentName string, req *DeleteContainerEnvVarsRequest) error {

@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -95,14 +94,11 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		body, err := io.ReadAll(resp.Body)
+		body, err := readAndCloseResponseBody(resp)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read error response: %w", err)
+			return nil, err
 		}
 		s.client.Logger.Debug("Instance creation failed with status %d: %s", resp.StatusCode, string(body))
 
@@ -117,9 +113,9 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 		return nil, &apiError
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, err
 	}
 
 	var instance Instance
@@ -142,13 +138,10 @@ func (s *InstanceService) Action(ctx context.Context, req InstanceActionRequest)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, err
 	}
 
 	switch resp.StatusCode {
@@ -189,13 +182,10 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	if err != nil {
 		return false, err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return false, fmt.Errorf("failed to read response body: %w", err)
+		return false, err
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {

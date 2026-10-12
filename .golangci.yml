@@ -1,13 +1,13 @@
 version: "2"
 
 run:
-  go: "1.25"
+  go: "1.26"
   concurrency: 4
   timeout: 5m
   tests: false
 
 linters:
-  disable-all: true
+  default: none
   enable:
     # Essential error checking
     - errcheck      # Check for unchecked errors
@@ -28,50 +28,52 @@ linters:
     - dupl          # Code duplication
     - goconst       # Repeated strings that should be constants
 
-linters-settings:
-  errcheck:
-    check-type-assertions: false  # Too strict for SDK
-    check-blank: true
-  dupl:
-    threshold: 100
-  goconst:
-    min-len: 3
-    min-occurrences: 3
-  gocyclo:
-    min-complexity: 30
+  settings:
+    errcheck:
+      check-type-assertions: false  # Too strict for SDK
+      check-blank: true
+    dupl:
+      threshold: 100
+    goconst:
+      min-len: 3
+      min-occurrences: 3
+    gocyclo:
+      min-complexity: 30
+
+  exclusions:
+    paths:
+      - vendor
+      - third_party
+    rules:
+    # Test files - relax SOME rules but keep staticcheck
+      - linters:
+          - dupl
+          - errcheck
+          - goconst
+          - gocyclo
+          - gosec
+        path: _test\.go
+
+    # Test utilities - relax style rules but keep security checks
+      - linters:
+          - dupl
+          - goconst
+          - gocyclo
+          - unused
+        path: testutil/
+
+    # Example code - relax all rules
+      - linters:
+          - errcheck
+          - gosec
+        path: example/
+
+    # Allow blank error assignment in defer (common pattern)
+      - linters:
+          - errcheck
+        text: 'Error return value of .*(Close|Flush|Remove|Write).*is not checked'
+        source: 'defer.*\.Close\(\)'
 
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
-  exclude-dirs:
-    - vendor
-    - third_party
-  exclude-rules:
-    # Test files - relax SOME rules but keep staticcheck
-    - linters:
-        - dupl
-        - errcheck
-        - goconst
-        - gocyclo
-        - gosec
-      path: _test\.go
-
-    # Test utilities - relax style rules but keep security checks
-    - linters:
-        - dupl
-        - goconst
-        - gocyclo
-        - unused
-      path: testutil/
-
-    # Example code - relax all rules
-    - linters:
-        - errcheck
-        - gosec
-      path: example/
-
-    # Allow blank error assignment in defer (common pattern)
-    - linters:
-        - errcheck
-      text: 'Error return value of .*(Close|Flush|Remove|Write).*is not checked'
-      source: 'defer.*\.Close\(\)'

@@ -16,11 +16,22 @@ package verda
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
+
+type closeErrorBody struct {
+	io.Reader
+}
+
+func (*closeErrorBody) Close() error {
+	return errors.New("close failed")
+}
 
 func TestNewClient(t *testing.T) {
 	tests := []struct {
@@ -250,6 +261,41 @@ func TestClientHandleResponse(t *testing.T) {
 			if apiErr.Message != "Test error message" {
 				t.Errorf("expected message 'Test error message', got '%s'", apiErr.Message)
 			}
+		}
+	})
+
+	t.Run("successful response survives close error", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: http.StatusOK,
+			Body: &closeErrorBody{
+				Reader: strings.NewReader(`{"amount":100.5,"currency":"USD"}`),
+			},
+		}
+
+		var balance Balance
+		if err := client.handleResponse(resp, &balance); err != nil {
+			t.Fatalf("unexpected error handling response: %v", err)
+		}
+		if balance.Amount != 100.5 || balance.Currency != "USD" {
+			t.Fatalf("unexpected decoded balance: %+v", balance)
+		}
+	})
+
+	t.Run("API error survives close error", func(t *testing.T) {
+		resp := &http.Response{
+			StatusCode: http.StatusTooManyRequests,
+			Body: &closeErrorBody{
+				Reader: strings.NewReader(`{"code":"rate_limited","message":"Too Many Requests"}`),
+			},
+		}
+
+		err := client.handleResponse(resp, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected APIError, got %T: %v", err, err)
+		}
+		if apiErr.StatusCode != http.StatusTooManyRequests || apiErr.Code != "rate_limited" {
+			t.Fatalf("unexpected API error: %+v", apiErr)
 		}
 	})
 }

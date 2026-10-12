@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -73,17 +72,14 @@ func (s *VolumeService) createVolumeWithPlainTextResponse(ctx context.Context, r
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", s.client.handleResponse(resp, nil)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", err
 	}
 
 	volumeID := strings.TrimSpace(string(body))
@@ -165,17 +161,14 @@ func (s *VolumeService) CloneVolume(ctx context.Context, volumeID string, req Vo
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		_ = resp.Body.Close()
-	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return "", s.client.handleResponse(resp, nil)
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	body, err := readAndCloseResponseBody(resp)
 	if err != nil {
-		return "", fmt.Errorf("failed to read response body: %w", err)
+		return "", err
 	}
 
 	// API returns an array of volume IDs, get the first one
