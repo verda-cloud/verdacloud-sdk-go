@@ -6,7 +6,7 @@
 # ============================================================================
 
 .PHONY: help build test test-integration test-smoke clean coverage
-.PHONY: versions lint fmt license license-check setup pre-commit
+.PHONY: versions lint security vulncheck fmt license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
@@ -14,7 +14,8 @@ GO_VERSION := 1.25.14
 GOLANGCI_LINT_VERSION := v2.5.0
 GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.7.0
-GOVULNCHECK := GOTOOLCHAIN=go$(GO_VERSION) go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+# govulncheck must be a prebuilt binary: under `go run` it cannot detect the stdlib version and reports nothing.
+GOVULNCHECK := $(CURDIR)/build/bin/govulncheck
 
 # ============================================================================
 # Help Target - Shows all available commands
@@ -79,8 +80,12 @@ security: versions ## Run security checks (gosec + govulncheck)
 	@echo "  1. Running gosec (via golangci-lint)..."
 	@$(GOLANGCI_LINT) run --no-config -E gosec ./...
 	@echo "  2. Running govulncheck..."
-	@$(GOVULNCHECK) ./...
+	@$(MAKE) --no-print-directory vulncheck
 	@echo "✓ Security checks complete!"
+
+vulncheck: ## Run govulncheck; fails on vulnerabilities not accepted in scripts/govulncheck-gate.sh
+	@GOTOOLCHAIN=go$(GO_VERSION) GOBIN=$(CURDIR)/build/bin go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	@GOTOOLCHAIN=go$(GO_VERSION) GOVULNCHECK=$(GOVULNCHECK) GO_VERSION=$(GO_VERSION) ./scripts/govulncheck-gate.sh
 
 fmt: ## Format Go code (used by CI, pre-commit handles this locally)
 	@echo "→ Formatting Go code..."
