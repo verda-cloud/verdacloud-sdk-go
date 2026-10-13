@@ -347,8 +347,8 @@ Useful for debugging API issues. In production, leave it off.
 export VERDA_CLIENT_ID="your_client_id"
 export VERDA_CLIENT_SECRET="your_client_secret"
 
-# Staging
-export VERDA_BASE_URL="https://api-staging.verda.com/v1"
+# API URL (optional, defaults to production)
+export VERDA_BASE_URL="https://api.verda.com/v1"
 
 # Debug mode
 export VERDA_DEBUG=true
