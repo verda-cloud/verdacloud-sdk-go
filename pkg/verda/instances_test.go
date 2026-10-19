@@ -763,14 +763,6 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 		}
 	})
 
-	t.Run("hibernate instance", func(t *testing.T) {
-		ctx := context.Background()
-		err := client.Instances.Hibernate(ctx, "inst_123")
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
-
 	t.Run("configure spot instance", func(t *testing.T) {
 		ctx := context.Background()
 		err := client.Instances.ConfigureSpot(ctx, "inst_123")

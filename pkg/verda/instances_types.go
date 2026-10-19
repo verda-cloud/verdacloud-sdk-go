@@ -157,7 +157,6 @@ const (
 	ActionShutdown      = "shutdown"
 	ActionDelete        = "delete"
 	ActionDiscontinue   = "discontinue"
-	ActionHibernate     = "hibernate"
 	ActionConfigureSpot = "configure_spot"
 	ActionForceShutdown = "force_shutdown"
 	ActionDeleteStuck   = "delete_stuck"
@@ -246,7 +245,7 @@ func (r InstanceActionRequest) Validate() error {
 	return validation.ValidateStruct(&r,
 		validation.Field(&r.Action, validation.Required,
 			validation.In(ActionBoot, ActionStart, ActionShutdown, ActionDelete,
-				ActionDiscontinue, ActionHibernate, ActionConfigureSpot,
+				ActionDiscontinue, ActionConfigureSpot,
 				ActionForceShutdown, ActionDeleteStuck, ActionDeploy, ActionTransfer)),
 		validation.Field(&r.ID, validation.Required, validation.Length(1, 0)),
 	)

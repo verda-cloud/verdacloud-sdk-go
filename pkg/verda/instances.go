@@ -238,13 +238,6 @@ func (s *InstanceService) Discontinue(ctx context.Context, ids []string, volumeI
 	return err
 }
 
-// Hibernate shuts down and archives an instance - must be shut down first or API will error.
-// Volumes are detached and the instance is deleted during hibernation.
-func (s *InstanceService) Hibernate(ctx context.Context, ids ...string) error {
-	_, err := s.Action(ctx, InstanceActionRequest{Action: ActionHibernate, ID: ids})
-	return err
-}
-
 func (s *InstanceService) ConfigureSpot(ctx context.Context, ids ...string) error {
 	_, err := s.Action(ctx, InstanceActionRequest{Action: ActionConfigureSpot, ID: ids})
 	return err

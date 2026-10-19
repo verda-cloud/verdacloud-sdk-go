@@ -126,7 +126,6 @@ newInstance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 
 // Control instances
 err = client.Instances.Shutdown(ctx, "instance_id")
-err = client.Instances.Hibernate(ctx, "instance_id")
 err = client.Instances.Delete(ctx, "instance_id", nil)
 
 // Check availability
