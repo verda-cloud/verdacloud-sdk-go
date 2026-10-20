@@ -152,20 +152,19 @@ type InstanceActionResult struct {
 
 // Action constants
 const (
-	ActionBoot          = "boot"
-	ActionStart         = "start"
-	ActionShutdown      = "shutdown"
-	ActionDelete        = "delete"
-	ActionDiscontinue   = "discontinue"
+	ActionBoot        = "boot"
+	ActionStart       = "start"
+	ActionShutdown    = "shutdown"
+	ActionDelete      = "delete"
+	ActionDiscontinue = "discontinue"
+	// Deprecated: Retained for compatibility.
+	ActionHibernate     = "hibernate"
 	ActionConfigureSpot = "configure_spot"
 	ActionForceShutdown = "force_shutdown"
 	ActionDeleteStuck   = "delete_stuck"
 	ActionDeploy        = "deploy"
 	ActionTransfer      = "transfer"
 )
-
-// Deprecated: Retained for compatibility.
-const ActionHibernate = "hibernate"
 
 // Instance status constants
 const (
