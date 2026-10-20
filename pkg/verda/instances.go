@@ -240,7 +240,7 @@ func (s *InstanceService) Discontinue(ctx context.Context, ids []string, volumeI
 
 // Hibernate discontinues an instance and retains its volumes. Storage charges continue.
 //
-// Deprecated: Use Delete with an empty volumeIDs slice to retain volumes.
+// Deprecated: Retained for compatibility.
 func (s *InstanceService) Hibernate(ctx context.Context, ids ...string) error {
 	_, err := s.Action(ctx, InstanceActionRequest{Action: ActionHibernate, ID: ids})
 	return err

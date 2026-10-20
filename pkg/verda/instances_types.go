@@ -164,7 +164,7 @@ const (
 	ActionTransfer      = "transfer"
 )
 
-// Deprecated: Use ActionDelete with an empty VolumeIDs slice to retain volumes.
+// Deprecated: Retained for compatibility.
 const ActionHibernate = "hibernate"
 
 // Instance status constants
