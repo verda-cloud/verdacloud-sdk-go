@@ -126,8 +126,9 @@ newInstance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 
 // Control instances
 err = client.Instances.Shutdown(ctx, "instance_id")
-err = client.Instances.Hibernate(ctx, "instance_id")
-err = client.Instances.Delete(ctx, "instance_id", nil)
+// nil selects each instance's OS volume for deletion and detaches its other volumes.
+// false moves selected volumes to trash instead of deleting them permanently.
+err = client.Instances.Delete(ctx, []string{"instance_id"}, nil, false)
 
 // Check availability
 available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")

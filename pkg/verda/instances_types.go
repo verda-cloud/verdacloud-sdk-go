@@ -152,11 +152,12 @@ type InstanceActionResult struct {
 
 // Action constants
 const (
-	ActionBoot          = "boot"
-	ActionStart         = "start"
-	ActionShutdown      = "shutdown"
-	ActionDelete        = "delete"
-	ActionDiscontinue   = "discontinue"
+	ActionBoot        = "boot"
+	ActionStart       = "start"
+	ActionShutdown    = "shutdown"
+	ActionDelete      = "delete"
+	ActionDiscontinue = "discontinue"
+	// Deprecated: Hibernate will be removed in a future version. Retained for compatibility.
 	ActionHibernate     = "hibernate"
 	ActionConfigureSpot = "configure_spot"
 	ActionForceShutdown = "force_shutdown"
