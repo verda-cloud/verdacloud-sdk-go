@@ -126,8 +126,9 @@ newInstance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 
 // Control instances
 err = client.Instances.Shutdown(ctx, "instance_id")
-err = client.Instances.Hibernate(ctx, "instance_id")
-err = client.Instances.Delete(ctx, "instance_id", nil)
+// Hibernate is deprecated. Delete the instance and retain its volumes instead.
+// Storage charges continue for retained volumes.
+err = client.Instances.Delete(ctx, []string{"instance_id"}, []string{}, false)
 
 // Check availability
 available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")

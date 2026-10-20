@@ -157,13 +157,15 @@ const (
 	ActionShutdown      = "shutdown"
 	ActionDelete        = "delete"
 	ActionDiscontinue   = "discontinue"
-	ActionHibernate     = "hibernate"
 	ActionConfigureSpot = "configure_spot"
 	ActionForceShutdown = "force_shutdown"
 	ActionDeleteStuck   = "delete_stuck"
 	ActionDeploy        = "deploy"
 	ActionTransfer      = "transfer"
 )
+
+// Deprecated: Use ActionDelete with an empty VolumeIDs slice to retain volumes.
+const ActionHibernate = "hibernate"
 
 // Instance status constants
 const (
