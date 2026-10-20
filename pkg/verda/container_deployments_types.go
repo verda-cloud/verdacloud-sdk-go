@@ -91,6 +91,7 @@ type ContainerCompute struct {
 type CreateDeploymentRequest struct {
 	Name                      string                      `json:"name"`
 	IsSpot                    bool                        `json:"is_spot"`
+	IsInferno                 bool                        `json:"is_inferno"`
 	Compute                   ContainerCompute            `json:"compute"`
 	ContainerRegistrySettings ContainerRegistrySettings   `json:"container_registry_settings"`
 	Scaling                   ContainerScalingOptions     `json:"scaling"`
@@ -112,6 +113,7 @@ type CreateDeploymentContainer struct {
 // UpdateDeploymentRequest represents a request to update a deployment
 type UpdateDeploymentRequest struct {
 	IsSpot                    *bool                       `json:"is_spot,omitempty"`
+	IsInferno                 *bool                       `json:"is_inferno,omitempty"`
 	Compute                   *ContainerCompute           `json:"compute,omitempty"`
 	ContainerRegistrySettings *ContainerRegistrySettings  `json:"container_registry_settings,omitempty"`
 	Scaling                   *ContainerScalingOptions    `json:"scaling,omitempty"`

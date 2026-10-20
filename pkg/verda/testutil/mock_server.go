@@ -728,26 +728,52 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleGetContainerDeployments(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/container-deployments":
 		ms.handleCreateContainerDeployment(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/status") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetDeploymentStatus(w, r)
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleGetDeploymentScaling(w, r)
 	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleUpdateDeploymentScaling(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/replicas") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetDeploymentReplicas(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetEnvironmentVariables(w, r)
 	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleAddEnvironmentVariables(w, r)
 	case r.Method == http.MethodPatch && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleUpdateEnvironmentVariables(w, r)
 	case r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/environment-variables") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
 		ms.handleDeleteEnvironmentVariables(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/restart") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeploymentAction(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/pause") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeploymentAction(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/resume") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeploymentAction(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/purge-queue") && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeploymentAction(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleDeleteContainerDeployment(w, r)
 	case r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/container-deployments/") && !strings.HasSuffix(r.URL.Path, "/scaling") && !strings.HasSuffix(r.URL.Path, "/environment-variables"):
 		ms.handleUpdateContainerDeployment(w, r)
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/container-deployments/"):
+		ms.handleGetContainerDeploymentByName(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/serverless-compute-resources":
 		ms.handleGetServerlessComputeResources(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/secrets":
 		ms.handleGetSecrets(w, r)
+	case r.Method == http.MethodPost && r.URL.Path == "/secrets":
+		ms.handleCreateSecret(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/secrets/"):
+		ms.handleDeleteSecret(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/file-secrets":
 		ms.handleGetFileSecrets(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/file-secrets":
 		ms.handleCreateFileSecret(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/file-secrets/"):
+		ms.handleDeleteFileSecret(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/container-registry-credentials/"):
+		ms.handleDeleteRegistryCredentials(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/container-registry-credentials":
 		ms.handleGetRegistryCredentials(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == "/container-registry-credentials":
@@ -2165,27 +2191,69 @@ func (ms *MockServer) handleGetContainerDeployments(w http.ResponseWriter, _ *ht
 	writeBytes(w, []byte(response))
 }
 
-func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *http.Request) {
+func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	// Return raw JSON matching the actual API response structure
-	response := `{
+	var req map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		req = map[string]interface{}{}
+	}
+
+	isInferno := false
+	if v, ok := req["is_inferno"].(bool); ok {
+		isInferno = v
+	}
+
+	response := map[string]interface{}{
 		"name": "new-deployment",
-		"containers": [
+		"containers": []map[string]interface{}{
 			{
 				"exposed_port": 80,
+				"image": map[string]interface{}{
+					"image":          "nginx:latest",
+					"last_updated_at": "2024-01-01T00:00:00.000Z",
+				},
+				"name": "nginx-0",
+			},
+		},
+		"endpoint_base_url": "https://containers.datacrunch.io/new-deployment",
+		"created_at":        "2024-01-01T00:00:00.000Z",
+		"compute": map[string]interface{}{
+			"name": "RTX 4500 Ada",
+			"size": 1,
+		},
+		"container_registry_settings": map[string]interface{}{
+			"is_private": false,
+		},
+		"is_spot":    false,
+		"is_inferno": isInferno,
+	}
+
+	writeJSON(w, response)
+}
+
+func (ms *MockServer) handleGetContainerDeploymentByName(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	response := `{
+		"name": "test-deployment",
+		"containers": [
+			{
+				"exposed_port": 8080,
 				"image": {
-					"image": "nginx:latest",
+					"image": "nginx:1.25.3",
 					"last_updated_at": "2024-01-01T00:00:00.000Z"
 				},
-				"name": "nginx-0"
+				"name": "nginx-0",
+				"env": [],
+				"volume_mounts": []
 			}
 		],
-		"endpoint_base_url": "https://containers.datacrunch.io/new-deployment",
+		"endpoint_base_url": "https://containers.datacrunch.io/test-deployment",
 		"created_at": "2024-01-01T00:00:00.000Z",
 		"compute": {
-			"name": "RTX 4500 Ada",
+			"name": "H100",
 			"size": 1
 		},
 		"container_registry_settings": {
@@ -2195,6 +2263,48 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, _ *
 	}`
 
 	writeBytes(w, []byte(response))
+}
+
+func (ms *MockServer) handleDeleteContainerDeployment(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleGetDeploymentStatus(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`{"status": "running"}`))
+}
+
+func (ms *MockServer) handleDeploymentAction(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`{}`))
+}
+
+func (ms *MockServer) handleGetDeploymentReplicas(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`{"list": [{"id": "replica-1", "status": "running", "started_at": "2024-01-01T00:00:00.000Z"}]}`))
+}
+
+func (ms *MockServer) handleGetEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`[{"name": "MY_VAR", "value_or_reference_to_secret": "my-value", "type": "plain"}]`))
+}
+
+func (ms *MockServer) handleCreateSecret(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	writeBytes(w, []byte(`{}`))
+}
+
+func (ms *MockServer) handleDeleteSecret(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleDeleteFileSecret(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleDeleteRegistryCredentials(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (ms *MockServer) handleUpdateContainerDeployment(w http.ResponseWriter, r *http.Request) {
