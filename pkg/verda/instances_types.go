@@ -157,7 +157,7 @@ const (
 	ActionShutdown    = "shutdown"
 	ActionDelete      = "delete"
 	ActionDiscontinue = "discontinue"
-	// Deprecated: Retained for compatibility.
+	// Deprecated: Hibernate will be removed in a future version. Retained for compatibility.
 	ActionHibernate     = "hibernate"
 	ActionConfigureSpot = "configure_spot"
 	ActionForceShutdown = "force_shutdown"
