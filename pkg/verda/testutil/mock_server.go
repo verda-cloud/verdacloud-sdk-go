@@ -2221,7 +2221,7 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *
 			{
 				"exposed_port": 80,
 				"image": map[string]interface{}{
-					"image":          "nginx:latest",
+					"image":           "nginx:latest",
 					"last_updated_at": "2024-01-01T00:00:00.000Z",
 				},
 				"name": "nginx-0",
