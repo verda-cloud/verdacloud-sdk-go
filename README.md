@@ -7,11 +7,11 @@
 
 > **Note**: Previously known as DataCrunch Go SDK. We're transitioning to Verda.com. Same functionality, new name.
 
-Go SDK for the Verda cloud platform. Manage GPU instances, volumes, SSH keys, and more.
+Go SDK for the Verda cloud platform. Manage GPU instances, serverless containers, serverless jobs, volumes, private networks, and more.
 
 ## Quick Start
 
-**Requirements**: Go 1.21+ (needs generics support)
+**Requirements**: Go 1.25+
 
 ```bash
 go get github.com/verda-cloud/verdacloud-sdk-go
@@ -127,10 +127,10 @@ newInstance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 // Control instances
 err = client.Instances.Shutdown(ctx, "instance_id")
 err = client.Instances.Hibernate(ctx, "instance_id")
-err = client.Instances.Delete(ctx, "instance_id", nil)
+err = client.Instances.Delete(ctx, []string{"instance_id"}, nil, false)
 
 // Check availability
-available, err := client.Instances.IsAvailable(ctx, "1V100.6V", false, "")
+available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1V100.6V", false, "")
 ```
 
 ### SSH Keys
@@ -216,6 +216,117 @@ if _, err := client.Instances.AddTag(ctx, instanceID, tagReq); err != nil {
 }
 ```
 
+### Serverless Containers
+
+```go
+ctx := context.Background()
+
+// List all deployments
+deployments, err := client.ContainerDeployments.GetDeployments(ctx)
+
+// Create a deployment
+deployment, err := client.ContainerDeployments.CreateDeployment(ctx, &verda.CreateDeploymentRequest{
+    Name:    "my-api",
+    IsSpot:  true,
+    Compute: verda.ContainerCompute{Name: "1V100.6V", Size: 1},
+    Scaling: verda.ContainerScalingOptions{
+        MinReplicaCount:              0,
+        MaxReplicaCount:              3,
+        ConcurrentRequestsPerReplica: 1,
+        ScaleDownPolicy:              &verda.ScalingPolicy{DelaySeconds: 120},
+        ScaleUpPolicy:                &verda.ScalingPolicy{DelaySeconds: 15},
+    },
+    Containers: []verda.CreateDeploymentContainer{{
+        Image:       "registry.example.com/my-api:v1.2.0",
+        ExposedPort: 8080,
+    }},
+})
+
+// Use Inferno images
+deployment, err = client.ContainerDeployments.CreateDeployment(ctx, &verda.CreateDeploymentRequest{
+    Name:      "my-inferno-api",
+    IsInferno: true,
+    // ...
+})
+
+// Get deployment details
+deployment, err = client.ContainerDeployments.GetDeploymentByName(ctx, "my-api")
+
+// Lifecycle actions
+err = client.ContainerDeployments.PauseDeployment(ctx, "my-api")
+err = client.ContainerDeployments.ResumeDeployment(ctx, "my-api")
+err = client.ContainerDeployments.RestartDeployment(ctx, "my-api")
+err = client.ContainerDeployments.DeleteDeployment(ctx, "my-api", -1) // -1 = API default timeout
+
+// Scaling
+scaling, err := client.ContainerDeployments.GetDeploymentScaling(ctx, "my-api")
+maxReplicas := 5
+scaling, err = client.ContainerDeployments.UpdateDeploymentScaling(ctx, "my-api", &verda.UpdateScalingOptionsRequest{
+    MaxReplicaCount: &maxReplicas,
+})
+
+// Environment variables
+err = client.ContainerDeployments.AddEnvironmentVariables(ctx, "my-api", &verda.ContainerEnvVarsRequest{
+    ContainerName: "my-api",
+    Env: []verda.ContainerEnvVar{
+        {Type: "plain", Name: "LOG_LEVEL", ValueOrReferenceToSecret: "debug"},
+    },
+})
+
+// Secrets
+err = client.ContainerDeployments.CreateSecret(ctx, &verda.CreateSecretRequest{
+    Name:  "api-key",
+    Value: "secret-value",
+})
+
+// Registry credentials (for private container registries)
+err = client.ContainerDeployments.CreateRegistryCredentials(ctx, &verda.CreateRegistryCredentialsRequest{
+    Name:        "my-registry",
+    Type:        "dockerhub",
+    Username:    "user",
+    AccessToken: "token",
+})
+
+// Compute resources
+resources, err := client.ContainerDeployments.GetServerlessComputeResources(ctx)
+```
+
+### Serverless Jobs
+
+```go
+ctx := context.Background()
+
+// List all job deployments
+jobs, err := client.ServerlessJobs.GetJobDeployments(ctx)
+
+// Create a job deployment
+job, err := client.ServerlessJobs.CreateJobDeployment(ctx, &verda.CreateJobDeploymentRequest{
+    Name:    "batch-processor",
+    Compute: &verda.ContainerCompute{Name: "1V100.6V", Size: 1},
+    Scaling: &verda.JobScalingOptions{
+        MaxReplicaCount:        5,
+        QueueMessageTTLSeconds: 3600,
+        DeadlineSeconds:        600,
+    },
+    Containers: []verda.CreateDeploymentContainer{{
+        Image:       "registry.example.com/batch:v2.0.0",
+        ExposedPort: 8080,
+    }},
+})
+
+// Get job details
+job, err = client.ServerlessJobs.GetJobDeploymentByName(ctx, "batch-processor")
+
+// Lifecycle actions
+err = client.ServerlessJobs.PauseJobDeployment(ctx, "batch-processor")
+err = client.ServerlessJobs.ResumeJobDeployment(ctx, "batch-processor")
+err = client.ServerlessJobs.PurgeJobDeploymentQueue(ctx, "batch-processor")
+err = client.ServerlessJobs.DeleteJobDeployment(ctx, "batch-processor", -1)
+
+// Check status
+status, err := client.ServerlessJobs.GetJobDeploymentStatus(ctx, "batch-processor")
+```
+
 ### Private Networks
 
 > **Experimental**: Private network support is experimental. The API and the SDK types for it
@@ -275,6 +386,22 @@ script, err := client.StartupScripts.Create(ctx, verda.CreateStartupScriptReques
     Name:   "setup",
     Script: "#!/bin/bash\necho 'Hello'",
 })
+
+// Instance types & availability
+types, err := client.InstanceTypes.Get(ctx, "USD")
+available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1V100.6V", false, "")
+
+// Container types (serverless compute pricing)
+containerTypes, err := client.ContainerTypes.Get(ctx, "USD")
+
+// Images
+images, err := client.Images.Get(ctx)
+
+// Clusters
+clusters, err := client.Clusters.Get(ctx)
+
+// Long-term reservation periods
+periods, err := client.LongTerm.GetPeriods(ctx)
 ```
 
 ### Error Handling
@@ -418,7 +545,7 @@ make test-integration # Run integration tests
 make test-smoke       # Run smoke tests (quick CRUD lifecycle)
 
 # Code Quality
-make check            # Run format, lint, and tests
+make ci               # Run format, lint, and tests
 make lint             # Static analysis with golangci-lint
 make fmt              # Format code
 
@@ -488,11 +615,7 @@ See [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) for details.
 
 ## Examples
 
-Check the [example/](example/) directory for complete examples:
-
-```bash
-make example
-```
+Check the [example/](example/) directory for a complete example.
 
 ## AI-Assisted Development
 
@@ -508,12 +631,12 @@ Works with Cursor, Copilot, Codex, Claude Code, and any tool that reads reposito
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ## Links
 
 - **Website**: [verda.com](https://verda.com)
-- **API Docs**: [docs.verda.com](https://api.datacrunch.io/v1/docs)
+- **API Docs**: [api.verda.com/v1/docs](https://api.verda.com/v1/docs)
 - **Support**: [support@verda.com](mailto:support@verda.com)
 
 ---
