@@ -194,12 +194,6 @@ func WithUserAgent(userAgent string) ClientOption {
 	}
 }
 
-func (c *Client) WithHTTPClient(httpClient *http.Client) ClientOption {
-	return func(c *Client) {
-		c.HTTPClient = httpClient
-	}
-}
-
 func (c *Client) NewRequest(ctx context.Context, method, path string, body io.Reader) (*http.Request, error) {
 	url := c.BaseURL + path
 

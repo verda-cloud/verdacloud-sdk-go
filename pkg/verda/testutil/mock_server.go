@@ -787,6 +787,16 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleUpdateJobDeployment(w, r)
 	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/scaling") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
 		ms.handleGetJobDeploymentScaling(w, r)
+	case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/status") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleGetJobDeploymentStatus(w, r)
+	case r.Method == http.MethodDelete && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleDeleteJobDeployment(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/purge-queue") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleJobDeploymentAction(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/pause") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleJobDeploymentAction(w, r)
+	case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/resume") && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
+		ms.handleJobDeploymentAction(w, r)
 	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/job-deployments/"):
 		ms.handleGetJobDeploymentByName(w, r)
 	default:
@@ -2751,6 +2761,20 @@ func (ms *MockServer) handleGetJobDeploymentByName(w http.ResponseWriter, _ *htt
 	}`
 
 	writeBytes(w, []byte(response))
+}
+
+func (ms *MockServer) handleDeleteJobDeployment(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (ms *MockServer) handleGetJobDeploymentStatus(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`{"status": "running"}`))
+}
+
+func (ms *MockServer) handleJobDeploymentAction(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	writeBytes(w, []byte(`{}`))
 }
 
 // Note: CreateTestClient is implemented in test files to avoid circular imports

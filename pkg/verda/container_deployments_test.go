@@ -17,6 +17,7 @@ package verda
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -627,6 +628,28 @@ func TestContainerDeploymentsService_CreateDeployment_Inferno(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 
+	var receivedInferno bool
+	mockServer.SetHandler("POST", "/container-deployments", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+		if v, ok := body["is_inferno"].(bool); ok {
+			receivedInferno = v
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{
+			"name": "inferno-deployment",
+			"containers": [{"name": "c-0", "image": {"image": "myimage:v1.0"}, "exposed_port": 8080}],
+			"endpoint_base_url": "https://containers.datacrunch.io/inferno-deployment",
+			"created_at": "2024-01-01T00:00:00.000Z",
+			"compute": {"name": "H100", "size": 1},
+			"is_spot": false
+		}`))
+	})
+
 	client := NewTestClient(t, mockServer)
 
 	ctx := context.Background()
@@ -647,11 +670,35 @@ func TestContainerDeploymentsService_CreateDeployment_Inferno(t *testing.T) {
 	if deployment == nil {
 		t.Fatal("expected deployment, got nil")
 	}
+	if !receivedInferno {
+		t.Error("server did not receive is_inferno=true in request body")
+	}
 }
 
 func TestContainerDeploymentsService_UpdateDeployment_Inferno(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
+
+	var receivedInferno *bool
+	mockServer.SetHandler("PATCH", "/container-deployments/test-deployment", func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]interface{}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode request body: %v", err)
+		}
+		if v, ok := body["is_inferno"].(bool); ok {
+			receivedInferno = &v
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name": "test-deployment",
+			"containers": [{"name": "my-container", "image": {"image": "nginx:1.25"}, "exposed_port": 80}],
+			"endpoint_base_url": "https://containers.datacrunch.io/test-deployment",
+			"created_at": "2024-01-01T00:00:00.000Z",
+			"compute": {"name": "H100", "size": 1},
+			"is_spot": false
+		}`))
+	})
 
 	client := NewTestClient(t, mockServer)
 
@@ -670,6 +717,9 @@ func TestContainerDeploymentsService_UpdateDeployment_Inferno(t *testing.T) {
 	}
 	if deployment == nil {
 		t.Fatal("expected deployment, got nil")
+	}
+	if receivedInferno == nil || !*receivedInferno {
+		t.Error("server did not receive is_inferno=true in PATCH request body")
 	}
 }
 
