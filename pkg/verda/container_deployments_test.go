@@ -859,46 +859,51 @@ func TestContainerDeploymentsService_GetDeploymentByName(t *testing.T) {
 // --- DeleteDeployment ---
 
 func TestContainerDeploymentsService_DeleteDeployment(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	client := NewTestClient(t, mockServer)
-	ctx := context.Background()
-
 	t.Run("empty name error", func(t *testing.T) {
-		err := client.ContainerDeployments.DeleteDeployment(ctx, "", 0)
+		mockServer := testutil.NewMockServer()
+		defer mockServer.Close()
+		client := NewTestClient(t, mockServer)
+
+		err := client.ContainerDeployments.DeleteDeployment(context.Background(), "", 0)
 		if err == nil {
 			t.Error("expected error for empty name")
 		}
 	})
 
-	t.Run("timeout 0 - skip waiting", func(t *testing.T) {
-		err := client.ContainerDeployments.DeleteDeployment(ctx, "my-deployment", 0)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	tests := []struct {
+		name      string
+		timeoutMs int
+		wantQuery string
+	}{
+		{"timeout 0 skips waiting", 0, "timeout=0"},
+		{"negative timeout omits the parameter", -1, ""},
+		{"timeout 500ms", 500, "timeout=500"},
+		{"timeout at cap boundary", 300000, "timeout=300000"},
+		{"timeout capped at 300000", 400000, "timeout=300000"},
+	}
 
-	t.Run("timeout negative - use API default", func(t *testing.T) {
-		err := client.ContainerDeployments.DeleteDeployment(ctx, "my-deployment", -1)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
 
-	t.Run("timeout 500ms", func(t *testing.T) {
-		err := client.ContainerDeployments.DeleteDeployment(ctx, "my-deployment", 500)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+			var gotQuery string
+			mockServer.SetHandler(http.MethodDelete, "/container-deployments/my-deployment", func(w http.ResponseWriter, r *http.Request) {
+				gotQuery = r.URL.RawQuery
+				w.WriteHeader(http.StatusNoContent)
+			})
 
-	t.Run("timeout capped at 300000", func(t *testing.T) {
-		err := client.ContainerDeployments.DeleteDeployment(ctx, "my-deployment", 400000)
-		if err != nil {
-			t.Errorf("unexpected error: %v", err)
-		}
-	})
+			client := NewTestClient(t, mockServer)
+
+			err := client.ContainerDeployments.DeleteDeployment(context.Background(), "my-deployment", tt.timeoutMs)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if gotQuery != tt.wantQuery {
+				t.Errorf("query = %q, want %q", gotQuery, tt.wantQuery)
+			}
+		})
+	}
 }
 
 // --- GetDeploymentStatus ---
