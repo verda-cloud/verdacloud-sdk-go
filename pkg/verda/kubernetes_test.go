@@ -30,17 +30,42 @@ import (
 
 const testKubernetesProjectID = "11111111-1111-4111-8111-111111111111"
 
-// Captured from a local API create response
-const provisioningClusterJSON = `{"name":"demo","kubernetes_version":"1.35.8","location":"FIN-01",` +
-	`"network":"pn_local","subnet":"sn_local_fin01","control_plane_profile":"standard",` +
-	`"phase":"provisioning","created_at":"2026-10-22T13:40:37+03:00"}`
+// testKubernetesClusterPath is the route for the "demo" cluster used across tests
+const testKubernetesClusterPath = kubernetesClustersBasePath + "/demo"
 
-const runningClusterJSON = `{"name":"demo","kubernetes_version":"1.35.8","location":"FIN-01",` +
-	`"network":"pn_local","subnet":"sn_local_fin01","control_plane_profile":"standard",` +
-	`"phase":"running","external_endpoint":"https://203.0.113.10:6443",` +
-	`"conditions":[{"type":"Ready","status":"True","observedGeneration":2,` +
-	`"lastTransitionTime":"2026-10-22T13:50:00Z","reason":"AllComponentsReady","message":"ok"}],` +
-	`"created_at":"2026-10-22T13:40:37+03:00"}`
+// Captured from a local API create response
+const provisioningClusterJSON = `{
+  "name": "demo",
+  "kubernetes_version": "1.35.8",
+  "location": "FIN-01",
+  "network": "pn_local",
+  "subnet": "sn_local_fin01",
+  "control_plane_profile": "standard",
+  "phase": "provisioning",
+  "created_at": "2026-10-22T13:40:37+03:00"
+}`
+
+const runningClusterJSON = `{
+  "name": "demo",
+  "kubernetes_version": "1.35.8",
+  "location": "FIN-01",
+  "network": "pn_local",
+  "subnet": "sn_local_fin01",
+  "control_plane_profile": "standard",
+  "phase": "running",
+  "external_endpoint": "https://203.0.113.10:6443",
+  "conditions": [
+    {
+      "type": "Ready",
+      "status": "True",
+      "observedGeneration": 2,
+      "lastTransitionTime": "2026-10-22T13:50:00Z",
+      "reason": "AllComponentsReady",
+      "message": "ok"
+    }
+  ],
+  "created_at": "2026-10-22T13:40:37+03:00"
+}`
 
 func validCreateKubernetesClusterRequest() CreateKubernetesClusterRequest {
 	return CreateKubernetesClusterRequest{
@@ -86,14 +111,14 @@ func TestKubernetesService_Create(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPost, "/mk8sclusters", captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
 
 	cluster, err := client.Kubernetes.Create(context.Background(), testKubernetesProjectID, validCreateKubernetesClusterRequest())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got.method != http.MethodPost || got.path != "/mk8sclusters" {
+	if got.method != http.MethodPost || got.path != kubernetesClustersBasePath {
 		t.Errorf("unexpected request %s %s", got.method, got.path)
 	}
 	if got.projectID != testKubernetesProjectID {
@@ -140,7 +165,7 @@ func TestKubernetesService_CreateWithProfile(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPost, "/mk8sclusters", captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
 
 	req := validCreateKubernetesClusterRequest()
 	req.ControlPlaneProfile = KubernetesControlPlaneProfileLarge
@@ -158,7 +183,7 @@ func TestKubernetesService_Get(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/demo", captureHandler(t, &got, http.StatusOK, runningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, captureHandler(t, &got, http.StatusOK, runningClusterJSON))
 
 	cluster, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "demo")
 	if err != nil {
@@ -185,7 +210,7 @@ func TestKubernetesService_GetUnknownPhase(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/demo",
+	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath,
 		captureHandler(t, &got, http.StatusOK, `{"name":"demo","phase":"hibernating","created_at":"2026-10-22T13:40:37Z"}`))
 
 	cluster, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "demo")
@@ -197,19 +222,46 @@ func TestKubernetesService_GetUnknownPhase(t *testing.T) {
 	}
 }
 
+func TestKubernetesClusterPath(t *testing.T) {
+	const query = "?projectId=" + testKubernetesProjectID
+
+	cases := []struct {
+		name  string
+		names []string
+		want  string
+	}{
+		{"collection", nil, kubernetesClustersBasePath + query},
+		{"cluster", []string{"demo"}, kubernetesClustersBasePath + "/demo" + query},
+		{"slash stays in one segment", []string{"a/b"}, kubernetesClustersBasePath + "/a%2Fb" + query},
+		{"query cannot be injected", []string{"demo?projectId=other"}, kubernetesClustersBasePath + "/demo%3FprojectId=other" + query},
+		{"fragment", []string{"a#b"}, kubernetesClustersBasePath + "/a%23b" + query},
+		{"space", []string{"my demo"}, kubernetesClustersBasePath + "/my%20demo" + query},
+		{"percent", []string{"50%"}, kubernetesClustersBasePath + "/50%25" + query},
+		{"non-ascii", []string{"démo"}, kubernetesClustersBasePath + "/d%C3%A9mo" + query},
+		{"nested segments", []string{"demo", "pools", "workers"}, kubernetesClustersBasePath + "/demo/pools/workers" + query},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := kubernetesClusterPath(testKubernetesProjectID, tc.names...); got != tc.want {
+				t.Errorf("kubernetesClusterPath(%q) = %q, want %q", tc.names, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestKubernetesService_GetEscapesName(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/a/b", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/a%2Fb", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, kubernetesClustersBasePath+"/a/b", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, kubernetesClustersBasePath+"/a%2Fb", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
 
 	if _, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "a/b"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.path != "/mk8sclusters/a%2Fb" {
+	if got.path != kubernetesClustersBasePath+"/a%2Fb" {
 		t.Errorf("expected escaped name in path, got %q", got.path)
 	}
 }
@@ -220,7 +272,7 @@ func TestKubernetesService_Update(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPatch, "/mk8sclusters/demo", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodPatch, testKubernetesClusterPath, captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
 
 	_, err := client.Kubernetes.Update(context.Background(), testKubernetesProjectID, "demo",
 		UpdateKubernetesClusterRequest{KubernetesVersion: "1.36.4"})
@@ -241,7 +293,7 @@ func TestKubernetesService_Delete(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/demo", captureHandler(t, &got, http.StatusAccepted, ""))
+	mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, captureHandler(t, &got, http.StatusAccepted, ""))
 
 	if err := client.Kubernetes.Delete(context.Background(), testKubernetesProjectID, "demo"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -262,10 +314,10 @@ func TestKubernetesService_ValidationBeforeHTTP(t *testing.T) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	mockServer.SetHandler(http.MethodPost, "/mk8sclusters", count)
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/demo", count)
-	mockServer.SetHandler(http.MethodPatch, "/mk8sclusters/demo", count)
-	mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/demo", count)
+	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, count)
+	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, count)
+	mockServer.SetHandler(http.MethodPatch, testKubernetesClusterPath, count)
+	mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, count)
 
 	mutate := func(f func(*CreateKubernetesClusterRequest)) CreateKubernetesClusterRequest {
 		req := validCreateKubernetesClusterRequest()
@@ -381,7 +433,7 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var got capturedRequest
-			mockServer.SetHandler(http.MethodGet, "/mk8sclusters/demo", func(w http.ResponseWriter, r *http.Request) {
+			mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, func(w http.ResponseWriter, r *http.Request) {
 				got.projectID = r.URL.Query().Get("projectId")
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.body))
@@ -415,13 +467,13 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 		status int
 		body   string
 	}{
-		{"create already exists", http.MethodPost, "/mk8sclusters", createCall,
+		{"create already exists", http.MethodPost, kubernetesClustersBasePath, createCall,
 			http.StatusConflict, `{"message":"cluster already exists"}`},
-		{"create foreign network", http.MethodPost, "/mk8sclusters", createCall,
+		{"create foreign network", http.MethodPost, kubernetesClustersBasePath, createCall,
 			http.StatusBadRequest, `{"message":"network \"pn_other_project\" not found"}`},
-		{"update immutable network", http.MethodPatch, "/mk8sclusters/demo", updateCall,
+		{"update immutable network", http.MethodPatch, testKubernetesClusterPath, updateCall,
 			http.StatusBadRequest, `{"message":"network and subnet are immutable"}`},
-		{"update not found", http.MethodPatch, "/mk8sclusters/demo", updateCall,
+		{"update not found", http.MethodPatch, testKubernetesClusterPath, updateCall,
 			http.StatusNotFound, `{"message":"cluster not found"}`},
 	}
 	for _, tc := range mutationCases {
@@ -447,7 +499,7 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 	}
 
 	t.Run("delete not found", func(t *testing.T) {
-		mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/demo", func(w http.ResponseWriter, _ *http.Request) {
+		mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(`{"message":"cluster not found"}`))
 		})

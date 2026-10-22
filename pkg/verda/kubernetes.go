@@ -16,6 +16,7 @@ package verda
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 )
 
@@ -28,15 +29,19 @@ type KubernetesService struct {
 	client *Client
 }
 
+// kubernetesClustersBasePath is the cluster collection route; every
+// Kubernetes path is built from it
+const kubernetesClustersBasePath = "/mk8sclusters"
+
 // kubernetesClusterPath builds /mk8sclusters[/{name}]?projectId=...
 func kubernetesClusterPath(projectID string, name ...string) string {
-	path := "/mk8sclusters"
-	for _, n := range name {
-		path += "/" + url.PathEscape(n)
+	path := kubernetesClustersBasePath
+	for _, ch := range name {
+		path += "/" + url.PathEscape(ch)
 	}
 	params := url.Values{}
 	params.Set("projectId", projectID)
-	return path + "?" + params.Encode()
+	return fmt.Sprintf("%s?%s", path, params.Encode())
 }
 
 // Create requests a new cluster. The returned cluster is normally still
