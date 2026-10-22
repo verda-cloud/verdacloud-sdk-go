@@ -629,10 +629,10 @@ func TestContainerDeploymentsService_CreateDeployment_Inferno(t *testing.T) {
 	defer mockServer.Close()
 
 	var receivedInferno bool
-	mockServer.SetHandler("POST", "/container-deployments", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodPost, "/container-deployments", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
+			t.Errorf("failed to decode request body: %v", err)
 		}
 		if v, ok := body["is_inferno"].(bool); ok {
 			receivedInferno = v
@@ -680,10 +680,10 @@ func TestContainerDeploymentsService_UpdateDeployment_Inferno(t *testing.T) {
 	defer mockServer.Close()
 
 	var receivedInferno *bool
-	mockServer.SetHandler("PATCH", "/container-deployments/test-deployment", func(w http.ResponseWriter, r *http.Request) {
+	mockServer.SetHandler(http.MethodPatch, "/container-deployments/test-deployment", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-			t.Fatalf("failed to decode request body: %v", err)
+			t.Errorf("failed to decode request body: %v", err)
 		}
 		if v, ok := body["is_inferno"].(bool); ok {
 			receivedInferno = &v
