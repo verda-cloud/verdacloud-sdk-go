@@ -188,15 +188,16 @@ func WithHTTPClient(httpClient *http.Client) ClientOption {
 	}
 }
 
-func WithUserAgent(userAgent string) ClientOption {
-	return func(c *Client) {
-		c.UserAgent = userAgent
-	}
-}
-
+// Deprecated: Duplicate function, will be removed in later release
 func (c *Client) WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *Client) {
 		c.HTTPClient = httpClient
+	}
+}
+
+func WithUserAgent(userAgent string) ClientOption {
+	return func(c *Client) {
+		c.UserAgent = userAgent
 	}
 }
 
