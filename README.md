@@ -11,7 +11,7 @@ Go SDK for the Verda cloud platform. Manage GPU instances, serverless containers
 
 ## Quick Start
 
-**Requirements**: Go 1.27.3 or higher
+**Requirements**: Go 1.26.10 or higher
 
 ```bash
 go get github.com/verda-cloud/verdacloud-sdk-go
