@@ -19,10 +19,20 @@ package integration
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda"
+)
+
+// Container deployment writes (scaling options, environment variables) are
+// accepted before they are visible to reads, so verification steps poll for up
+// to propagationTimeout instead of reading once.
+const (
+	propagationTimeout      = 60 * time.Second
+	propagationPollInterval = 2 * time.Second
 )
 
 // TestContainerDeploymentsListOnly tests listing deployments without creating (sanity check)
@@ -87,6 +97,12 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		t.Skip("⏭️  SKIPPING: No container compute available")
 	}
 	t.Logf("Using compute: %s (size %d)", computeName, computeSize)
+
+	// Scaling values set in step 6 and verified in step 7
+	const (
+		wantMaxReplicas = 2
+		wantMinReplicas = 0
+	)
 
 	// Create a unique deployment name
 	depName := generateRandomName("test-dep")
@@ -319,8 +335,8 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
-		maxReplicas := 2
-		minReplicas := 0
+		maxReplicas := wantMaxReplicas
+		minReplicas := wantMinReplicas
 		queueTTL := 600
 		updateReq := &verda.UpdateScalingOptionsRequest{
 			MaxReplicaCount:        &maxReplicas,
@@ -335,8 +351,10 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ Failed to update scaling options: %v", err)
 		}
-		t.Logf("✅ Updated scaling options: maxReplicas=%d, queueTTL=%d",
-			scaling.MaxReplicaCount, scaling.QueueMessageTTLSeconds)
+		// The PATCH response can still show the values from before the update.
+		// Step 7 waits for the new values.
+		t.Logf("✅ Updated scaling options (response: maxReplicas=%d, minReplicas=%d, queueTTL=%d)",
+			scaling.MaxReplicaCount, scaling.MinReplicaCount, scaling.QueueMessageTTLSeconds)
 	})
 
 	// Step 7: Verify scaling update
@@ -345,7 +363,19 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - deployment was not created")
 		}
 
-		scaling, err := client.ContainerDeployments.GetDeploymentScaling(ctx, depName)
+		// The API accepts the scaling update but applies it asynchronously, so an
+		// immediate GET can still return the old values. Poll until they show up.
+		var scaling *verda.ContainerScalingOptions
+		attempts := 0
+		applied, err := pollUntil(ctx, propagationTimeout, propagationPollInterval, func() (bool, error) {
+			attempts++
+			s, err := client.ContainerDeployments.GetDeploymentScaling(ctx, depName)
+			if err != nil {
+				return false, err
+			}
+			scaling = s
+			return s.MaxReplicaCount == wantMaxReplicas && s.MinReplicaCount == wantMinReplicas, nil
+		})
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
 				t.Skip("⚠️  Skipping: API timeout (504)")
@@ -353,10 +383,13 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Fatalf("❌ Failed to get scaling options after update: %v", err)
 		}
 
-		if scaling.MaxReplicaCount != 2 {
-			t.Errorf("Expected maxReplicaCount=2, got %d", scaling.MaxReplicaCount)
+		if !applied {
+			t.Fatalf("❌ Scaling update not visible after %v (%d reads): want maxReplicas=%d, minReplicas=%d; got maxReplicas=%d, minReplicas=%d",
+				propagationTimeout, attempts, wantMaxReplicas, wantMinReplicas,
+				scaling.MaxReplicaCount, scaling.MinReplicaCount)
 		}
-		t.Logf("✅ Verified scaling options after update: maxReplicas=%d", scaling.MaxReplicaCount)
+		t.Logf("✅ Verified scaling options after update (%d reads): maxReplicas=%d, minReplicas=%d, queueTTL=%d",
+			attempts, scaling.MaxReplicaCount, scaling.MinReplicaCount, scaling.QueueMessageTTLSeconds)
 	})
 
 	// ==========================================
@@ -454,7 +487,20 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			},
 		}
 
-		err := client.ContainerDeployments.UpdateEnvironmentVariables(ctx, depName, updateReq)
+		// Variables added in step 9 can take a while to become visible, and until
+		// then the API answers 404 for them. Retry the (idempotent) update on 404.
+		var err error
+		attempts := 0
+		_, _ = pollUntil(ctx, propagationTimeout, propagationPollInterval, func() (bool, error) {
+			attempts++
+			err = client.ContainerDeployments.UpdateEnvironmentVariables(ctx, depName, updateReq)
+			var apiErr *verda.APIError
+			if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+				t.Logf("   NEW_VAR_1 not visible yet (attempt %d), retrying...", attempts)
+				return false, nil
+			}
+			return true, nil
+		})
 		if err != nil {
 			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
 				t.Skip("⚠️  Skipping: API timeout (504)")
