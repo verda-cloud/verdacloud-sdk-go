@@ -80,6 +80,9 @@ jobs:
       - name: Build SDK
         run: make build
 
+      - name: Vet integration tests (compile only, no credentials)
+        run: make vet-integration
+
   # Apache 2.0 file headers on all *.go files
   license:
     name: License Check
