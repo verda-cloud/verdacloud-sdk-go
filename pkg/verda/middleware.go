@@ -235,19 +235,7 @@ func ErrorHandlingMiddleware() ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
 			if ctx.StatusCode < 200 || ctx.StatusCode >= 300 {
-				var apiError APIError
-				if len(ctx.Body) > 0 {
-					apiError = APIError{
-						StatusCode: ctx.StatusCode,
-						Message:    string(ctx.Body),
-					}
-				} else {
-					apiError = APIError{
-						StatusCode: ctx.StatusCode,
-						Message:    http.StatusText(ctx.StatusCode),
-					}
-				}
-				ctx.Error = &apiError
+				ctx.Error = parseAPIError(ctx.StatusCode, ctx.Body)
 			}
 
 			return next(ctx)
