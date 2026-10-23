@@ -371,6 +371,40 @@ none (a public `none` requires a private address), or pass a literal IPv4 your p
 Omitting both fields gives the platform default. Instance responses
 expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
 
+### Managed Kubernetes
+
+> **Experimental**: Managed Kubernetes support is experimental. Its public routes and SDK types
+> may change in backwards-incompatible ways while the API is finalized.
+
+Clusters are identified by name, and every call takes an explicit project ID. Worker nodes are
+added separately through node pools (not yet in the SDK).
+
+```go
+ctx := context.Background()
+
+cluster, err := client.Kubernetes.Create(ctx, projectID, verda.CreateKubernetesClusterRequest{
+    Name:              "demo",
+    KubernetesVersion: "1.35.8",
+    PodCIDR:           "10.244.0.0/16",
+    ServiceCIDR:       "10.96.0.0/12",
+    Location:          "FIN-01",
+    NetworkID:         network.ID, // private network and subnet in the same location
+    SubnetID:          subnet.ID,
+})
+
+// Mutations return once accepted; poll Get to observe progress
+cluster, err = client.Kubernetes.Get(ctx, projectID, "demo")
+fmt.Println(cluster.Phase, cluster.ExternalEndpoint)
+
+// Request an upgrade (KubernetesVersion is the desired version, not proof it finished)
+cluster, err = client.Kubernetes.Update(ctx, projectID, "demo", verda.UpdateKubernetesClusterRequest{
+    KubernetesVersion: "1.36.4",
+})
+
+// Deletion continues asynchronously; Get returns a 404 *verda.APIError once it's gone
+err = client.Kubernetes.Delete(ctx, projectID, "demo")
+```
+
 ### Other Services
 
 ```go
