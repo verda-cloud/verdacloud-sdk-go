@@ -619,3 +619,31 @@ func TestLoggingMiddleware(t *testing.T) {
 		t.Error("Handler was not called")
 	}
 }
+
+func TestErrorHandlingMiddleware(t *testing.T) {
+	run := func(status int, body string, prior error) error {
+		ctx := &ResponseContext{StatusCode: status, Body: []byte(body), Error: prior}
+		handler := ErrorHandlingMiddleware()(func(*ResponseContext) error { return nil })
+		if err := handler(ctx); err != nil {
+			t.Fatalf("unexpected handler error: %v", err)
+		}
+		return ctx.Error
+	}
+
+	t.Run("success is untouched", func(t *testing.T) {
+		if err := run(http.StatusOK, `{"message":"ok"}`, nil); err != nil {
+			t.Errorf("expected no error, got %v", err)
+		}
+	})
+
+	t.Run("decoded error replaces raw body", func(t *testing.T) {
+		err := run(http.StatusNotFound, `{"code":"not_found","message":"cluster not found"}`, nil)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.Code != "not_found" || apiErr.Message != "cluster not found" {
+			t.Fatalf("unexpected error %#v", err)
+		}
+		if got, want := err.Error(), "API error 404: cluster not found"; got != want {
+			t.Errorf("Error() = %q, want %q", got, want)
+		}
+	})
+}

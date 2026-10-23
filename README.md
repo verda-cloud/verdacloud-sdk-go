@@ -409,13 +409,16 @@ periods, err := client.LongTerm.GetPeriods(ctx)
 ```go
 instances, err := client.Instances.List(ctx, nil)
 if err != nil {
-    if apiErr, ok := err.(*verda.APIError); ok {
-        fmt.Printf("API error %d: %s\n", apiErr.StatusCode, apiErr.Message)
+    var apiErr *verda.APIError
+    if errors.As(err, &apiErr) {
+        fmt.Printf("API error %d (%s): %s\n", apiErr.StatusCode, apiErr.Code, apiErr.Message)
     } else {
         fmt.Printf("Request failed: %v\n", err)
     }
 }
 ```
+
+JSON error bodies are decoded into `Code`, `Message` and `Details`. `Code` is empty when the API sends none. A non-JSON body, such as a proxy error page, becomes `Message`, truncated to 1 KiB.
 
 ## Configuration
 
