@@ -5,13 +5,13 @@
 # For static analysis and formatting, use pre-commit hooks (see setup-hooks).
 # ============================================================================
 
-.PHONY: help build test test-integration test-smoke clean coverage
+.PHONY: help build vet-integration test test-integration test-smoke clean coverage
 .PHONY: versions lint security vulncheck fmt license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
-GO_VERSION := 1.25.14
-GOLANGCI_LINT_VERSION := v2.5.0
+GO_VERSION := 1.26.10
+GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.7.0
 # govulncheck must be a prebuilt binary: under `go run` it cannot detect the stdlib version and reports nothing.
@@ -117,6 +117,11 @@ build: ## Build the SDK to verify compilation (no binary output for libraries)
 	@go build ./pkg/verda
 	@echo "✓ Build successful!"
 
+vet-integration: ## Type-check integration tests (build tag 'integration'; no credentials or API calls)
+	@echo "→ Vetting integration tests..."
+	@go vet -tags=integration ./test/...
+	@echo "✓ Integration tests compile!"
+
 # ============================================================================
 # Testing
 # ============================================================================
@@ -147,8 +152,6 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 	else \
 		echo "  Using production API: https://api.verda.com/v1"; \
 	fi
-	@mkdir -p build
-	@go test -tags=integration -v -timeout=30m -c -o build/integration.test ./test/integration >/dev/null 2>&1 || true
 	@go test -tags=integration -v -timeout=30m ./test/integration
 	@echo "✓ Integration tests passed!"
 
@@ -173,7 +176,7 @@ test-smoke: ## Run smoke tests: CRUD lifecycle for instance, serverless containe
 			echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
 		fi; \
 		mkdir -p build; \
-		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration || exit $$?; \
 		echo "✓ Smoke tests passed!"; \
 	elif [ -z "$$VERDA_CLIENT_ID" ] || [ -z "$$VERDA_CLIENT_SECRET" ]; then \
 		echo "  ✗ Missing required environment variables"; \
@@ -182,12 +185,12 @@ test-smoke: ## Run smoke tests: CRUD lifecycle for instance, serverless containe
 	elif [ -n "$$VERDA_BASE_URL" ]; then \
 		echo "  ✅ API URL: $$VERDA_BASE_URL"; \
 		mkdir -p build; \
-		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration || exit $$?; \
 		echo "✓ Smoke tests passed!"; \
 	else \
 		echo "  ✅ API URL: https://api.verda.com/v1 (default)"; \
 		mkdir -p build; \
-		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration; \
+		go test -tags=integration -v -timeout=30m -run 'TestInstanceCRUDIntegration|TestContainerDeploymentsCRUDWithScalingAndEnvVars|TestServerlessJobsCRUDWithScalingAndEnvVars' ./test/integration || exit $$?; \
 		echo "✓ Smoke tests passed!"; \
 	fi
 
@@ -311,6 +314,7 @@ ci: ## Run all CI checks (format, mod-tidy, license-check, lint, build, test)
 	@echo ""
 	@echo "5. Building..."
 	@$(MAKE) build
+	@$(MAKE) vet-integration
 	@echo ""
 	@echo "6. Testing..."
 	@$(MAKE) test
@@ -318,6 +322,6 @@ ci: ## Run all CI checks (format, mod-tidy, license-check, lint, build, test)
 	@echo "✓ All CI checks passed! Ready to push."
 
 .PHONY: setup lint fmt license license-check security
-.PHONY: build test test-integration test-smoke coverage clean mod-tidy update-deps release
+.PHONY: build vet-integration test test-integration test-smoke coverage clean mod-tidy update-deps release
 .PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci

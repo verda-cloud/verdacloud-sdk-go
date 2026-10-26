@@ -392,3 +392,25 @@ func WaitForClusterStatus(ctx context.Context, t *testing.T, client *verda.Clien
 	t.Logf("❌ Timeout waiting for cluster to reach status '%s'", targetStatus)
 	return nil, false
 }
+
+// pollUntil calls check every interval until it reports done, returns an
+// error, the timeout elapses, or ctx is cancelled. It reports whether check
+// ever returned done. Use it when an API accepts a write but serves the new
+// state only after a delay, instead of a fixed sleep.
+func pollUntil(ctx context.Context, timeout, interval time.Duration, check func() (done bool, err error)) (bool, error) {
+	deadline := time.Now().Add(timeout)
+	for {
+		done, err := check()
+		if err != nil || done {
+			return done, err
+		}
+		if time.Now().Add(interval).After(deadline) {
+			return false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-time.After(interval):
+		}
+	}
+}

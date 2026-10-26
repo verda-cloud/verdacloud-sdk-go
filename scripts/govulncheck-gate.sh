@@ -4,21 +4,9 @@
 set -euo pipefail
 
 : "${GOVULNCHECK:?path to govulncheck binary required}"
-: "${GO_VERSION:?expected Go version (e.g. 1.25.14) required}"
+: "${GO_VERSION:?expected Go version (e.g. 1.26.10) required}"
 
-# Go 1.25 is out of support; these stdlib vulns are fixed only in go1.26.9.
-# Delete this list once the stack can move to Go >= 1.26.9.
-ACCEPTED_VULNS='[
-  "GO-2026-6603",
-  "GO-2026-6605",
-  "GO-2026-6607",
-  "GO-2026-6608",
-  "GO-2026-6610",
-  "GO-2026-6611",
-  "GO-2026-6612",
-  "GO-2026-6613",
-  "GO-2026-6617"
-]'
+ACCEPTED_VULNS='[]'
 
 report=$("$GOVULNCHECK" -format json ./...)
 
