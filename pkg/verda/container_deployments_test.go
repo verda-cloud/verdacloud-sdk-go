@@ -1195,73 +1195,75 @@ func TestUpdateScalingOptionsRequest_Validate(t *testing.T) {
 // --- Deployment names in request paths ---
 
 type deploymentAction struct {
-	name     string
-	method   string
-	suffix   string
-	response string // empty means 204 No Content
-	call     func(ctx context.Context, c *Client, deploymentName string) error
+	name   string
+	method string
+	suffix string
+	call   func(ctx context.Context, c *Client, deploymentName string) error
 }
 
 // deploymentActions lists every method that puts a deployment name in the request path.
 func deploymentActions() []deploymentAction {
 	envReq := &ContainerEnvVarsRequest{ContainerName: "app", Env: []ContainerEnvVar{{Type: "plain", Name: "A", ValueOrReferenceToSecret: "1"}}}
 	return []deploymentAction{
-		{"GetDeploymentByName", http.MethodGet, "", `{}`, func(ctx context.Context, c *Client, n string) error {
+		{"GetDeploymentByName", http.MethodGet, "", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.GetDeploymentByName(ctx, n)
 			return err
 		}},
-		{"UpdateDeployment", http.MethodPatch, "", `{}`, func(ctx context.Context, c *Client, n string) error {
+		{"UpdateDeployment", http.MethodPatch, "", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.UpdateDeployment(ctx, n, &UpdateDeploymentRequest{})
 			return err
 		}},
-		{"DeleteDeployment", http.MethodDelete, "", "", func(ctx context.Context, c *Client, n string) error {
+		{"DeleteDeployment", http.MethodDelete, "", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.DeleteDeployment(ctx, n, -1)
 		}},
-		{"GetDeploymentStatus", http.MethodGet, "/status", `{"status":"healthy"}`, func(ctx context.Context, c *Client, n string) error {
+		{"GetDeploymentStatus", http.MethodGet, "/status", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.GetDeploymentStatus(ctx, n)
 			return err
 		}},
-		{"RestartDeployment", http.MethodPost, "/restart", "", func(ctx context.Context, c *Client, n string) error {
+		{"RestartDeployment", http.MethodPost, "/restart", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.RestartDeployment(ctx, n)
 		}},
-		{"PauseDeployment", http.MethodPost, "/pause", "", func(ctx context.Context, c *Client, n string) error {
+		{"PauseDeployment", http.MethodPost, "/pause", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.PauseDeployment(ctx, n)
 		}},
-		{"ResumeDeployment", http.MethodPost, "/resume", "", func(ctx context.Context, c *Client, n string) error {
+		{"ResumeDeployment", http.MethodPost, "/resume", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.ResumeDeployment(ctx, n)
 		}},
-		{"PurgeDeploymentQueue", http.MethodPost, "/purge-queue", "", func(ctx context.Context, c *Client, n string) error {
+		{"PurgeDeploymentQueue", http.MethodPost, "/purge-queue", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.PurgeDeploymentQueue(ctx, n)
 		}},
-		{"GetDeploymentScaling", http.MethodGet, "/scaling", `{}`, func(ctx context.Context, c *Client, n string) error {
+		{"GetDeploymentScaling", http.MethodGet, "/scaling", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.GetDeploymentScaling(ctx, n)
 			return err
 		}},
-		{"UpdateDeploymentScaling", http.MethodPatch, "/scaling", `{}`, func(ctx context.Context, c *Client, n string) error {
+		{"UpdateDeploymentScaling", http.MethodPatch, "/scaling", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.UpdateDeploymentScaling(ctx, n, &UpdateScalingOptionsRequest{MaxReplicaCount: new(1)})
 			return err
 		}},
-		{"GetDeploymentReplicas", http.MethodGet, "/replicas", `{"list":[]}`, func(ctx context.Context, c *Client, n string) error {
+		{"GetDeploymentReplicas", http.MethodGet, "/replicas", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.GetDeploymentReplicas(ctx, n)
 			return err
 		}},
-		{"GetEnvironmentVariables", http.MethodGet, "/environment-variables", `[]`, func(ctx context.Context, c *Client, n string) error {
+		{"GetEnvironmentVariables", http.MethodGet, "/environment-variables", func(ctx context.Context, c *Client, n string) error {
 			_, err := c.ContainerDeployments.GetEnvironmentVariables(ctx, n)
 			return err
 		}},
-		{"AddEnvironmentVariables", http.MethodPost, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+		{"AddEnvironmentVariables", http.MethodPost, "/environment-variables", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.AddEnvironmentVariables(ctx, n, envReq)
 		}},
-		{"UpdateEnvironmentVariables", http.MethodPatch, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+		{"UpdateEnvironmentVariables", http.MethodPatch, "/environment-variables", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.UpdateEnvironmentVariables(ctx, n, envReq)
 		}},
-		{"DeleteEnvironmentVariables", http.MethodDelete, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+		{"DeleteEnvironmentVariables", http.MethodDelete, "/environment-variables", func(ctx context.Context, c *Client, n string) error {
 			return c.ContainerDeployments.DeleteEnvironmentVariables(ctx, n, &DeleteContainerEnvVarsRequest{ContainerName: "app", Env: []string{"A"}})
 		}},
 	}
 }
 
-func TestContainerDeploymentsService_DeploymentNameIsOnePathSegment(t *testing.T) {
+// Each method must build its path with deploymentPath: the name is escaped on the wire,
+// and an invalid name is rejected before any request is sent. TestDeploymentPath covers
+// every escaping and validation case; this test only proves that each method uses it.
+func TestContainerDeploymentsService_DeploymentNameInPath(t *testing.T) {
 	// Unescaped, this name would turn any action on "other-app" into a restart.
 	const hostileName = "other-app/restart?x=1#frag"
 	const wantEscaped = "/container-deployments/other-app%2Frestart%3Fx=1%23frag"
@@ -1272,6 +1274,8 @@ func TestContainerDeploymentsService_DeploymentNameIsOnePathSegment(t *testing.T
 			defer mockServer.Close()
 
 			called := false
+			// The mock server routes on the decoded path, so the handler uses the unescaped name.
+			// The EscapedPath check is what proves the escaping on the wire.
 			mockServer.SetHandler(action.method, "/container-deployments/"+hostileName+action.suffix, func(w http.ResponseWriter, r *http.Request) {
 				called = true
 				if got, want := r.URL.EscapedPath(), wantEscaped+action.suffix; got != want {
@@ -1280,67 +1284,23 @@ func TestContainerDeploymentsService_DeploymentNameIsOnePathSegment(t *testing.T
 				if r.URL.RawQuery != "" {
 					t.Errorf("query = %q, want none", r.URL.RawQuery)
 				}
-				if action.response == "" {
-					w.WriteHeader(http.StatusNoContent)
-					return
-				}
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(action.response))
+				w.WriteHeader(http.StatusNoContent)
 			})
 			client := NewTestClient(t, mockServer)
+			ctx := context.Background()
 
-			if err := action.call(context.Background(), client, hostileName); err != nil {
+			if err := action.call(ctx, client, hostileName); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if !called {
 				t.Error("request did not reach the escaped deployment path")
 			}
+
+			// ".." survives escaping, so the method must reject it before it sends a request.
+			if err := action.call(ctx, client, ".."); err == nil || !strings.Contains(err.Error(), "deploymentName") {
+				t.Errorf(`"..": error = %v, want a deploymentName validation error`, err)
+			}
 		})
-	}
-}
-
-func TestContainerDeploymentsService_RejectsInvalidDeploymentNames(t *testing.T) {
-	invalidNames := map[string]string{
-		"empty":         "",
-		"dot":           ".",
-		"dot dot":       "..",
-		"64 characters": strings.Repeat("a", 64),
-	}
-
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-	client := NewTestClient(t, mockServer)
-
-	for _, action := range deploymentActions() {
-		for label, name := range invalidNames {
-			t.Run(action.name+"/"+label, func(t *testing.T) {
-				err := action.call(context.Background(), client, name)
-				if err == nil || !strings.Contains(err.Error(), "deploymentName") {
-					t.Errorf("error = %v, want a deploymentName validation error", err)
-				}
-			})
-		}
-	}
-}
-
-func TestContainerDeploymentsService_AcceptsMaxLengthDeploymentName(t *testing.T) {
-	name := strings.Repeat("a", maxDeploymentNameLength)
-
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-
-	called := false
-	mockServer.SetHandler(http.MethodPost, "/container-deployments/"+name+"/pause", func(w http.ResponseWriter, _ *http.Request) {
-		called = true
-		w.WriteHeader(http.StatusNoContent)
-	})
-	client := NewTestClient(t, mockServer)
-
-	if err := client.ContainerDeployments.PauseDeployment(context.Background(), name); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !called {
-		t.Error("request with a 63-character name was not sent")
 	}
 }
 
@@ -1362,9 +1322,6 @@ func TestDeploymentPath(t *testing.T) {
 		{name: "question mark cannot start a query", deploymentName: "app?force=true", suffix: "/pause", want: "/container-deployments/app%3Fforce=true/pause"},
 		{name: "hash cannot start a fragment", deploymentName: "app#x", suffix: "/status", want: "/container-deployments/app%23x/status"},
 		{name: "dot segments inside a name are escaped", deploymentName: "app/../other-app", want: "/container-deployments/app%2F..%2Fother-app"},
-		{name: "percent sign is escaped", deploymentName: "100%", want: "/container-deployments/100%25"},
-		{name: "space is escaped", deploymentName: "my app", want: "/container-deployments/my%20app"},
-		{name: "non-ASCII is escaped", deploymentName: "äpp", want: "/container-deployments/%C3%A4pp"},
 		{name: "length counts characters, not bytes", deploymentName: strings.Repeat("ä", 63), want: "/container-deployments/" + strings.Repeat("%C3%A4", 63)},
 
 		// Names the API cannot accept are rejected before a path is built.

@@ -106,6 +106,12 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		wantMinReplicas = 0
 	)
 
+	// CPU thresholds set in step 14 and step 14a
+	const (
+		step14CPUThreshold  = 70
+		step14aCPUThreshold = 60
+	)
+
 	// Create a unique deployment name
 	depName := generateRandomName("test-dep")
 	var containerName string   // Will be extracted from API response
@@ -602,7 +608,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 				},
 				CPUUtilization: &verda.UtilizationTrigger{
 					Enabled:   true,
-					Threshold: 70,
+					Threshold: step14CPUThreshold,
 				},
 				GPUUtilization: &verda.UtilizationTrigger{
 					Enabled:   true,
@@ -630,35 +636,35 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Skip("⚠️  Skipping - step 14 did not update the scaling triggers")
 		}
 
-		var last *verda.ContainerScalingOptions
-		waitForCPUThreshold := func(want int) bool {
+		// waitForCPUThreshold polls until the API shows the CPU threshold, then returns all triggers.
+		waitForCPUThreshold := func(want int) *verda.ScalingTriggers {
+			var got *verda.ScalingTriggers
 			ok, err := pollUntil(ctx, propagationTimeout, propagationPollInterval, func() (bool, error) {
 				s, err := client.ContainerDeployments.GetDeploymentScaling(ctx, depName)
 				if err != nil {
 					return false, err
 				}
-				last = s
-				tr := s.ScalingTriggers
-				return tr != nil && tr.CPUUtilization != nil && tr.CPUUtilization.Threshold == want, nil
+				got = s.ScalingTriggers
+				return got != nil && got.CPUUtilization != nil && got.CPUUtilization.Threshold == want, nil
 			})
 			if err != nil {
 				t.Fatalf("❌ GetDeploymentScaling: %v", err)
 			}
-			return ok
+			if !ok {
+				FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf("cpu_utilization threshold %d not visible after %v", want, propagationTimeout))
+			}
+			return got
 		}
 
-		if !waitForCPUThreshold(70) {
-			FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf("Step 14 triggers not visible after %v", propagationTimeout))
-		}
 		// Compare with what the API returned, not with the values that step 14 sent.
-		before := *last.ScalingTriggers
-		if before.QueueLoad == nil || before.CPUUtilization == nil || before.GPUUtilization == nil {
+		before := waitForCPUThreshold(step14CPUThreshold)
+		if before.QueueLoad == nil || before.GPUUtilization == nil {
 			t.Fatalf("❌ Scaling triggers incomplete after step 14: %+v", before)
 		}
 
 		_, err := client.ContainerDeployments.UpdateDeploymentScaling(ctx, depName, &verda.UpdateScalingOptionsRequest{
 			ScalingTriggers: &verda.ScalingTriggers{
-				CPUUtilization: &verda.UtilizationTrigger{Enabled: true, Threshold: 60},
+				CPUUtilization: &verda.UtilizationTrigger{Enabled: true, Threshold: step14aCPUThreshold},
 			},
 		})
 		if err != nil {
@@ -667,11 +673,8 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ CPU-only scaling PATCH: %v", err)
 		}
-		if !waitForCPUThreshold(60) {
-			FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf("CPU-only scaling PATCH not visible after %v", propagationTimeout))
-		}
 
-		after := last.ScalingTriggers
+		after := waitForCPUThreshold(step14aCPUThreshold)
 		if !reflect.DeepEqual(before.QueueLoad, after.QueueLoad) {
 			t.Errorf("❌ queue_load changed by CPU-only PATCH: before=%+v after=%+v", before.QueueLoad, after.QueueLoad)
 		}
