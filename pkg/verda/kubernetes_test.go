@@ -424,8 +424,13 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 		status int
 		body   string
 	}{
+		{
+			"structured error envelope",
+			http.StatusNotFound,
+			`{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`,
+		},
 		{"not found", http.StatusNotFound, `{"message":"cluster not found"}`},
-		{"admission rejected", http.StatusUnprocessableEntity, `{"message":"unknown kubernetes version"}`},
+		{"admission rejected", http.StatusBadRequest, `{"message":"unknown kubernetes version"}`},
 		{"feature disabled", http.StatusForbidden, `{"message":"feature not enabled for this project"}`},
 		{"not a project member", http.StatusForbidden, `{"error":"forbidden"}`},
 		{"proxy html", http.StatusBadGateway, `<html><body>Bad Gateway</body></html>`},
@@ -450,6 +455,9 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 			if apiErr.StatusCode != tc.status {
 				t.Errorf("expected status %d, got %d", tc.status, apiErr.StatusCode)
 			}
+			if apiErr.Message != tc.body || apiErr.Code != "" || apiErr.Details != "" {
+				t.Errorf("expected raw response body in Message and empty Code/Details, got %+v", apiErr)
+			}
 		})
 	}
 
@@ -467,14 +475,26 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 		status int
 		body   string
 	}{
-		{"create already exists", http.MethodPost, kubernetesClustersBasePath, createCall,
-			http.StatusConflict, `{"message":"cluster already exists"}`},
+		{
+			"create already exists",
+			http.MethodPost,
+			kubernetesClustersBasePath,
+			createCall,
+			http.StatusConflict,
+			`{"code":"conflict","message":"resource already exists","details":{"reason":"resource_already_exists"}}`,
+		},
 		{"create foreign network", http.MethodPost, kubernetesClustersBasePath, createCall,
 			http.StatusBadRequest, `{"message":"network \"pn_other_project\" not found"}`},
 		{"update immutable network", http.MethodPatch, testKubernetesClusterPath, updateCall,
 			http.StatusBadRequest, `{"message":"network and subnet are immutable"}`},
-		{"update not found", http.MethodPatch, testKubernetesClusterPath, updateCall,
-			http.StatusNotFound, `{"message":"cluster not found"}`},
+		{
+			"update not found",
+			http.MethodPatch,
+			testKubernetesClusterPath,
+			updateCall,
+			http.StatusNotFound,
+			`{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`,
+		},
 	}
 	for _, tc := range mutationCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -495,18 +515,25 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 			if apiErr.StatusCode != tc.status {
 				t.Errorf("expected status %d, got %d", tc.status, apiErr.StatusCode)
 			}
+			if apiErr.Message != tc.body || apiErr.Code != "" || apiErr.Details != "" {
+				t.Errorf("expected raw response body in Message and empty Code/Details, got %+v", apiErr)
+			}
 		})
 	}
 
 	t.Run("delete not found", func(t *testing.T) {
+		body := `{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`
 		mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
-			_, _ = w.Write([]byte(`{"message":"cluster not found"}`))
+			_, _ = w.Write([]byte(body))
 		})
 		err := client.Kubernetes.Delete(ctx, testKubernetesProjectID, "demo")
 		var apiErr *APIError
 		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
-			t.Errorf("expected 404 *APIError, got %v", err)
+			t.Fatalf("expected 404 *APIError, got %v", err)
+		}
+		if apiErr.Message != body || apiErr.Code != "" || apiErr.Details != "" {
+			t.Errorf("expected raw response body in Message and empty Code/Details, got %+v", apiErr)
 		}
 	})
 }
