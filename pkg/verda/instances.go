@@ -102,15 +102,7 @@ func (s *InstanceService) createWithPlainTextResponse(ctx context.Context, req C
 		}
 		s.client.Logger.Debug("Instance creation failed with status %d: %s", resp.StatusCode, string(body))
 
-		var apiError APIError
-		if err := json.Unmarshal(body, &apiError); err != nil {
-			return nil, &APIError{
-				StatusCode: resp.StatusCode,
-				Message:    string(body),
-			}
-		}
-		apiError.StatusCode = resp.StatusCode
-		return nil, &apiError
+		return nil, parseAPIError(resp.StatusCode, body)
 	}
 
 	body, err := readAndCloseResponseBody(resp)
@@ -156,12 +148,7 @@ func (s *InstanceService) Action(ctx context.Context, req InstanceActionRequest)
 		return results, nil
 
 	default:
-		var apiError APIError
-		if err := json.Unmarshal(body, &apiError); err != nil {
-			return nil, &APIError{StatusCode: resp.StatusCode, Message: string(body)}
-		}
-		apiError.StatusCode = resp.StatusCode
-		return nil, &apiError
+		return nil, parseAPIError(resp.StatusCode, body)
 	}
 }
 
@@ -189,15 +176,7 @@ func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, ins
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiError APIError
-		if err := json.Unmarshal(body, &apiError); err != nil {
-			return false, &APIError{
-				StatusCode: resp.StatusCode,
-				Message:    string(body),
-			}
-		}
-		apiError.StatusCode = resp.StatusCode
-		return false, &apiError
+		return false, parseAPIError(resp.StatusCode, body)
 	}
 
 	var boolResult bool
