@@ -19,7 +19,10 @@ package integration
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -305,6 +308,15 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			t.Fatalf("❌ Failed to get deployment status: %v", err)
 		}
 		t.Logf("✅ Deployment status: %s", status.Status)
+		switch status.Status {
+		case verda.ContainerDeploymentStatusInitializing, verda.ContainerDeploymentStatusHealthy,
+			verda.ContainerDeploymentStatusDegraded, verda.ContainerDeploymentStatusUnhealthy,
+			verda.ContainerDeploymentStatusPaused, verda.ContainerDeploymentStatusQuotaReached,
+			verda.ContainerDeploymentStatusImagePulling, verda.ContainerDeploymentStatusUpdating,
+			verda.ContainerDeploymentStatusTerminating:
+		default:
+			t.Logf("⚠️  Status %q is not in the ContainerDeploymentStatus* constants", status.Status)
+		}
 	})
 
 	// ==========================================
@@ -383,9 +395,10 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		}
 
 		if !applied {
-			t.Fatalf("❌ Scaling update not visible after %v (%d reads): want maxReplicas=%d, minReplicas=%d; got maxReplicas=%d, minReplicas=%d",
+			FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf(
+				"Scaling update not visible after %v (%d reads): want maxReplicas=%d, minReplicas=%d; got maxReplicas=%d, minReplicas=%d",
 				propagationTimeout, attempts, wantMaxReplicas, wantMinReplicas,
-				scaling.MaxReplicaCount, scaling.MinReplicaCount)
+				scaling.MaxReplicaCount, scaling.MinReplicaCount))
 		}
 		t.Logf("✅ Verified scaling options after update (%d reads): maxReplicas=%d, minReplicas=%d, queueTTL=%d",
 			attempts, scaling.MaxReplicaCount, scaling.MinReplicaCount, scaling.QueueMessageTTLSeconds)
@@ -557,6 +570,7 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 	// ==========================================
 
 	// Step 14: UPDATE deployment (scaling only - containers update is done via env vars)
+	scalingTriggersUpdated := false
 	t.Run("14. UPDATE deployment (scaling)", func(t *testing.T) {
 		if !deploymentCreated {
 			t.Skip("⚠️  Skipping - deployment was not created")
@@ -565,7 +579,9 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		// Note: For full deployment updates with containers, the API may require specific container formats.
 		// Here we just update scaling via the dedicated scaling endpoint which we tested in steps 5-7.
 		// This step demonstrates that full deployment update works for scaling configuration.
-		minReplicas := 1
+		// Keep min at 0: a replica can wait forever when no GPUs or nodes are free,
+		// and this step tests the scaling PATCH, not replica startup.
+		minReplicas := 0
 		maxReplicas := 3
 		queueTTL := 900
 		concurrentReq := 2
@@ -602,7 +618,69 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 			}
 			t.Fatalf("❌ Failed to update deployment scaling: %v", err)
 		}
+		scalingTriggersUpdated = true
 		t.Logf("✅ Updated deployment scaling: maxReplicas=%d, minReplicas=%d", scaling.MaxReplicaCount, scaling.MinReplicaCount)
+	})
+
+	// Step 14a: a scaling PATCH that sets one trigger must keep the triggers it leaves out.
+	// The SDK omits unset triggers from the request, as the PatchScalingTriggers schema allows,
+	// so this checks that the API keeps their current values.
+	t.Run("14a. PATCH one trigger keeps the others", func(t *testing.T) {
+		if !scalingTriggersUpdated {
+			t.Skip("⚠️  Skipping - step 14 did not update the scaling triggers")
+		}
+
+		var last *verda.ContainerScalingOptions
+		waitForCPUThreshold := func(want int) bool {
+			ok, err := pollUntil(ctx, propagationTimeout, propagationPollInterval, func() (bool, error) {
+				s, err := client.ContainerDeployments.GetDeploymentScaling(ctx, depName)
+				if err != nil {
+					return false, err
+				}
+				last = s
+				tr := s.ScalingTriggers
+				return tr != nil && tr.CPUUtilization != nil && tr.CPUUtilization.Threshold == want, nil
+			})
+			if err != nil {
+				t.Fatalf("❌ GetDeploymentScaling: %v", err)
+			}
+			return ok
+		}
+
+		if !waitForCPUThreshold(70) {
+			FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf("Step 14 triggers not visible after %v", propagationTimeout))
+		}
+		// Compare with what the API returned, not with the values that step 14 sent.
+		before := *last.ScalingTriggers
+		if before.QueueLoad == nil || before.CPUUtilization == nil || before.GPUUtilization == nil {
+			t.Fatalf("❌ Scaling triggers incomplete after step 14: %+v", before)
+		}
+
+		_, err := client.ContainerDeployments.UpdateDeploymentScaling(ctx, depName, &verda.UpdateScalingOptionsRequest{
+			ScalingTriggers: &verda.ScalingTriggers{
+				CPUUtilization: &verda.UtilizationTrigger{Enabled: true, Threshold: 60},
+			},
+		})
+		if err != nil {
+			if apiErr, ok := err.(*verda.APIError); ok && apiErr.StatusCode == 504 {
+				t.Skip("⚠️  Skipping: API timeout (504)")
+			}
+			t.Fatalf("❌ CPU-only scaling PATCH: %v", err)
+		}
+		if !waitForCPUThreshold(60) {
+			FailUnlessWaitingForCapacity(ctx, t, client, depName, fmt.Sprintf("CPU-only scaling PATCH not visible after %v", propagationTimeout))
+		}
+
+		after := last.ScalingTriggers
+		if !reflect.DeepEqual(before.QueueLoad, after.QueueLoad) {
+			t.Errorf("❌ queue_load changed by CPU-only PATCH: before=%+v after=%+v", before.QueueLoad, after.QueueLoad)
+		}
+		if !reflect.DeepEqual(before.GPUUtilization, after.GPUUtilization) {
+			t.Errorf("❌ gpu_utilization changed by CPU-only PATCH: before=%+v after=%+v", before.GPUUtilization, after.GPUUtilization)
+		}
+		if !t.Failed() {
+			t.Log("✅ CPU-only scaling PATCH kept queue_load and gpu_utilization")
+		}
 	})
 
 	// ==========================================
@@ -664,7 +742,17 @@ func TestContainerDeploymentsCRUDWithScalingAndEnvVars(t *testing.T) {
 		} else {
 			t.Logf("✅ Found %d replicas", len(replicas.List))
 			for _, r := range replicas.List {
-				t.Logf("   - Replica ID: %s, Status: %s, Started: %s", r.ID, r.Status, r.StartedAt)
+				t.Logf("   - Replica ID: %s, Status: %s, Started: %s, Image: %s (%s:%s)", r.ID, r.Status, r.StartedAt, r.Image, r.ImageName, r.ImageTag)
+				switch r.Status {
+				case verda.ReplicaStatusUnavailable, verda.ReplicaStatusInitializing, verda.ReplicaStatusRunning,
+					verda.ReplicaStatusTerminating, verda.ReplicaStatusError, verda.ReplicaStatusImagePulling:
+				default:
+					t.Logf("⚠️  Replica %s has status %q, which is not in the ReplicaStatus* constants", r.ID, r.Status)
+				}
+				// Replicas are often still starting here, so only a running replica must report its image.
+				if r.Status == verda.ReplicaStatusRunning && !strings.Contains(r.Image, "random-logger") {
+					t.Errorf("❌ Running replica %s: Image=%q, want the deployed random-logger image", r.ID, r.Image)
+				}
 			}
 		}
 	})

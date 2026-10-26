@@ -17,7 +17,9 @@ package verda
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -922,8 +924,8 @@ func TestContainerDeploymentsService_GetDeploymentStatus(t *testing.T) {
 	if status == nil {
 		t.Fatal("expected status, got nil")
 	}
-	if status.Status != "running" {
-		t.Errorf("expected status 'running', got '%s'", status.Status)
+	if status.Status != ContainerDeploymentStatusHealthy {
+		t.Errorf("expected status %q, got %q", ContainerDeploymentStatusHealthy, status.Status)
 	}
 }
 
@@ -1075,8 +1077,323 @@ func TestContainerDeploymentsService_GetDeploymentReplicas(t *testing.T) {
 	if replicas.List[0].ID != "replica-1" {
 		t.Errorf("expected replica ID 'replica-1', got '%s'", replicas.List[0].ID)
 	}
-	if replicas.List[0].Status != "running" {
-		t.Errorf("expected replica status 'running', got '%s'", replicas.List[0].Status)
+	got := replicas.List[0]
+	if got.Status != ReplicaStatusRunning {
+		t.Errorf("expected replica status %q, got %q", ReplicaStatusRunning, got.Status)
+	}
+	if got.Image != "docker.io/library/nginx:1.21" || got.ImageName != "nginx" || got.ImageTag != "1.21" {
+		t.Errorf("image fields = (%q, %q, %q), want (docker.io/library/nginx:1.21, nginx, 1.21)", got.Image, got.ImageName, got.ImageTag)
+	}
+}
+
+// --- UpdateDeploymentScaling request body and validation ---
+
+func TestContainerDeploymentsService_UpdateDeploymentScaling_RequestBody(t *testing.T) {
+	tests := []struct {
+		name string
+		req  *UpdateScalingOptionsRequest
+		want string
+	}{
+		{
+			name: "scale to zero sends both counts",
+			req:  &UpdateScalingOptionsRequest{MinReplicaCount: new(0), MaxReplicaCount: new(0)},
+			want: `{"min_replica_count":0,"max_replica_count":0}`,
+		},
+		{
+			name: "max only leaves other options out",
+			req:  &UpdateScalingOptionsRequest{MaxReplicaCount: new(3)},
+			want: `{"max_replica_count":3}`,
+		},
+		{
+			name: "cpu trigger only leaves other triggers out",
+			req: &UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{
+				CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
+			}},
+			want: `{"scaling_triggers":{"cpu_utilization":{"enabled":true,"threshold":80}}}`,
+		},
+		{
+			name: "disabling a trigger still sends it",
+			req: &UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{
+				GPUUtilization: &UtilizationTrigger{Enabled: false},
+			}},
+			want: `{"scaling_triggers":{"gpu_utilization":{"enabled":false,"threshold":0}}}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
+
+			var got []byte
+			mockServer.SetHandler(http.MethodPatch, "/container-deployments/my-deployment/scaling", func(w http.ResponseWriter, r *http.Request) {
+				got, _ = io.ReadAll(r.Body)
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{}`))
+			})
+			client := NewTestClient(t, mockServer)
+
+			if _, err := client.ContainerDeployments.UpdateDeploymentScaling(context.Background(), "my-deployment", tt.req); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if body := strings.TrimSpace(string(got)); body != tt.want {
+				t.Errorf("request body = %s, want %s", body, tt.want)
+			}
+		})
+	}
+}
+
+func TestContainerDeploymentsService_UpdateDeploymentScaling_InvalidRequestNotSent(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	mockServer.SetHandler(http.MethodPatch, "/container-deployments/my-deployment/scaling", func(w http.ResponseWriter, _ *http.Request) {
+		t.Error("invalid request reached the API")
+		w.WriteHeader(http.StatusOK)
+	})
+	client := NewTestClient(t, mockServer)
+
+	req := &UpdateScalingOptionsRequest{MinReplicaCount: new(5), MaxReplicaCount: new(1)}
+	if _, err := client.ContainerDeployments.UpdateDeploymentScaling(context.Background(), "my-deployment", req); err == nil {
+		t.Error("expected validation error for min_replica_count > max_replica_count")
+	}
+}
+
+func TestUpdateScalingOptionsRequest_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     UpdateScalingOptionsRequest
+		wantErr bool
+	}{
+		{"empty request", UpdateScalingOptionsRequest{}, true},
+		{"scale to zero", UpdateScalingOptionsRequest{MinReplicaCount: new(0), MaxReplicaCount: new(0)}, false},
+		{"min equals max", UpdateScalingOptionsRequest{MinReplicaCount: new(2), MaxReplicaCount: new(2)}, false},
+		{"min greater than max", UpdateScalingOptionsRequest{MinReplicaCount: new(5), MaxReplicaCount: new(1)}, true},
+		{"only min set is not compared", UpdateScalingOptionsRequest{MinReplicaCount: new(5)}, false},
+		{"negative min", UpdateScalingOptionsRequest{MinReplicaCount: new(-1)}, true},
+		{"negative max", UpdateScalingOptionsRequest{MaxReplicaCount: new(-1)}, true},
+		{"negative queue ttl", UpdateScalingOptionsRequest{QueueMessageTTLSeconds: new(-1)}, true},
+		{"negative concurrent requests", UpdateScalingOptionsRequest{ConcurrentRequestsPerReplica: new(-1)}, true},
+		{"negative scale down delay", UpdateScalingOptionsRequest{ScaleDownPolicy: &ScalingPolicy{DelaySeconds: -1}}, true},
+		{"zero scale up delay", UpdateScalingOptionsRequest{ScaleUpPolicy: &ScalingPolicy{DelaySeconds: 0}}, false},
+		{"negative queue load threshold", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: -0.5}}}, true},
+		{"cpu threshold over 100", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 101}}}, true},
+		{"gpu threshold at 100", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 100}}}, false},
+		{"empty triggers object", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{}}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+// --- Deployment names in request paths ---
+
+type deploymentAction struct {
+	name     string
+	method   string
+	suffix   string
+	response string // empty means 204 No Content
+	call     func(ctx context.Context, c *Client, deploymentName string) error
+}
+
+// deploymentActions lists every method that puts a deployment name in the request path.
+func deploymentActions() []deploymentAction {
+	envReq := &ContainerEnvVarsRequest{ContainerName: "app", Env: []ContainerEnvVar{{Type: "plain", Name: "A", ValueOrReferenceToSecret: "1"}}}
+	return []deploymentAction{
+		{"GetDeploymentByName", http.MethodGet, "", `{}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.GetDeploymentByName(ctx, n)
+			return err
+		}},
+		{"UpdateDeployment", http.MethodPatch, "", `{}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.UpdateDeployment(ctx, n, &UpdateDeploymentRequest{})
+			return err
+		}},
+		{"DeleteDeployment", http.MethodDelete, "", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.DeleteDeployment(ctx, n, -1)
+		}},
+		{"GetDeploymentStatus", http.MethodGet, "/status", `{"status":"healthy"}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.GetDeploymentStatus(ctx, n)
+			return err
+		}},
+		{"RestartDeployment", http.MethodPost, "/restart", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.RestartDeployment(ctx, n)
+		}},
+		{"PauseDeployment", http.MethodPost, "/pause", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.PauseDeployment(ctx, n)
+		}},
+		{"ResumeDeployment", http.MethodPost, "/resume", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.ResumeDeployment(ctx, n)
+		}},
+		{"PurgeDeploymentQueue", http.MethodPost, "/purge-queue", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.PurgeDeploymentQueue(ctx, n)
+		}},
+		{"GetDeploymentScaling", http.MethodGet, "/scaling", `{}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.GetDeploymentScaling(ctx, n)
+			return err
+		}},
+		{"UpdateDeploymentScaling", http.MethodPatch, "/scaling", `{}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.UpdateDeploymentScaling(ctx, n, &UpdateScalingOptionsRequest{MaxReplicaCount: new(1)})
+			return err
+		}},
+		{"GetDeploymentReplicas", http.MethodGet, "/replicas", `{"list":[]}`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.GetDeploymentReplicas(ctx, n)
+			return err
+		}},
+		{"GetEnvironmentVariables", http.MethodGet, "/environment-variables", `[]`, func(ctx context.Context, c *Client, n string) error {
+			_, err := c.ContainerDeployments.GetEnvironmentVariables(ctx, n)
+			return err
+		}},
+		{"AddEnvironmentVariables", http.MethodPost, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.AddEnvironmentVariables(ctx, n, envReq)
+		}},
+		{"UpdateEnvironmentVariables", http.MethodPatch, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.UpdateEnvironmentVariables(ctx, n, envReq)
+		}},
+		{"DeleteEnvironmentVariables", http.MethodDelete, "/environment-variables", "", func(ctx context.Context, c *Client, n string) error {
+			return c.ContainerDeployments.DeleteEnvironmentVariables(ctx, n, &DeleteContainerEnvVarsRequest{ContainerName: "app", Env: []string{"A"}})
+		}},
+	}
+}
+
+func TestContainerDeploymentsService_DeploymentNameIsOnePathSegment(t *testing.T) {
+	// Unescaped, this name would turn any action on "other-app" into a restart.
+	const hostileName = "other-app/restart?x=1#frag"
+	const wantEscaped = "/container-deployments/other-app%2Frestart%3Fx=1%23frag"
+
+	for _, action := range deploymentActions() {
+		t.Run(action.name, func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
+
+			called := false
+			mockServer.SetHandler(action.method, "/container-deployments/"+hostileName+action.suffix, func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				if got, want := r.URL.EscapedPath(), wantEscaped+action.suffix; got != want {
+					t.Errorf("path = %s, want %s", got, want)
+				}
+				if r.URL.RawQuery != "" {
+					t.Errorf("query = %q, want none", r.URL.RawQuery)
+				}
+				if action.response == "" {
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(action.response))
+			})
+			client := NewTestClient(t, mockServer)
+
+			if err := action.call(context.Background(), client, hostileName); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if !called {
+				t.Error("request did not reach the escaped deployment path")
+			}
+		})
+	}
+}
+
+func TestContainerDeploymentsService_RejectsInvalidDeploymentNames(t *testing.T) {
+	invalidNames := map[string]string{
+		"empty":         "",
+		"dot":           ".",
+		"dot dot":       "..",
+		"64 characters": strings.Repeat("a", 64),
+	}
+
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+	client := NewTestClient(t, mockServer)
+
+	for _, action := range deploymentActions() {
+		for label, name := range invalidNames {
+			t.Run(action.name+"/"+label, func(t *testing.T) {
+				err := action.call(context.Background(), client, name)
+				if err == nil || !strings.Contains(err.Error(), "deploymentName") {
+					t.Errorf("error = %v, want a deploymentName validation error", err)
+				}
+			})
+		}
+	}
+}
+
+func TestContainerDeploymentsService_AcceptsMaxLengthDeploymentName(t *testing.T) {
+	name := strings.Repeat("a", maxDeploymentNameLength)
+
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	called := false
+	mockServer.SetHandler(http.MethodPost, "/container-deployments/"+name+"/pause", func(w http.ResponseWriter, _ *http.Request) {
+		called = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	client := NewTestClient(t, mockServer)
+
+	if err := client.ContainerDeployments.PauseDeployment(context.Background(), name); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !called {
+		t.Error("request with a 63-character name was not sent")
+	}
+}
+
+func TestDeploymentPath(t *testing.T) {
+	tests := []struct {
+		name           string
+		deploymentName string
+		suffix         string
+		want           string
+		wantErr        string // substring of the expected error; empty means no error
+	}{
+		// Plain names are used as they are.
+		{name: "name only", deploymentName: "my-app", want: "/container-deployments/my-app"},
+		{name: "name with suffix", deploymentName: "my-app", suffix: "/scaling", want: "/container-deployments/my-app/scaling"},
+		{name: "63 characters", deploymentName: strings.Repeat("a", 63), want: "/container-deployments/" + strings.Repeat("a", 63)},
+
+		// Characters that would change the URL are escaped, so the name stays one path segment.
+		{name: "slash cannot select another endpoint", deploymentName: "other-app/restart", suffix: "/purge-queue", want: "/container-deployments/other-app%2Frestart/purge-queue"},
+		{name: "question mark cannot start a query", deploymentName: "app?force=true", suffix: "/pause", want: "/container-deployments/app%3Fforce=true/pause"},
+		{name: "hash cannot start a fragment", deploymentName: "app#x", suffix: "/status", want: "/container-deployments/app%23x/status"},
+		{name: "dot segments inside a name are escaped", deploymentName: "app/../other-app", want: "/container-deployments/app%2F..%2Fother-app"},
+		{name: "percent sign is escaped", deploymentName: "100%", want: "/container-deployments/100%25"},
+		{name: "space is escaped", deploymentName: "my app", want: "/container-deployments/my%20app"},
+		{name: "non-ASCII is escaped", deploymentName: "äpp", want: "/container-deployments/%C3%A4pp"},
+		{name: "length counts characters, not bytes", deploymentName: strings.Repeat("ä", 63), want: "/container-deployments/" + strings.Repeat("%C3%A4", 63)},
+
+		// Names the API cannot accept are rejected before a path is built.
+		{name: "empty name", deploymentName: "", suffix: "/scaling", wantErr: "deploymentName is required"},
+		{name: "64 characters", deploymentName: strings.Repeat("a", 64), wantErr: "at most 63 characters"},
+		{name: "64 non-ASCII characters", deploymentName: strings.Repeat("ä", 64), wantErr: "at most 63 characters"},
+		{name: "single dot", deploymentName: ".", wantErr: "is not a valid name"},
+		{name: "double dot", deploymentName: "..", suffix: "/restart", wantErr: "is not a valid name"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := deploymentPath(tt.deploymentName, tt.suffix)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("deploymentPath(%q, %q) error = %v, want error containing %q", tt.deploymentName, tt.suffix, err, tt.wantErr)
+				}
+				if got != "" {
+					t.Errorf("deploymentPath(%q, %q) = %q, want empty path on error", tt.deploymentName, tt.suffix, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("deploymentPath(%q, %q) unexpected error: %v", tt.deploymentName, tt.suffix, err)
+			}
+			if got != tt.want {
+				t.Errorf("deploymentPath(%q, %q) = %q, want %q", tt.deploymentName, tt.suffix, got, tt.want)
+			}
+		})
 	}
 }
 

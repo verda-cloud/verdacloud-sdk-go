@@ -17,9 +17,13 @@ package verda
 import (
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
+
+// maxDeploymentNameLength is the longest deployment name the API accepts.
+const maxDeploymentNameLength = 63
 
 // ContainerDeployment represents a serverless container deployment
 type ContainerDeployment struct {
@@ -125,6 +129,19 @@ type ContainerDeploymentStatus struct {
 	Status string `json:"status"`
 }
 
+// Deployment statuses returned by GetDeploymentStatus.
+const (
+	ContainerDeploymentStatusInitializing = "initializing"
+	ContainerDeploymentStatusHealthy      = "healthy"
+	ContainerDeploymentStatusDegraded     = "degraded"
+	ContainerDeploymentStatusUnhealthy    = "unhealthy"
+	ContainerDeploymentStatusPaused       = "paused"
+	ContainerDeploymentStatusQuotaReached = "quota_reached"
+	ContainerDeploymentStatusImagePulling = "image_pulling"
+	ContainerDeploymentStatusUpdating     = "updating"
+	ContainerDeploymentStatusTerminating  = "terminating"
+)
+
 // ContainerScalingOptions represents scaling configuration
 type ContainerScalingOptions struct {
 	MinReplicaCount              int              `json:"min_replica_count"`
@@ -141,11 +158,12 @@ type ScalingPolicy struct {
 	DelaySeconds int `json:"delay_seconds"`
 }
 
-// ScalingTriggers represents the various scaling triggers
+// ScalingTriggers represents the various scaling triggers.
+// In UpdateDeploymentScaling, a nil trigger is left out of the request and keeps its current settings.
 type ScalingTriggers struct {
-	QueueLoad      *QueueLoadTrigger   `json:"queue_load"`
-	CPUUtilization *UtilizationTrigger `json:"cpu_utilization"`
-	GPUUtilization *UtilizationTrigger `json:"gpu_utilization"`
+	QueueLoad      *QueueLoadTrigger   `json:"queue_load,omitempty"`
+	CPUUtilization *UtilizationTrigger `json:"cpu_utilization,omitempty"`
+	GPUUtilization *UtilizationTrigger `json:"gpu_utilization,omitempty"`
 }
 
 // QueueLoadTrigger represents queue load based scaling trigger
@@ -180,7 +198,21 @@ type ReplicaInfo struct {
 	ID        string    `json:"id"`
 	Status    string    `json:"status"`
 	StartedAt time.Time `json:"started_at"`
+	// Image is the full image reference the replica runs, e.g. "docker.io/library/nginx:1.21".
+	Image     string `json:"image,omitempty"`
+	ImageName string `json:"image_name,omitempty"`
+	ImageTag  string `json:"image_tag,omitempty"`
 }
+
+// Replica statuses reported in ReplicaInfo.Status.
+const (
+	ReplicaStatusUnavailable  = "unavailable"
+	ReplicaStatusInitializing = "initializing"
+	ReplicaStatusRunning      = "running"
+	ReplicaStatusTerminating  = "terminating"
+	ReplicaStatusError        = "error"
+	ReplicaStatusImagePulling = "imagepulling"
+)
 
 // ContainerEnvVarsRequest represents a request to add/update environment variables
 type ContainerEnvVarsRequest struct {
@@ -316,6 +348,74 @@ func (r CreateDeploymentRequest) Validate() error {
 		}
 	}
 	return nil
+}
+
+// validateDeploymentName checks a deployment name before it is used in a request path.
+func validateDeploymentName(name string) error {
+	if name == "" {
+		return fmt.Errorf("deploymentName is required")
+	}
+	if utf8.RuneCountInString(name) > maxDeploymentNameLength {
+		return fmt.Errorf("deploymentName must be at most %d characters", maxDeploymentNameLength)
+	}
+	// "." and ".." survive path escaping and would change which endpoint is called.
+	if name == "." || name == ".." {
+		return fmt.Errorf("deploymentName %q is not a valid name", name)
+	}
+	return nil
+}
+
+// Validate validates the UpdateScalingOptionsRequest fields.
+// At least one option must be set, and min_replica_count must not exceed max_replica_count when both are set.
+func (r UpdateScalingOptionsRequest) Validate() error {
+	if r == (UpdateScalingOptionsRequest{}) {
+		return fmt.Errorf("at least one scaling option must be set")
+	}
+	if err := validation.ValidateStruct(&r,
+		validation.Field(&r.MinReplicaCount, validation.Min(0)),
+		validation.Field(&r.MaxReplicaCount, validation.Min(0)),
+		validation.Field(&r.ScaleDownPolicy),
+		validation.Field(&r.ScaleUpPolicy),
+		validation.Field(&r.QueueMessageTTLSeconds, validation.Min(0)),
+		validation.Field(&r.ConcurrentRequestsPerReplica, validation.Min(0)),
+		validation.Field(&r.ScalingTriggers),
+	); err != nil {
+		return err
+	}
+	if r.MinReplicaCount != nil && r.MaxReplicaCount != nil && *r.MinReplicaCount > *r.MaxReplicaCount {
+		return fmt.Errorf("min_replica_count (%d) must not be greater than max_replica_count (%d)", *r.MinReplicaCount, *r.MaxReplicaCount)
+	}
+	return nil
+}
+
+// Validate validates the ScalingPolicy fields
+func (p ScalingPolicy) Validate() error {
+	return validation.ValidateStruct(&p,
+		validation.Field(&p.DelaySeconds, validation.Min(0)),
+	)
+}
+
+// Validate validates the triggers that are set
+func (t ScalingTriggers) Validate() error {
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.QueueLoad),
+		validation.Field(&t.CPUUtilization),
+		validation.Field(&t.GPUUtilization),
+	)
+}
+
+// Validate validates the QueueLoadTrigger fields
+func (t QueueLoadTrigger) Validate() error {
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.Threshold, validation.Min(0.0)),
+	)
+}
+
+// Validate validates the UtilizationTrigger fields. Threshold is a percentage.
+func (t UtilizationTrigger) Validate() error {
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.Threshold, validation.Min(0), validation.Max(100)),
+	)
 }
 
 // Validate validates the CreateSecretRequest fields
