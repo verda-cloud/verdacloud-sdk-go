@@ -6,7 +6,7 @@
 # ============================================================================
 
 .PHONY: help build vet-integration test test-integration test-smoke clean coverage
-.PHONY: versions lint security vulncheck fmt license license-check setup pre-commit
+.PHONY: versions lint security vulncheck fmt fix fix-check license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
@@ -16,6 +16,9 @@ GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci
 GOVULNCHECK_VERSION := v1.7.0
 # govulncheck must be a prebuilt binary: under `go run` it cannot detect the stdlib version and reports nothing.
 GOVULNCHECK := $(CURDIR)/build/bin/govulncheck
+# go fix analyzes one build configuration per run; the integration tag brings test/integration into scope.
+# The toolchain is pinned because each Go release adds or removes fixers.
+GOFIX := GOTOOLCHAIN=go$(GO_VERSION) go fix -tags=integration
 
 # ============================================================================
 # Help Target - Shows all available commands
@@ -96,6 +99,18 @@ fmt: ## Format Go code (used by CI, pre-commit handles this locally)
 		echo "  ℹ goimports not found, skipping import formatting"; \
 	fi
 	@echo "✓ Formatting complete!"
+
+# Two passes: applying one modernization can enable another (https://go.dev/blog/gofix).
+fix: ## Apply go fix modernizers (used by pre-commit)
+	@echo "→ Running go fix..."
+	@$(GOFIX) ./...
+	@$(GOFIX) ./...
+	@echo "✓ go fix complete!"
+
+fix-check: ## Fail if go fix has pending modernizations (CI)
+	@echo "→ Checking for pending go fix changes..."
+	@$(GOFIX) -diff ./... || { echo "  ✗ Pending go fix changes. Run 'make fix'"; exit 1; }
+	@echo "✓ No pending go fix changes!"
 
 # License headers: Apache 2.0 on *.go only (excludes vendor). Uses go run so no global install.
 license: ## Add Apache 2.0 file headers to all Go files (excludes ./vendor)
@@ -285,7 +300,7 @@ pre-commit: versions ## Run all pre-commit hooks on all files (stages modified f
 # CI/CD Targets
 # ============================================================================
 
-ci: ## Run all CI checks (format, mod-tidy, license-check, lint, build, test)
+ci: ## Run all CI checks (format, mod-tidy, go fix, license-check, lint, build, test)
 	@echo "→ Running CI checks (same as GitHub Actions)..."
 	@echo ""
 	@echo "1. Format check..."
@@ -306,22 +321,25 @@ ci: ## Run all CI checks (format, mod-tidy, license-check, lint, build, test)
 		echo "  ✓ go.mod is tidy"; \
 	fi
 	@echo ""
-	@echo "3. License header check..."
+	@echo "3. go fix check..."
+	@$(MAKE) fix-check
+	@echo ""
+	@echo "4. License header check..."
 	@$(MAKE) license-check
 	@echo ""
-	@echo "4. Linting..."
+	@echo "5. Linting..."
 	@$(MAKE) lint
 	@echo ""
-	@echo "5. Building..."
+	@echo "6. Building..."
 	@$(MAKE) build
 	@$(MAKE) vet-integration
 	@echo ""
-	@echo "6. Testing..."
+	@echo "7. Testing..."
 	@$(MAKE) test
 	@echo ""
 	@echo "✓ All CI checks passed! Ready to push."
 
-.PHONY: setup lint fmt license license-check security
+.PHONY: setup lint fmt fix fix-check license license-check security
 .PHONY: build vet-integration test test-integration test-smoke coverage clean mod-tidy update-deps release
 .PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci

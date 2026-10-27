@@ -41,6 +41,13 @@ repos:
 
   - repo: local
     hooks:
+      - id: go-fix
+        name: Modernize Go code (go fix)
+        description: Applies go fix modernizers (pinned toolchain, includes integration tests)
+        entry: make fix
+        language: system
+        types: [go]
+        pass_filenames: false
       - id: golangci-lint
         name: Lint Go code (golangci-lint)
         description: Fast linters runner for Go
