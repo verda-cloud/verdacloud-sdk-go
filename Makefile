@@ -6,11 +6,12 @@
 # ============================================================================
 
 .PHONY: help build vet-integration test test-integration test-smoke clean coverage
-.PHONY: versions lint security vulncheck fmt fix fix-check license license-check setup pre-commit
+.PHONY: versions lint security gosec vulncheck fmt fix fix-check license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
-GO_VERSION := 1.26.10
+# Single source of truth for the Go version: the go directive in go.mod (CI reads it via go-version-file).
+GO_VERSION := $(shell sed -n 's/^go //p' go.mod)
 GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.7.0
@@ -81,10 +82,13 @@ lint: versions ## Run golangci-lint (used by CI, pre-commit handles this locally
 security: versions ## Run security checks (gosec + govulncheck)
 	@echo "→ Running security checks..."
 	@echo "  1. Running gosec (via golangci-lint)..."
-	@$(GOLANGCI_LINT) run --no-config -E gosec ./...
+	@$(MAKE) --no-print-directory gosec
 	@echo "  2. Running govulncheck..."
 	@$(MAKE) --no-print-directory vulncheck
 	@echo "✓ Security checks complete!"
+
+gosec: ## Run gosec via golangci-lint
+	@$(GOLANGCI_LINT) run --no-config -E gosec ./...
 
 vulncheck: ## Run govulncheck; fails on vulnerabilities not accepted in scripts/govulncheck-gate.sh
 	@GOTOOLCHAIN=go$(GO_VERSION) GOBIN=$(CURDIR)/build/bin go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
@@ -339,7 +343,7 @@ ci: ## Run all CI checks (format, mod-tidy, go fix, license-check, lint, build, 
 	@echo ""
 	@echo "✓ All CI checks passed! Ready to push."
 
-.PHONY: setup lint fmt fix fix-check license license-check security
+.PHONY: setup lint fmt fix fix-check license license-check security gosec
 .PHONY: build vet-integration test test-integration test-smoke coverage clean mod-tidy update-deps release
 .PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci

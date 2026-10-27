@@ -14,7 +14,7 @@ These rarely change. Follow them for all contributions:
 - **Type organization**: `types.go` for cross-domain utilities only; domain types in `*_types.go`
 - **Error handling**: Return `*APIError` for HTTP errors; `Validate()` returns ozzo-validation errors
 - **Tests**: Unit tests use `testutil.NewMockServer()` + `NewTestClient()`, integration tests use `//go:build integration`
-- **Modernization**: CI runs `make fix-check` (`go fix -diff`). Run `make fix` before pushing, and again after bumping `GO_VERSION`, because new Go releases add fixers
+- **Modernization**: CI runs `make fix-check` (`go fix -diff`). Run `make fix` before pushing, and again after bumping the `go` directive in `go.mod` (the single source of the Go version for the Makefile and CI), because new Go releases add fixers
 - **Commits**: Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`)
 - **License headers**: New `.go` files need the Apache 2.0 short header (Copyright 2026 Verda Cloud Oy, same as other Verda repos). Run `make license` to add missing headers; CI runs `make license-check` and fails if a new file lacks the header
 
