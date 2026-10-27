@@ -81,10 +81,7 @@ func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName
 	path := fmt.Sprintf("/job-deployments/%s", jobName)
 
 	if timeoutMs >= 0 {
-		timeout := timeoutMs
-		if timeout > 300000 {
-			timeout = 300000
-		}
+		timeout := min(timeoutMs, 300000)
 		params := url.Values{}
 		params.Set("timeout", fmt.Sprintf("%d", timeout))
 		path += "?" + params.Encode()
@@ -108,19 +105,19 @@ func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, job
 
 func (s *ServerlessJobsService) PurgeJobDeploymentQueue(ctx context.Context, jobName string) error {
 	path := fmt.Sprintf("/job-deployments/%s/purge-queue", jobName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ServerlessJobsService) PauseJobDeployment(ctx context.Context, jobName string) error {
 	path := fmt.Sprintf("/job-deployments/%s/pause", jobName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ServerlessJobsService) ResumeJobDeployment(ctx context.Context, jobName string) error {
 	path := fmt.Sprintf("/job-deployments/%s/resume", jobName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 

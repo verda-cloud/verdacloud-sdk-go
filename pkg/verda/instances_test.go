@@ -220,14 +220,14 @@ func TestInstanceService_Create(t *testing.T) {
 			LocationCode:    "US-01",
 			Contract:        "PAY_AS_YOU_GO",
 			Pricing:         "FIXED_PRICE",
-			StartupScriptID: stringPtr("script_123"),
+			StartupScriptID: new("script_123"),
 			Volumes: []VolumeCreateRequest{
 				{Size: 500, Type: VolumeTypeNVMe, Name: "data"},
 			},
 			ExistingVolumes: []string{"vol_123"},
 			OSVolume:        &OSVolumeCreateRequest{Size: 100, Name: "os-vol"},
 			IsSpot:          true,
-			Coupon:          stringPtr("DISCOUNT20"),
+			Coupon:          new("DISCOUNT20"),
 		}
 
 		ctx := context.Background()
@@ -601,7 +601,7 @@ func TestInstanceService_Action_207_PartialFailure(t *testing.T) {
 	mockServer.SetHandler("PUT", "/instances", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusMultiStatus)
-		writeTestJSON(t, w, []map[string]interface{}{
+		writeTestJSON(t, w, []map[string]any{
 			{"action": "shutdown", "instanceId": "inst_123", "status": "success"},
 			{"action": "shutdown", "instanceId": "inst_456", "status": "error", "error": "instance not found", "statusCode": 404},
 		})
@@ -812,13 +812,9 @@ func TestInstanceService_ConvenienceMethods(t *testing.T) {
 	})
 }
 
-func writeTestJSON(t testing.TB, w http.ResponseWriter, v interface{}) {
+func writeTestJSON(t testing.TB, w http.ResponseWriter, v any) {
 	t.Helper()
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		t.Errorf("encode mock JSON response: %v", err)
 	}
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

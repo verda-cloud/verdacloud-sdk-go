@@ -31,7 +31,7 @@ import (
 type RequestContext struct {
 	Method  string
 	Path    string
-	Body    interface{}
+	Body    any
 	Headers http.Header
 	Query   url.Values
 	Request *http.Request

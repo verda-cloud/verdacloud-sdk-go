@@ -139,7 +139,7 @@ func TestAuthService_RefreshToken(t *testing.T) {
 				return
 			}
 			// Succeed authentication
-			response := map[string]interface{}{
+			response := map[string]any{
 				"access_token":  "new_access_token",
 				"refresh_token": "new_refresh_token",
 				"token_type":    "Bearer",

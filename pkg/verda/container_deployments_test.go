@@ -630,7 +630,7 @@ func TestContainerDeploymentsService_CreateDeployment_Inferno(t *testing.T) {
 
 	var receivedInferno bool
 	mockServer.SetHandler(http.MethodPost, "/container-deployments", func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("failed to decode request body: %v", err)
 		}
@@ -681,7 +681,7 @@ func TestContainerDeploymentsService_UpdateDeployment_Inferno(t *testing.T) {
 
 	var receivedInferno *bool
 	mockServer.SetHandler(http.MethodPatch, "/container-deployments/test-deployment", func(w http.ResponseWriter, r *http.Request) {
-		var body map[string]interface{}
+		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			t.Errorf("failed to decode request body: %v", err)
 		}
@@ -738,7 +738,7 @@ func TestContainerDeployment_IsInferno_JSONSerialization(t *testing.T) {
 			t.Fatalf("marshal error: %v", err)
 		}
 
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}
@@ -761,7 +761,7 @@ func TestContainerDeployment_IsInferno_JSONSerialization(t *testing.T) {
 			t.Fatalf("marshal error: %v", err)
 		}
 
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}
@@ -778,7 +778,7 @@ func TestContainerDeployment_IsInferno_JSONSerialization(t *testing.T) {
 			t.Fatalf("marshal error: %v", err)
 		}
 
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}
@@ -794,7 +794,7 @@ func TestContainerDeployment_IsInferno_JSONSerialization(t *testing.T) {
 			t.Fatalf("marshal error: %v", err)
 		}
 
-		var m map[string]interface{}
+		var m map[string]any
 		if err := json.Unmarshal(data, &m); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}

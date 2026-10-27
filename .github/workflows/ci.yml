@@ -18,25 +18,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
-      - name: Add Go bin to PATH
-        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
-
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
-
+      # golangci-lint version is pinned in the Makefile (GOLANGCI_LINT_VERSION)
       - name: Run linters
         run: make lint
 
   # Unit tests with coverage
   test:
-    name: Test (Go ${{ matrix.go-version }})
+    name: Test
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ["1.26.10"]
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
@@ -44,18 +36,16 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
           cache: true
 
       - name: Run unit tests
         run: make test
 
       - name: Generate coverage report
-        if: matrix.go-version == '1.26.10'
         run: make coverage
 
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.26.10'
         uses: codecov/codecov-action@v6
         with:
           files: ./build/coverage.out
@@ -74,7 +64,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Build SDK
@@ -94,7 +84,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Check license headers
@@ -111,7 +101,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Check formatting
@@ -134,7 +124,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Check go mod tidy
@@ -145,6 +135,23 @@ jobs:
             git diff
             exit 1
           fi
+
+  # go fix modernizers: fail if any fix is pending (go fix -diff exits non-zero)
+  go-fix:
+    name: Go Fix Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check for pending go fix changes
+        run: make fix-check
 
   # Vulnerability scanning with govulncheck
   vuln-scan:
@@ -157,7 +164,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Run govulncheck (fails on vulnerabilities not accepted in scripts/govulncheck-gate.sh)
@@ -194,7 +201,7 @@ jobs:
         if: steps.check-secrets.outputs.available == 'true'
         uses: actions/setup-go@v6
         with:
-          go-version: "1.26.10"
+          go-version-file: go.mod
           cache: true
 
       - name: Run smoke tests
@@ -226,12 +233,12 @@ jobs:
     name: All CI Checks Passed
     runs-on: ubuntu-latest
     if: always()
-    needs: [lint, test, build, format, mod-tidy, vuln-scan, license, changelog-guard]
+    needs: [lint, test, build, format, mod-tidy, go-fix, vuln-scan, license, changelog-guard]
     steps:
       - name: Check results
         run: |
           # changelog-guard is skipped on push events, which is fine
-          for result in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.build.result }}" "${{ needs.format.result }}" "${{ needs.mod-tidy.result }}" "${{ needs.vuln-scan.result }}" "${{ needs.license.result }}"; do
+          for result in "${{ needs.lint.result }}" "${{ needs.test.result }}" "${{ needs.build.result }}" "${{ needs.format.result }}" "${{ needs.mod-tidy.result }}" "${{ needs.go-fix.result }}" "${{ needs.vuln-scan.result }}" "${{ needs.license.result }}"; do
             if [ "$result" != "success" ]; then
               echo "One or more CI checks failed"
               exit 1

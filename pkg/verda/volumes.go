@@ -112,7 +112,7 @@ func (s *VolumeService) AttachVolume(ctx context.Context, volumeID string, req V
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"id":          volumeID,
 		"action":      VolumeActionAttach,
 		"instance_id": req.InstanceID,
@@ -126,7 +126,7 @@ func (s *VolumeService) DetachVolume(ctx context.Context, volumeID string, req V
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"id":          volumeID,
 		"action":      VolumeActionDetach,
 		"instance_id": req.InstanceID,
