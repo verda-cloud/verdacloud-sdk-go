@@ -370,7 +370,7 @@ func TestTagsInResourceResponses(t *testing.T) {
 	t.Run("volume response decodes tags", func(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/volumes/vol_tagged", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			writeTestJSON(t, w, map[string]interface{}{
+			writeTestJSON(t, w, map[string]any{
 				"id":   "vol_tagged",
 				"name": "tagged-volume",
 				"tags": []map[string]string{

@@ -151,7 +151,7 @@ func (r CreateRouteRequest) Validate() error {
 	)
 }
 
-func validateIPv4CIDR(value interface{}) error {
+func validateIPv4CIDR(value any) error {
 	s, _ := value.(string)
 	prefix, err := netip.ParsePrefix(s)
 	if err != nil || !prefix.Addr().Is4() {

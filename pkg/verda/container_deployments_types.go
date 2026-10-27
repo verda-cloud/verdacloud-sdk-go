@@ -64,7 +64,7 @@ type DeploymentContainer struct {
 // ContainerImage represents a container image reference
 type ContainerImage struct {
 	Image         string    `json:"image"`
-	LastUpdatedAt time.Time `json:"last_updated_at,omitempty"`
+	LastUpdatedAt time.Time `json:"last_updated_at"`
 }
 
 // ContainerEnvVar represents an environment variable with type

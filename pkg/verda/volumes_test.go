@@ -277,7 +277,7 @@ func TestVolumeService_DeleteVolume(t *testing.T) {
 
 	// The permanence flag belongs in the request body as is_permanent, not in the
 	// query string. Capture both so the test fails if it ever moves back.
-	var gotBody map[string]interface{}
+	var gotBody map[string]any
 	var gotQuery string
 	mockServer.SetHandler(http.MethodDelete, "/volumes/vol_123", func(w http.ResponseWriter, r *http.Request) {
 		gotBody = nil
@@ -332,7 +332,7 @@ func TestVolumeService_AttachVolume(t *testing.T) {
 
 	// Set up mock response for volume attach using PUT /volumes with action
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
-		var actionReq map[string]interface{}
+		var actionReq map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&actionReq); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
 			return
@@ -433,7 +433,7 @@ func TestVolumeService_DetachVolume(t *testing.T) {
 
 	// Set up mock response for volume actions using PUT /volumes
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
-		var actionReq map[string]interface{}
+		var actionReq map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&actionReq); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
 			return
@@ -480,9 +480,9 @@ func TestVolumeService_CloneVolume(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 
 	// Set up mock response for volume clone using PUT /volumes with action
-	var gotBody map[string]interface{}
+	var gotBody map[string]any
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
-		var actionReq map[string]interface{}
+		var actionReq map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&actionReq); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
 			return
@@ -564,7 +564,7 @@ func TestVolumeService_RestoreVolume(t *testing.T) {
 
 	client := NewTestClient(t, mockServer)
 
-	var gotBody map[string]interface{}
+	var gotBody map[string]any
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
@@ -593,7 +593,7 @@ func TestVolumeService_CancelVolumeAction(t *testing.T) {
 
 	client := NewTestClient(t, mockServer)
 
-	var gotBody map[string]interface{}
+	var gotBody map[string]any
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
@@ -624,7 +624,7 @@ func TestVolumeService_ResizeVolume(t *testing.T) {
 
 	// Set up mock response for volume resize using PUT /volumes with action
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
-		var actionReq map[string]interface{}
+		var actionReq map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&actionReq); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
 			return
@@ -672,7 +672,7 @@ func TestVolumeService_RenameVolume(t *testing.T) {
 
 	// Set up mock response for volume rename using PUT /volumes with action
 	mockServer.SetHandler(http.MethodPut, "/volumes", func(w http.ResponseWriter, r *http.Request) {
-		var actionReq map[string]interface{}
+		var actionReq map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&actionReq); err != nil {
 			t.Errorf("mock JSON operation failed: %v", err)
 			return
@@ -720,7 +720,7 @@ func TestVolumeService_GetVolumesInTrash(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
-			volumes := []map[string]interface{}{
+			volumes := []map[string]any{
 				{
 					"id":                     "vol_trash_1",
 					"name":                   "Deleted Volume",
@@ -771,7 +771,7 @@ func TestVolumeService_GetVolumesInTrash(t *testing.T) {
 	t.Run("empty trash", func(t *testing.T) {
 		mockServer.SetHandler(http.MethodGet, "/volumes/trash", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
-			if err := json.NewEncoder(w).Encode([]map[string]interface{}{}); err != nil {
+			if err := json.NewEncoder(w).Encode([]map[string]any{}); err != nil {
 				t.Errorf("mock JSON operation failed: %v", err)
 				return
 			}

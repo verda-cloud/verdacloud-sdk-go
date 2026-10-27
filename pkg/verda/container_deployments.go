@@ -111,10 +111,7 @@ func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, depl
 	path := fmt.Sprintf("/container-deployments/%s", deploymentName)
 
 	if timeoutMs >= 0 {
-		timeout := timeoutMs
-		if timeout > 300000 {
-			timeout = 300000
-		}
+		timeout := min(timeoutMs, 300000)
 		params := url.Values{}
 		params.Set("timeout", fmt.Sprintf("%d", timeout))
 		path += "?" + params.Encode()
@@ -135,25 +132,25 @@ func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, d
 
 func (s *ContainerDeploymentsService) RestartDeployment(ctx context.Context, deploymentName string) error {
 	path := fmt.Sprintf("/container-deployments/%s/restart", deploymentName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ContainerDeploymentsService) PauseDeployment(ctx context.Context, deploymentName string) error {
 	path := fmt.Sprintf("/container-deployments/%s/pause", deploymentName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ContainerDeploymentsService) ResumeDeployment(ctx context.Context, deploymentName string) error {
 	path := fmt.Sprintf("/container-deployments/%s/resume", deploymentName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ContainerDeploymentsService) PurgeDeploymentQueue(ctx context.Context, deploymentName string) error {
 	path := fmt.Sprintf("/container-deployments/%s/purge-queue", deploymentName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, nil)
+	_, _, err := postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
@@ -210,7 +207,7 @@ func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Contex
 		return err
 	}
 	path := fmt.Sprintf("/container-deployments/%s/environment-variables", deploymentName)
-	_, _, err := postRequest[interface{}](ctx, s.client, path, req)
+	_, _, err := postRequest[any](ctx, s.client, path, req)
 	return err
 }
 
@@ -219,7 +216,7 @@ func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Con
 		return err
 	}
 	path := fmt.Sprintf("/container-deployments/%s/environment-variables", deploymentName)
-	_, _, err := patchRequest[interface{}](ctx, s.client, path, req)
+	_, _, err := patchRequest[any](ctx, s.client, path, req)
 	return err
 }
 
@@ -280,7 +277,7 @@ func (s *ContainerDeploymentsService) CreateSecret(ctx context.Context, req *Cre
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	_, _, err := postRequest[interface{}](ctx, s.client, "/secrets", req)
+	_, _, err := postRequest[any](ctx, s.client, "/secrets", req)
 	return err
 }
 
@@ -313,7 +310,7 @@ func (s *ContainerDeploymentsService) CreateFileSecret(ctx context.Context, req 
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	_, _, err := postRequest[interface{}](ctx, s.client, "/file-secrets", req)
+	_, _, err := postRequest[any](ctx, s.client, "/file-secrets", req)
 	return err
 }
 
@@ -345,7 +342,7 @@ func (s *ContainerDeploymentsService) CreateRegistryCredentials(ctx context.Cont
 	if err := req.Validate(); err != nil {
 		return err
 	}
-	_, _, err := postRequest[interface{}](ctx, s.client, "/container-registry-credentials", req)
+	_, _, err := postRequest[any](ctx, s.client, "/container-registry-credentials", req)
 	return err
 }
 

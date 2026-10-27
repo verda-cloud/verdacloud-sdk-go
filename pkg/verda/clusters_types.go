@@ -131,7 +131,7 @@ type ClusterType struct {
 	PricePerHour FlexibleFloat  `json:"price_per_hour"`
 	Currency     string         `json:"currency"`
 	Manufacturer string         `json:"manufacturer"`
-	NodeDetails  []interface{}  `json:"node_details"`
+	NodeDetails  []any          `json:"node_details"`
 	SupportedOS  []string       `json:"supported_os"`
 }
 

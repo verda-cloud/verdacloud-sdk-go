@@ -21,19 +21,19 @@ import (
 
 // Logger interface allows users to plug in their preferred logging library
 type Logger interface {
-	Debug(msg string, args ...interface{})
-	Info(msg string, args ...interface{})
-	Warn(msg string, args ...interface{})
-	Error(msg string, args ...interface{})
+	Debug(msg string, args ...any)
+	Info(msg string, args ...any)
+	Warn(msg string, args ...any)
+	Error(msg string, args ...any)
 }
 
 // NoOpLogger discards all log messages (default)
 type NoOpLogger struct{}
 
-func (l *NoOpLogger) Debug(msg string, args ...interface{}) {} //nolint:revive // Parameters intentionally unused - no-op logger
-func (l *NoOpLogger) Info(msg string, args ...interface{})  {} //nolint:revive // Parameters intentionally unused - no-op logger
-func (l *NoOpLogger) Warn(msg string, args ...interface{})  {} //nolint:revive // Parameters intentionally unused - no-op logger
-func (l *NoOpLogger) Error(msg string, args ...interface{}) {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Debug(msg string, args ...any) {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Info(msg string, args ...any)  {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Warn(msg string, args ...any)  {} //nolint:revive // Parameters intentionally unused - no-op logger
+func (l *NoOpLogger) Error(msg string, args ...any) {} //nolint:revive // Parameters intentionally unused - no-op logger
 
 // StdLogger uses Go's standard log package
 type StdLogger struct {
@@ -49,21 +49,21 @@ func NewStdLogger(debugEnabled bool) *StdLogger {
 	}
 }
 
-func (l *StdLogger) Debug(msg string, args ...interface{}) {
+func (l *StdLogger) Debug(msg string, args ...any) {
 	if l.debugEnabled {
 		l.logger.Printf("[DEBUG] "+msg, args...)
 	}
 }
 
-func (l *StdLogger) Info(msg string, args ...interface{}) {
+func (l *StdLogger) Info(msg string, args ...any) {
 	l.logger.Printf("[INFO] "+msg, args...)
 }
 
-func (l *StdLogger) Warn(msg string, args ...interface{}) {
+func (l *StdLogger) Warn(msg string, args ...any) {
 	l.logger.Printf("[WARN] "+msg, args...)
 }
 
-func (l *StdLogger) Error(msg string, args ...interface{}) {
+func (l *StdLogger) Error(msg string, args ...any) {
 	l.logger.Printf("[ERROR] "+msg, args...)
 }
 
@@ -81,20 +81,20 @@ func NewSlogLogger(debugEnabled bool) *SlogLogger {
 	}
 }
 
-func (l *SlogLogger) Debug(msg string, args ...interface{}) {
+func (l *SlogLogger) Debug(msg string, args ...any) {
 	if l.debug {
 		l.logger.Printf("[DEBUG] "+msg, args...)
 	}
 }
 
-func (l *SlogLogger) Info(msg string, args ...interface{}) {
+func (l *SlogLogger) Info(msg string, args ...any) {
 	l.logger.Printf("[INFO] "+msg, args...)
 }
 
-func (l *SlogLogger) Warn(msg string, args ...interface{}) {
+func (l *SlogLogger) Warn(msg string, args ...any) {
 	l.logger.Printf("[WARN] "+msg, args...)
 }
 
-func (l *SlogLogger) Error(msg string, args ...interface{}) {
+func (l *SlogLogger) Error(msg string, args ...any) {
 	l.logger.Printf("[ERROR] "+msg, args...)
 }

@@ -137,34 +137,34 @@ func NewTestClientConfig(mockServer *MockServer) TestClientConfig {
 
 // Mock types to avoid circular imports
 type Instance struct {
-	ID               string                 `json:"id"`
-	IP               *string                `json:"ip"`
-	PrivateIP        *string                `json:"private_ip"`
-	PrivateNetworkID *string                `json:"private_network_id"`
-	SubnetID         *string                `json:"subnet_id"`
-	Status           string                 `json:"status"`
-	CreatedAt        time.Time              `json:"created_at"`
-	CPU              map[string]interface{} `json:"cpu"`
-	GPU              map[string]interface{} `json:"gpu"`
-	GPUMemory        map[string]interface{} `json:"gpu_memory"`
-	Memory           map[string]interface{} `json:"memory"`
-	Storage          map[string]interface{} `json:"storage"`
-	Hostname         string                 `json:"hostname"`
-	Description      string                 `json:"description"`
-	Location         string                 `json:"location"`
-	PricePerHour     float64                `json:"price_per_hour"`
-	IsSpot           bool                   `json:"is_spot"`
-	InstanceType     string                 `json:"instance_type"`
-	Image            string                 `json:"image"`
-	OSName           string                 `json:"os_name"`
-	StartupScriptID  *string                `json:"startup_script_id"`
-	SSHKeyIDs        []string               `json:"ssh_key_ids"`
-	OSVolumeID       *string                `json:"os_volume_id"`
-	JupyterToken     string                 `json:"jupyter_token"`
-	Contract         string                 `json:"contract"`
-	Pricing          string                 `json:"pricing"`
-	VolumeIDs        []string               `json:"volume_ids"`
-	Tags             []Tag                  `json:"tags"`
+	ID               string         `json:"id"`
+	IP               *string        `json:"ip"`
+	PrivateIP        *string        `json:"private_ip"`
+	PrivateNetworkID *string        `json:"private_network_id"`
+	SubnetID         *string        `json:"subnet_id"`
+	Status           string         `json:"status"`
+	CreatedAt        time.Time      `json:"created_at"`
+	CPU              map[string]any `json:"cpu"`
+	GPU              map[string]any `json:"gpu"`
+	GPUMemory        map[string]any `json:"gpu_memory"`
+	Memory           map[string]any `json:"memory"`
+	Storage          map[string]any `json:"storage"`
+	Hostname         string         `json:"hostname"`
+	Description      string         `json:"description"`
+	Location         string         `json:"location"`
+	PricePerHour     float64        `json:"price_per_hour"`
+	IsSpot           bool           `json:"is_spot"`
+	InstanceType     string         `json:"instance_type"`
+	Image            string         `json:"image"`
+	OSName           string         `json:"os_name"`
+	StartupScriptID  *string        `json:"startup_script_id"`
+	SSHKeyIDs        []string       `json:"ssh_key_ids"`
+	OSVolumeID       *string        `json:"os_volume_id"`
+	JupyterToken     string         `json:"jupyter_token"`
+	Contract         string         `json:"contract"`
+	Pricing          string         `json:"pricing"`
+	VolumeIDs        []string       `json:"volume_ids"`
+	Tags             []Tag          `json:"tags"`
 }
 
 type CreateInstanceRequest struct {
@@ -388,38 +388,38 @@ type Image struct {
 }
 
 type ContainerType struct {
-	ID                  string                 `json:"id"`
-	Model               string                 `json:"model"`
-	Name                string                 `json:"name"`
-	InstanceType        string                 `json:"instance_type"`
-	CPU                 map[string]interface{} `json:"cpu"`
-	GPU                 map[string]interface{} `json:"gpu"`
-	GPUMemory           map[string]interface{} `json:"gpu_memory"`
-	Memory              map[string]interface{} `json:"memory"`
-	ServerlessPrice     float64                `json:"serverless_price"`
-	ServerlessSpotPrice float64                `json:"serverless_spot_price"`
-	Currency            string                 `json:"currency"`
-	Manufacturer        string                 `json:"manufacturer"`
+	ID                  string         `json:"id"`
+	Model               string         `json:"model"`
+	Name                string         `json:"name"`
+	InstanceType        string         `json:"instance_type"`
+	CPU                 map[string]any `json:"cpu"`
+	GPU                 map[string]any `json:"gpu"`
+	GPUMemory           map[string]any `json:"gpu_memory"`
+	Memory              map[string]any `json:"memory"`
+	ServerlessPrice     float64        `json:"serverless_price"`
+	ServerlessSpotPrice float64        `json:"serverless_spot_price"`
+	Currency            string         `json:"currency"`
+	Manufacturer        string         `json:"manufacturer"`
 }
 
 type InstanceTypeInfo struct {
-	ID              string                 `json:"id"`
-	InstanceType    string                 `json:"instance_type"`
-	Model           string                 `json:"model"`
-	Name            string                 `json:"name"`
-	CPU             map[string]interface{} `json:"cpu"`
-	GPU             map[string]interface{} `json:"gpu"`
-	GPUMemory       map[string]interface{} `json:"gpu_memory"`
-	Memory          map[string]interface{} `json:"memory"`
-	PricePerHour    float64                `json:"price_per_hour"`
-	SpotPrice       float64                `json:"spot_price"`
-	DynamicPrice    float64                `json:"dynamic_price"`
-	MaxDynamicPrice float64                `json:"max_dynamic_price"`
-	Storage         map[string]interface{} `json:"storage"`
-	Currency        string                 `json:"currency"`
-	Manufacturer    string                 `json:"manufacturer"`
-	BestFor         []string               `json:"best_for"`
-	Description     string                 `json:"description"`
+	ID              string         `json:"id"`
+	InstanceType    string         `json:"instance_type"`
+	Model           string         `json:"model"`
+	Name            string         `json:"name"`
+	CPU             map[string]any `json:"cpu"`
+	GPU             map[string]any `json:"gpu"`
+	GPUMemory       map[string]any `json:"gpu_memory"`
+	Memory          map[string]any `json:"memory"`
+	PricePerHour    float64        `json:"price_per_hour"`
+	SpotPrice       float64        `json:"spot_price"`
+	DynamicPrice    float64        `json:"dynamic_price"`
+	MaxDynamicPrice float64        `json:"max_dynamic_price"`
+	Storage         map[string]any `json:"storage"`
+	Currency        string         `json:"currency"`
+	Manufacturer    string         `json:"manufacturer"`
+	BestFor         []string       `json:"best_for"`
+	Description     string         `json:"description"`
 }
 
 type LocationAvailability struct {
@@ -459,30 +459,30 @@ type ClusterSharedVolume struct {
 }
 
 type Cluster struct {
-	ID                string                 `json:"id"`
-	IP                *string                `json:"ip"`
-	Status            string                 `json:"status"`
-	CreatedAt         time.Time              `json:"created_at"`
-	CPU               map[string]interface{} `json:"cpu"`
-	GPU               map[string]interface{} `json:"gpu"`
-	GPUMemory         map[string]interface{} `json:"gpu_memory"`
-	Memory            map[string]interface{} `json:"memory"`
-	Hostname          string                 `json:"hostname"`
-	Description       string                 `json:"description"`
-	Location          string                 `json:"location"`
-	PricePerHour      float64                `json:"price_per_hour"`
-	ClusterType       string                 `json:"cluster_type"`
-	Image             string                 `json:"image"`
-	OSName            string                 `json:"os_name"`
-	SSHKeyIDs         []string               `json:"ssh_key_ids"`
-	Contract          string                 `json:"contract"`
-	StartupScriptID   *string                `json:"startup_script_id,omitempty"`
-	AutoRentExtension *bool                  `json:"auto_rent_extension,omitempty"`
-	TurnToPayAsYouGo  *bool                  `json:"turn_to_pay_as_you_go,omitempty"`
-	LongTermPeriod    *string                `json:"long_term_period,omitempty"`
-	WorkerNodes       []ClusterWorkerNode    `json:"worker_nodes,omitempty"`
-	SharedVolumes     []ClusterSharedVolume  `json:"shared_volumes,omitempty"`
-	Tags              []Tag                  `json:"tags"`
+	ID                string                `json:"id"`
+	IP                *string               `json:"ip"`
+	Status            string                `json:"status"`
+	CreatedAt         time.Time             `json:"created_at"`
+	CPU               map[string]any        `json:"cpu"`
+	GPU               map[string]any        `json:"gpu"`
+	GPUMemory         map[string]any        `json:"gpu_memory"`
+	Memory            map[string]any        `json:"memory"`
+	Hostname          string                `json:"hostname"`
+	Description       string                `json:"description"`
+	Location          string                `json:"location"`
+	PricePerHour      float64               `json:"price_per_hour"`
+	ClusterType       string                `json:"cluster_type"`
+	Image             string                `json:"image"`
+	OSName            string                `json:"os_name"`
+	SSHKeyIDs         []string              `json:"ssh_key_ids"`
+	Contract          string                `json:"contract"`
+	StartupScriptID   *string               `json:"startup_script_id,omitempty"`
+	AutoRentExtension *bool                 `json:"auto_rent_extension,omitempty"`
+	TurnToPayAsYouGo  *bool                 `json:"turn_to_pay_as_you_go,omitempty"`
+	LongTermPeriod    *string               `json:"long_term_period,omitempty"`
+	WorkerNodes       []ClusterWorkerNode   `json:"worker_nodes,omitempty"`
+	SharedVolumes     []ClusterSharedVolume `json:"shared_volumes,omitempty"`
+	Tags              []Tag                 `json:"tags"`
 }
 
 type ClusterSharedVolumeSpec struct {
@@ -519,19 +519,19 @@ type ClusterActionsRequest struct {
 }
 
 type ClusterType struct {
-	ID           string                 `json:"id"`
-	Model        string                 `json:"model"`
-	Name         string                 `json:"name"`
-	ClusterType  string                 `json:"cluster_type"`
-	CPU          map[string]interface{} `json:"cpu"`
-	GPU          map[string]interface{} `json:"gpu"`
-	GPUMemory    map[string]interface{} `json:"gpu_memory"`
-	Memory       map[string]interface{} `json:"memory"`
-	PricePerHour float64                `json:"price_per_hour"`
-	Currency     string                 `json:"currency"`
-	Manufacturer string                 `json:"manufacturer"`
-	NodeDetails  []interface{}          `json:"node_details"`
-	SupportedOS  []string               `json:"supported_os"`
+	ID           string         `json:"id"`
+	Model        string         `json:"model"`
+	Name         string         `json:"name"`
+	ClusterType  string         `json:"cluster_type"`
+	CPU          map[string]any `json:"cpu"`
+	GPU          map[string]any `json:"gpu"`
+	GPUMemory    map[string]any `json:"gpu_memory"`
+	Memory       map[string]any `json:"memory"`
+	PricePerHour float64        `json:"price_per_hour"`
+	Currency     string         `json:"currency"`
+	Manufacturer string         `json:"manufacturer"`
+	NodeDetails  []any          `json:"node_details"`
+	SupportedOS  []string       `json:"supported_os"`
 }
 
 type ClusterAvailability struct {
@@ -844,7 +844,7 @@ func (ms *MockServer) handleAuth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Mock successful authentication
-	response := map[string]interface{}{
+	response := map[string]any{
 		"access_token":  "mock_access_token_12345",
 		"refresh_token": "mock_refresh_token_67890",
 		"token_type":    "Bearer",
@@ -868,11 +868,11 @@ func (ms *MockServer) handleGetInstances(w http.ResponseWriter, _ *http.Request)
 			IP:              &ip,
 			Status:          StatusRunning,
 			CreatedAt:       time.Now(),
-			CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-			GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-			Storage:         map[string]interface{}{"description": "100GB SSD"},
+			CPU:             map[string]any{"description": "6 CPU", "number_of_cores": 6},
+			GPU:             map[string]any{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+			Memory:          map[string]any{"description": "32GB RAM", "size_in_gigabytes": 32},
+			Storage:         map[string]any{"description": "100GB SSD"},
 			Hostname:        "test-instance",
 			Description:     "Test instance",
 			Location:        LocationFIN03,
@@ -915,11 +915,11 @@ func (ms *MockServer) handleGetInstance(w http.ResponseWriter, r *http.Request) 
 		IP:              &ip,
 		Status:          StatusRunning,
 		CreatedAt:       time.Now(),
-		CPU:             map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-		GPU:             map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-		GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-		Storage:         map[string]interface{}{"description": "100GB SSD"},
+		CPU:             map[string]any{"description": "6 CPU", "number_of_cores": 6},
+		GPU:             map[string]any{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+		GPUMemory:       map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+		Memory:          map[string]any{"description": "32GB RAM", "size_in_gigabytes": 32},
+		Storage:         map[string]any{"description": "100GB SSD"},
 		Hostname:        "test-instance",
 		Description:     "Test instance",
 		Location:        LocationFIN03,
@@ -1011,11 +1011,11 @@ func (ms *MockServer) handleCreateInstance(w http.ResponseWriter, r *http.Reques
 		SubnetID:         subnetID,
 		Status:           StatusPending,
 		CreatedAt:        time.Now(),
-		CPU:              map[string]interface{}{"description": "6 CPU", "number_of_cores": 6},
-		GPU:              map[string]interface{}{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
-		GPUMemory:        map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-		Memory:           map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
-		Storage:          map[string]interface{}{"description": "100GB SSD"},
+		CPU:              map[string]any{"description": "6 CPU", "number_of_cores": 6},
+		GPU:              map[string]any{"description": "1x Tesla V100 16GB", "number_of_gpus": 1},
+		GPUMemory:        map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+		Memory:           map[string]any{"description": "32GB RAM", "size_in_gigabytes": 32},
+		Storage:          map[string]any{"description": "100GB SSD"},
 		Hostname:         req.Hostname,
 		Description:      req.Description,
 		Location:         location,
@@ -1623,10 +1623,10 @@ func (ms *MockServer) handleGetClusters(w http.ResponseWriter, _ *http.Request) 
 			Status:       StatusRunning,
 			CreatedAt:    time.Now(),
 			SSHKeyIDs:    []string{"key_123"},
-			CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
-			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
-			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
-			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
+			CPU:          map[string]any{"description": "48 CPU", "number_of_cores": 48},
+			GPU:          map[string]any{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
+			Memory:       map[string]any{"description": "256GB RAM", "size_in_gigabytes": 256},
+			GPUMemory:    map[string]any{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
 			Location:     LocationFIN03,
 			Contract:     "PAY_AS_YOU_GO",
 		},
@@ -1657,10 +1657,10 @@ func (ms *MockServer) handleGetCluster(w http.ResponseWriter, r *http.Request) {
 		Status:       StatusRunning,
 		CreatedAt:    time.Now(),
 		SSHKeyIDs:    []string{"key_123"},
-		CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
-		GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
-		Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
-		GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
+		CPU:          map[string]any{"description": "48 CPU", "number_of_cores": 48},
+		GPU:          map[string]any{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
+		Memory:       map[string]any{"description": "256GB RAM", "size_in_gigabytes": 256},
+		GPUMemory:    map[string]any{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
 		Location:     LocationFIN03,
 		Contract:     "PAY_AS_YOU_GO",
 		Tags:         ms.ResourceTags(pathClusters + "/" + clusterID),
@@ -1707,17 +1707,17 @@ func (ms *MockServer) handleGetClusterTypes(w http.ResponseWriter, _ *http.Reque
 			Model:        "V100 Cluster",
 			Name:         "8x NVIDIA Tesla V100 16GB",
 			ClusterType:  "8V100.48V",
-			CPU:          map[string]interface{}{"description": "48 CPU", "number_of_cores": 48},
-			GPU:          map[string]interface{}{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
-			GPUMemory:    map[string]interface{}{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
-			Memory:       map[string]interface{}{"description": "256GB RAM", "size_in_gigabytes": 256},
+			CPU:          map[string]any{"description": "48 CPU", "number_of_cores": 48},
+			GPU:          map[string]any{"description": "8x Tesla V100 16GB", "number_of_gpus": 8},
+			GPUMemory:    map[string]any{"description": "128GB GPU RAM", "size_in_gigabytes": 128},
+			Memory:       map[string]any{"description": "256GB RAM", "size_in_gigabytes": 256},
 			PricePerHour: 2.50,
 			Currency:     "usd",
 			Manufacturer: "NVIDIA",
-			NodeDetails: []interface{}{
-				map[string]interface{}{"GPU VRAM": "128 GB"},
-				map[string]interface{}{"CPU": "48 cores"},
-				map[string]interface{}{"InfiniBand": "100 Gbit/s"},
+			NodeDetails: []any{
+				map[string]any{"GPU VRAM": "128 GB"},
+				map[string]any{"CPU": "48 cores"},
+				map[string]any{"InfiniBand": "100 Gbit/s"},
 			},
 			SupportedOS: []string{"ubuntu-22.04-cuda-12.0", "ubuntu-20.04-cuda-11.8"},
 		},
@@ -1789,10 +1789,10 @@ func (ms *MockServer) handleGetContainerTypes(w http.ResponseWriter, _ *http.Req
 			Model:               "A100",
 			Name:                "1x NVIDIA A100 80GB",
 			InstanceType:        "1A100.80G",
-			CPU:                 map[string]interface{}{"description": "16 vCPU", "number_of_cores": 16},
-			GPU:                 map[string]interface{}{"description": "1x NVIDIA A100 80GB", "number_of_gpus": 1},
-			GPUMemory:           map[string]interface{}{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
-			Memory:              map[string]interface{}{"description": "64GB RAM", "size_in_gigabytes": 64},
+			CPU:                 map[string]any{"description": "16 vCPU", "number_of_cores": 16},
+			GPU:                 map[string]any{"description": "1x NVIDIA A100 80GB", "number_of_gpus": 1},
+			GPUMemory:           map[string]any{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
+			Memory:              map[string]any{"description": "64GB RAM", "size_in_gigabytes": 64},
 			ServerlessPrice:     0.00123,
 			ServerlessSpotPrice: 0.00098,
 			Currency:            "usd",
@@ -1803,10 +1803,10 @@ func (ms *MockServer) handleGetContainerTypes(w http.ResponseWriter, _ *http.Req
 			Model:               "V100",
 			Name:                "1x NVIDIA V100 16GB",
 			InstanceType:        "1V100.16G",
-			CPU:                 map[string]interface{}{"description": "8 vCPU", "number_of_cores": 8},
-			GPU:                 map[string]interface{}{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
-			GPUMemory:           map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Memory:              map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+			CPU:                 map[string]any{"description": "8 vCPU", "number_of_cores": 8},
+			GPU:                 map[string]any{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
+			GPUMemory:           map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+			Memory:              map[string]any{"description": "32GB RAM", "size_in_gigabytes": 32},
 			ServerlessPrice:     0.00089,
 			ServerlessSpotPrice: 0.00067,
 			Currency:            "usd",
@@ -1853,15 +1853,15 @@ func (ms *MockServer) handleGetInstanceTypes(w http.ResponseWriter, _ *http.Requ
 			InstanceType:    "1H100.80S.22V",
 			Model:           "H100",
 			Name:            "1x NVIDIA H100 80GB SXM",
-			CPU:             map[string]interface{}{"description": "22 vCPU", "number_of_cores": 22},
-			GPU:             map[string]interface{}{"description": "1x NVIDIA H100 80GB SXM", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
-			Memory:          map[string]interface{}{"description": "128GB RAM", "size_in_gigabytes": 128},
+			CPU:             map[string]any{"description": "22 vCPU", "number_of_cores": 22},
+			GPU:             map[string]any{"description": "1x NVIDIA H100 80GB SXM", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
+			Memory:          map[string]any{"description": "128GB RAM", "size_in_gigabytes": 128},
 			PricePerHour:    3.17,
 			SpotPrice:       2.54,
 			DynamicPrice:    2.85,
 			MaxDynamicPrice: 3.50,
-			Storage:         map[string]interface{}{"description": "1TB NVMe SSD"},
+			Storage:         map[string]any{"description": "1TB NVMe SSD"},
 			Currency:        "usd",
 			Manufacturer:    "NVIDIA",
 			BestFor:         []string{"Large Language Models", "AI Training", "High-Performance Computing"},
@@ -1872,15 +1872,15 @@ func (ms *MockServer) handleGetInstanceTypes(w http.ResponseWriter, _ *http.Requ
 			InstanceType:    "1V100.6V",
 			Model:           "V100",
 			Name:            "1x NVIDIA V100 16GB",
-			CPU:             map[string]interface{}{"description": "6 vCPU", "number_of_cores": 6},
-			GPU:             map[string]interface{}{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Memory:          map[string]interface{}{"description": "48GB RAM", "size_in_gigabytes": 48},
+			CPU:             map[string]any{"description": "6 vCPU", "number_of_cores": 6},
+			GPU:             map[string]any{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+			Memory:          map[string]any{"description": "48GB RAM", "size_in_gigabytes": 48},
 			PricePerHour:    0.89,
 			SpotPrice:       0.67,
 			DynamicPrice:    0.78,
 			MaxDynamicPrice: 0.95,
-			Storage:         map[string]interface{}{"description": "500GB NVMe SSD"},
+			Storage:         map[string]any{"description": "500GB NVMe SSD"},
 			Currency:        "usd",
 			Manufacturer:    "NVIDIA",
 			BestFor:         []string{"Deep Learning", "Machine Learning", "Data Science"},
@@ -1912,15 +1912,15 @@ func (ms *MockServer) handleGetInstanceType(w http.ResponseWriter, r *http.Reque
 			InstanceType:    instanceType,
 			Model:           "H100",
 			Name:            "1x NVIDIA H100 80GB SXM",
-			CPU:             map[string]interface{}{"description": "22 vCPU", "number_of_cores": 22},
-			GPU:             map[string]interface{}{"description": "1x NVIDIA H100 80GB SXM", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
-			Memory:          map[string]interface{}{"description": "128GB RAM", "size_in_gigabytes": 128},
+			CPU:             map[string]any{"description": "22 vCPU", "number_of_cores": 22},
+			GPU:             map[string]any{"description": "1x NVIDIA H100 80GB SXM", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "80GB GPU RAM", "size_in_gigabytes": 80},
+			Memory:          map[string]any{"description": "128GB RAM", "size_in_gigabytes": 128},
 			PricePerHour:    3.17,
 			SpotPrice:       2.54,
 			DynamicPrice:    2.85,
 			MaxDynamicPrice: 3.50,
-			Storage:         map[string]interface{}{"description": "1TB NVMe SSD"},
+			Storage:         map[string]any{"description": "1TB NVMe SSD"},
 			Currency:        "usd",
 			Manufacturer:    "NVIDIA",
 			BestFor:         []string{"Large Language Models", "AI Training", "High-Performance Computing"},
@@ -1932,15 +1932,15 @@ func (ms *MockServer) handleGetInstanceType(w http.ResponseWriter, r *http.Reque
 			InstanceType:    instanceType,
 			Model:           "V100",
 			Name:            "1x NVIDIA V100 16GB",
-			CPU:             map[string]interface{}{"description": "6 vCPU", "number_of_cores": 6},
-			GPU:             map[string]interface{}{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
-			Memory:          map[string]interface{}{"description": "48GB RAM", "size_in_gigabytes": 48},
+			CPU:             map[string]any{"description": "6 vCPU", "number_of_cores": 6},
+			GPU:             map[string]any{"description": "1x NVIDIA V100 16GB", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "16GB GPU RAM", "size_in_gigabytes": 16},
+			Memory:          map[string]any{"description": "48GB RAM", "size_in_gigabytes": 48},
 			PricePerHour:    0.89,
 			SpotPrice:       0.67,
 			DynamicPrice:    0.78,
 			MaxDynamicPrice: 0.95,
-			Storage:         map[string]interface{}{"description": "500GB NVMe SSD"},
+			Storage:         map[string]any{"description": "500GB NVMe SSD"},
 			Currency:        "usd",
 			Manufacturer:    "NVIDIA",
 			BestFor:         []string{"Deep Learning", "Machine Learning", "Data Science"},
@@ -1953,15 +1953,15 @@ func (ms *MockServer) handleGetInstanceType(w http.ResponseWriter, r *http.Reque
 			InstanceType:    instanceType,
 			Model:           "Generic",
 			Name:            "Generic Instance Type",
-			CPU:             map[string]interface{}{"description": "4 vCPU", "number_of_cores": 4},
-			GPU:             map[string]interface{}{"description": "1x Generic GPU", "number_of_gpus": 1},
-			GPUMemory:       map[string]interface{}{"description": "8GB GPU RAM", "size_in_gigabytes": 8},
-			Memory:          map[string]interface{}{"description": "32GB RAM", "size_in_gigabytes": 32},
+			CPU:             map[string]any{"description": "4 vCPU", "number_of_cores": 4},
+			GPU:             map[string]any{"description": "1x Generic GPU", "number_of_gpus": 1},
+			GPUMemory:       map[string]any{"description": "8GB GPU RAM", "size_in_gigabytes": 8},
+			Memory:          map[string]any{"description": "32GB RAM", "size_in_gigabytes": 32},
 			PricePerHour:    0.50,
 			SpotPrice:       0.40,
 			DynamicPrice:    0.45,
 			MaxDynamicPrice: 0.55,
-			Storage:         map[string]interface{}{"description": "250GB NVMe SSD"},
+			Storage:         map[string]any{"description": "250GB NVMe SSD"},
 			Currency:        "usd",
 			Manufacturer:    "Generic",
 			BestFor:         []string{"General Purpose"},
@@ -2015,7 +2015,7 @@ func (ms *MockServer) handleGetPriceHistory(w http.ResponseWriter, _ *http.Reque
 	h100Records := make([]PriceHistoryRecord, 30)
 	v100Records := make([]PriceHistoryRecord, 30)
 
-	for i := 0; i < 30; i++ {
+	for i := range 30 {
 		date := now.AddDate(0, 0, -i).Format(time.RFC3339)
 
 		h100Records[i] = PriceHistoryRecord{
@@ -2205,9 +2205,9 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 
-	var req map[string]interface{}
+	var req map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		req = map[string]interface{}{}
+		req = map[string]any{}
 	}
 
 	isInferno := false
@@ -2215,12 +2215,12 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *
 		isInferno = v
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"name": "new-deployment",
-		"containers": []map[string]interface{}{
+		"containers": []map[string]any{
 			{
 				"exposed_port": 80,
-				"image": map[string]interface{}{
+				"image": map[string]any{
 					"image":           "nginx:latest",
 					"last_updated_at": "2024-01-01T00:00:00.000Z",
 				},
@@ -2229,11 +2229,11 @@ func (ms *MockServer) handleCreateContainerDeployment(w http.ResponseWriter, r *
 		},
 		"endpoint_base_url": "https://containers.datacrunch.io/new-deployment",
 		"created_at":        "2024-01-01T00:00:00.000Z",
-		"compute": map[string]interface{}{
+		"compute": map[string]any{
 			"name": "RTX 4500 Ada",
 			"size": 1,
 		},
-		"container_registry_settings": map[string]interface{}{
+		"container_registry_settings": map[string]any{
 			"is_private": false,
 		},
 		"is_spot":    false,
@@ -2525,7 +2525,7 @@ func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.R
 	w.Header().Set("Content-Type", "application/json")
 
 	// Parse and validate request body
-	var req map[string]interface{}
+	var req map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, map[string]string{"error": "invalid JSON"})
@@ -2543,7 +2543,7 @@ func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.R
 		writeJSON(w, map[string]string{"error": "containers is required"})
 		return
 	}
-	containers, ok := req["containers"].([]interface{})
+	containers, ok := req["containers"].([]any)
 	if !ok || len(containers) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, map[string]string{"error": "at least one container is required"})
@@ -2551,7 +2551,7 @@ func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.R
 	}
 	// Validate each container has an image
 	for i, c := range containers {
-		container, ok := c.(map[string]interface{})
+		container, ok := c.(map[string]any)
 		if !ok {
 			w.WriteHeader(http.StatusBadRequest)
 			writeJSON(w, map[string]string{"error": "invalid container format"})
@@ -2559,7 +2559,7 @@ func (ms *MockServer) handleCreateJobDeployment(w http.ResponseWriter, r *http.R
 		}
 		if container["image"] == nil || container["image"] == "" {
 			w.WriteHeader(http.StatusBadRequest)
-			writeJSON(w, map[string]interface{}{"error": "containers[" + string(rune('0'+i)) + "].image is required"})
+			writeJSON(w, map[string]any{"error": "containers[" + string(rune('0'+i)) + "].image is required"})
 			return
 		}
 	}
@@ -2899,7 +2899,7 @@ func writeTagError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, map[string]string{"code": code, "message": message})
 }
 
-func writeJSON(w http.ResponseWriter, v interface{}) {
+func writeJSON(w http.ResponseWriter, v any) {
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		log.Printf("mock server: failed to encode JSON response: %v", err)
 	}
@@ -2913,16 +2913,16 @@ func writeBytes(w http.ResponseWriter, data []byte) {
 }
 
 func decodeAndValidateNamedContainers(w http.ResponseWriter, r *http.Request) bool {
-	var req map[string]interface{}
+	var req map[string]any
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		writeJSON(w, map[string]string{"error": "invalid JSON"})
 		return false
 	}
 
-	if containers, ok := req["containers"].([]interface{}); ok && len(containers) > 0 {
+	if containers, ok := req["containers"].([]any); ok && len(containers) > 0 {
 		for i, c := range containers {
-			container, ok := c.(map[string]interface{})
+			container, ok := c.(map[string]any)
 			if !ok {
 				w.WriteHeader(http.StatusBadRequest)
 				writeJSON(w, map[string]string{"error": "invalid container format"})
@@ -2932,7 +2932,7 @@ func decodeAndValidateNamedContainers(w http.ResponseWriter, r *http.Request) bo
 			name, hasName := container["name"]
 			if !hasName || name == nil || name == "" {
 				w.WriteHeader(http.StatusBadRequest)
-				writeJSON(w, map[string]interface{}{
+				writeJSON(w, map[string]any{
 					"message": "containers." + string(rune('0'+i)) + ".name should not be null or undefined",
 				})
 				return false
@@ -2947,7 +2947,7 @@ func decodeAndValidateNamedContainers(w http.ResponseWriter, r *http.Request) bo
 func ErrorResponse(w http.ResponseWriter, statusCode int, message string) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	writeJSON(w, map[string]interface{}{
+	writeJSON(w, map[string]any{
 		"message": message,
 		"status":  statusCode,
 	})
