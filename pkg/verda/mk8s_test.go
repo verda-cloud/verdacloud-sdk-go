@@ -23,24 +23,24 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
 
-const testKubernetesProjectID = "11111111-1111-4111-8111-111111111111"
+const testMK8SProjectID = "11111111-1111-4111-8111-111111111111"
 
-// testKubernetesClusterPath is the route for the "demo" cluster used across tests
-const testKubernetesClusterPath = kubernetesClustersBasePath + "/demo"
+// testMK8SClusterPath is the route for the "demo" cluster used across tests
+const testMK8SClusterPath = mk8sClustersBasePath + "/demo"
 
-// Captured from a local API create response
+// Example API create response
 const provisioningClusterJSON = `{
   "name": "demo",
   "kubernetes_version": "1.35.8",
   "location": "FIN-01",
   "network": "pn_local",
   "subnet": "sn_local_fin01",
-  "control_plane_profile": "standard",
   "phase": "provisioning",
   "created_at": "2026-10-22T13:40:37+03:00"
 }`
@@ -51,7 +51,6 @@ const runningClusterJSON = `{
   "location": "FIN-01",
   "network": "pn_local",
   "subnet": "sn_local_fin01",
-  "control_plane_profile": "standard",
   "phase": "running",
   "external_endpoint": "https://203.0.113.10:6443",
   "conditions": [
@@ -67,8 +66,8 @@ const runningClusterJSON = `{
   "created_at": "2026-10-22T13:40:37+03:00"
 }`
 
-func validCreateKubernetesClusterRequest() CreateKubernetesClusterRequest {
-	return CreateKubernetesClusterRequest{
+func validCreateMK8SClusterRequest() CreateMK8SClusterRequest {
+	return CreateMK8SClusterRequest{
 		Name:              "demo",
 		KubernetesVersion: "1.35.8",
 		PodCIDR:           "10.244.0.0/16",
@@ -105,24 +104,24 @@ func captureHandler(t *testing.T, got *capturedRequest, status int, response str
 	}
 }
 
-func TestKubernetesService_Create(t *testing.T) {
+func TestMK8SService_Create(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodPost, mk8sClustersBasePath, captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
 
-	cluster, err := client.Kubernetes.Create(context.Background(), testKubernetesProjectID, validCreateKubernetesClusterRequest())
+	cluster, err := client.MK8S.Create(context.Background(), testMK8SProjectID, validCreateMK8SClusterRequest())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got.method != http.MethodPost || got.path != kubernetesClustersBasePath {
+	if got.method != http.MethodPost || got.path != mk8sClustersBasePath {
 		t.Errorf("unexpected request %s %s", got.method, got.path)
 	}
-	if got.projectID != testKubernetesProjectID {
-		t.Errorf("expected projectId %q, got %q", testKubernetesProjectID, got.projectID)
+	if got.projectID != testMK8SProjectID {
+		t.Errorf("expected projectId %q, got %q", testMK8SProjectID, got.projectID)
 	}
 	want := map[string]string{
 		"name":               "demo",
@@ -142,10 +141,10 @@ func TestKubernetesService_Create(t *testing.T) {
 		}
 	}
 	if _, ok := got.body["control_plane_profile"]; ok {
-		t.Error("expected empty control_plane_profile to be omitted")
+		t.Error("expected control_plane_profile to be omitted")
 	}
 
-	if cluster.Phase != KubernetesClusterPhaseProvisioning {
+	if cluster.Phase != MK8SClusterPhaseProvisioning {
 		t.Errorf("expected phase provisioning, got %q", cluster.Phase)
 	}
 	if cluster.NetworkID != "pn_local" || cluster.SubnetID != "sn_local_fin01" {
@@ -159,127 +158,114 @@ func TestKubernetesService_Create(t *testing.T) {
 	}
 }
 
-func TestKubernetesService_CreateWithProfile(t *testing.T) {
+func TestMK8SService_Get(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, captureHandler(t, &got, http.StatusCreated, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, testMK8SClusterPath, captureHandler(t, &got, http.StatusOK, runningClusterJSON))
 
-	req := validCreateKubernetesClusterRequest()
-	req.ControlPlaneProfile = KubernetesControlPlaneProfileLarge
-	if _, err := client.Kubernetes.Create(context.Background(), testKubernetesProjectID, req); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.body["control_plane_profile"] != "large" {
-		t.Errorf("expected control_plane_profile large, got %v", got.body["control_plane_profile"])
-	}
-}
-
-func TestKubernetesService_Get(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-	client := NewTestClient(t, mockServer)
-
-	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, captureHandler(t, &got, http.StatusOK, runningClusterJSON))
-
-	cluster, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "demo")
+	cluster, err := client.MK8S.Get(context.Background(), testMK8SProjectID, "demo")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.method != http.MethodGet || got.projectID != testKubernetesProjectID {
+	if got.method != http.MethodGet || got.projectID != testMK8SProjectID {
 		t.Errorf("unexpected request %s projectId=%q", got.method, got.projectID)
 	}
-	if cluster.Phase != KubernetesClusterPhaseRunning || cluster.ExternalEndpoint != "https://203.0.113.10:6443" {
+	if cluster.Phase != MK8SClusterPhaseRunning || cluster.ExternalEndpoint != "https://203.0.113.10:6443" {
 		t.Errorf("unexpected cluster %+v", cluster)
 	}
 	if len(cluster.Conditions) != 1 {
 		t.Fatalf("expected one condition, got %d", len(cluster.Conditions))
 	}
 	c := cluster.Conditions[0]
-	if c.Type != "Ready" || c.Status != "True" || c.ObservedGeneration != 2 || c.Reason != "AllComponentsReady" || c.LastTransitionTime.IsZero() {
+	if c.Type != "Ready" || c.Status != "True" || c.ObservedGeneration != 2 || c.Reason != "AllComponentsReady" || c.Message != "ok" ||
+		!c.LastTransitionTime.Equal(time.Date(2026, time.October, 22, 13, 50, 0, 0, time.UTC)) {
 		t.Errorf("unexpected condition %+v", c)
 	}
 }
 
-func TestKubernetesService_GetUnknownPhase(t *testing.T) {
-	mockServer := testutil.NewMockServer()
-	defer mockServer.Close()
-	client := NewTestClient(t, mockServer)
+func TestMK8SService_GetPhases(t *testing.T) {
+	for _, phase := range []MK8SClusterPhase{MK8SClusterPhaseDegraded, "hibernating"} {
+		t.Run(string(phase), func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
+			client := NewTestClient(t, mockServer)
 
-	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath,
-		captureHandler(t, &got, http.StatusOK, `{"name":"demo","phase":"hibernating","created_at":"2026-10-22T13:40:37Z"}`))
+			var got capturedRequest
+			mockServer.SetHandler(http.MethodGet, testMK8SClusterPath,
+				captureHandler(t, &got, http.StatusOK, `{"name":"demo","phase":"`+string(phase)+`","created_at":"2026-10-22T13:40:37Z"}`))
 
-	cluster, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "demo")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if cluster.Phase != "hibernating" {
-		t.Errorf("expected unknown phase to be preserved, got %q", cluster.Phase)
+			cluster, err := client.MK8S.Get(context.Background(), testMK8SProjectID, "demo")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cluster.Phase != phase {
+				t.Errorf("expected phase %q to be preserved, got %q", phase, cluster.Phase)
+			}
+		})
 	}
 }
 
-func TestKubernetesClusterPath(t *testing.T) {
-	const query = "?projectId=" + testKubernetesProjectID
+func TestMK8SClusterPath(t *testing.T) {
+	const query = "?projectId=" + testMK8SProjectID
 
 	cases := []struct {
 		name  string
 		names []string
 		want  string
 	}{
-		{"collection", nil, kubernetesClustersBasePath + query},
-		{"cluster", []string{"demo"}, kubernetesClustersBasePath + "/demo" + query},
-		{"slash stays in one segment", []string{"a/b"}, kubernetesClustersBasePath + "/a%2Fb" + query},
-		{"query cannot be injected", []string{"demo?projectId=other"}, kubernetesClustersBasePath + "/demo%3FprojectId=other" + query},
-		{"fragment", []string{"a#b"}, kubernetesClustersBasePath + "/a%23b" + query},
-		{"space", []string{"my demo"}, kubernetesClustersBasePath + "/my%20demo" + query},
-		{"percent", []string{"50%"}, kubernetesClustersBasePath + "/50%25" + query},
-		{"non-ascii", []string{"démo"}, kubernetesClustersBasePath + "/d%C3%A9mo" + query},
-		{"nested segments", []string{"demo", "pools", "workers"}, kubernetesClustersBasePath + "/demo/pools/workers" + query},
+		{"collection", nil, mk8sClustersBasePath + query},
+		{"cluster", []string{"demo"}, mk8sClustersBasePath + "/demo" + query},
+		{"slash stays in one segment", []string{"a/b"}, mk8sClustersBasePath + "/a%2Fb" + query},
+		{"query cannot be injected", []string{"demo?projectId=other"}, mk8sClustersBasePath + "/demo%3FprojectId=other" + query},
+		{"fragment", []string{"a#b"}, mk8sClustersBasePath + "/a%23b" + query},
+		{"space", []string{"my demo"}, mk8sClustersBasePath + "/my%20demo" + query},
+		{"percent", []string{"50%"}, mk8sClustersBasePath + "/50%25" + query},
+		{"non-ascii", []string{"démo"}, mk8sClustersBasePath + "/d%C3%A9mo" + query},
+		{"nested segments", []string{"demo", "pools", "workers"}, mk8sClustersBasePath + "/demo/pools/workers" + query},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := kubernetesClusterPath(testKubernetesProjectID, tc.names...); got != tc.want {
-				t.Errorf("kubernetesClusterPath(%q) = %q, want %q", tc.names, got, tc.want)
+			if got := mk8sClusterPath(testMK8SProjectID, tc.names...); got != tc.want {
+				t.Errorf("mk8sClusterPath(%q) = %q, want %q", tc.names, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestKubernetesService_GetEscapesName(t *testing.T) {
+func TestMK8SService_GetEscapesName(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodGet, kubernetesClustersBasePath+"/a/b", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
-	mockServer.SetHandler(http.MethodGet, kubernetesClustersBasePath+"/a%2Fb", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, mk8sClustersBasePath+"/a/b", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodGet, mk8sClustersBasePath+"/a%2Fb", captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
 
-	if _, err := client.Kubernetes.Get(context.Background(), testKubernetesProjectID, "a/b"); err != nil {
+	if _, err := client.MK8S.Get(context.Background(), testMK8SProjectID, "a/b"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.path != kubernetesClustersBasePath+"/a%2Fb" {
+	if got.path != mk8sClustersBasePath+"/a%2Fb" {
 		t.Errorf("expected escaped name in path, got %q", got.path)
 	}
 }
 
-func TestKubernetesService_Update(t *testing.T) {
+func TestMK8SService_Update(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodPatch, testKubernetesClusterPath, captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
+	mockServer.SetHandler(http.MethodPatch, testMK8SClusterPath, captureHandler(t, &got, http.StatusOK, provisioningClusterJSON))
 
-	_, err := client.Kubernetes.Update(context.Background(), testKubernetesProjectID, "demo",
-		UpdateKubernetesClusterRequest{KubernetesVersion: "1.36.4"})
+	_, err := client.MK8S.Update(context.Background(), testMK8SProjectID, "demo",
+		UpdateMK8SClusterRequest{KubernetesVersion: "1.36.4"})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.method != http.MethodPatch || got.projectID != testKubernetesProjectID {
+	if got.method != http.MethodPatch || got.projectID != testMK8SProjectID {
 		t.Errorf("unexpected request %s projectId=%q", got.method, got.projectID)
 	}
 	if len(got.body) != 1 || got.body["kubernetes_version"] != "1.36.4" {
@@ -287,23 +273,23 @@ func TestKubernetesService_Update(t *testing.T) {
 	}
 }
 
-func TestKubernetesService_Delete(t *testing.T) {
+func TestMK8SService_Delete(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
 	var got capturedRequest
-	mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, captureHandler(t, &got, http.StatusAccepted, ""))
+	mockServer.SetHandler(http.MethodDelete, testMK8SClusterPath, captureHandler(t, &got, http.StatusAccepted, ""))
 
-	if err := client.Kubernetes.Delete(context.Background(), testKubernetesProjectID, "demo"); err != nil {
+	if err := client.MK8S.Delete(context.Background(), testMK8SProjectID, "demo"); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.method != http.MethodDelete || got.projectID != testKubernetesProjectID {
+	if got.method != http.MethodDelete || got.projectID != testMK8SProjectID {
 		t.Errorf("unexpected request %s projectId=%q", got.method, got.projectID)
 	}
 }
 
-func TestKubernetesService_ValidationBeforeHTTP(t *testing.T) {
+func TestMK8SService_ValidationBeforeHTTP(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
@@ -314,67 +300,70 @@ func TestKubernetesService_ValidationBeforeHTTP(t *testing.T) {
 		calls.Add(1)
 		w.WriteHeader(http.StatusInternalServerError)
 	}
-	mockServer.SetHandler(http.MethodPost, kubernetesClustersBasePath, count)
-	mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, count)
-	mockServer.SetHandler(http.MethodPatch, testKubernetesClusterPath, count)
-	mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, count)
+	mockServer.SetHandler(http.MethodPost, mk8sClustersBasePath, count)
+	mockServer.SetHandler(http.MethodGet, testMK8SClusterPath, count)
+	mockServer.SetHandler(http.MethodPatch, testMK8SClusterPath, count)
+	mockServer.SetHandler(http.MethodDelete, testMK8SClusterPath, count)
 
-	mutate := func(f func(*CreateKubernetesClusterRequest)) CreateKubernetesClusterRequest {
-		req := validCreateKubernetesClusterRequest()
+	mutate := func(f func(*CreateMK8SClusterRequest)) CreateMK8SClusterRequest {
+		req := validCreateMK8SClusterRequest()
 		f(&req)
 		return req
 	}
-	createCases := map[string]CreateKubernetesClusterRequest{
-		"missing name":         mutate(func(r *CreateKubernetesClusterRequest) { r.Name = "" }),
-		"missing version":      mutate(func(r *CreateKubernetesClusterRequest) { r.KubernetesVersion = "" }),
-		"missing pod cidr":     mutate(func(r *CreateKubernetesClusterRequest) { r.PodCIDR = "" }),
-		"invalid pod cidr":     mutate(func(r *CreateKubernetesClusterRequest) { r.PodCIDR = "10.244.0.0" }),
-		"ipv6 service cidr":    mutate(func(r *CreateKubernetesClusterRequest) { r.ServiceCIDR = "fd00::/108" }),
-		"missing service cidr": mutate(func(r *CreateKubernetesClusterRequest) { r.ServiceCIDR = "" }),
-		"missing location":     mutate(func(r *CreateKubernetesClusterRequest) { r.Location = "" }),
-		"missing network":      mutate(func(r *CreateKubernetesClusterRequest) { r.NetworkID = "" }),
-		"missing subnet":       mutate(func(r *CreateKubernetesClusterRequest) { r.SubnetID = "" }),
-		"invalid profile":      mutate(func(r *CreateKubernetesClusterRequest) { r.ControlPlaneProfile = "huge" }),
+	createCases := map[string]CreateMK8SClusterRequest{
+		"missing name":         mutate(func(r *CreateMK8SClusterRequest) { r.Name = "" }),
+		"name exceeds maximum": mutate(func(r *CreateMK8SClusterRequest) { r.Name = strings.Repeat("a", MK8SClusterNameMaxLength+1) }),
+		"invalid name":         mutate(func(r *CreateMK8SClusterRequest) { r.Name = "Demo" }),
+		"missing version":      mutate(func(r *CreateMK8SClusterRequest) { r.KubernetesVersion = "" }),
+		"missing pod cidr":     mutate(func(r *CreateMK8SClusterRequest) { r.PodCIDR = "" }),
+		"invalid pod cidr":     mutate(func(r *CreateMK8SClusterRequest) { r.PodCIDR = "10.244.0.0" }),
+		"ipv6 service cidr":    mutate(func(r *CreateMK8SClusterRequest) { r.ServiceCIDR = "fd00::/108" }),
+		"missing service cidr": mutate(func(r *CreateMK8SClusterRequest) { r.ServiceCIDR = "" }),
+		"missing location":     mutate(func(r *CreateMK8SClusterRequest) { r.Location = "" }),
+		"missing network":      mutate(func(r *CreateMK8SClusterRequest) { r.NetworkID = "" }),
+		"missing subnet":       mutate(func(r *CreateMK8SClusterRequest) { r.SubnetID = "" }),
 	}
 	for name, req := range createCases {
 		t.Run("create "+name, func(t *testing.T) {
-			if _, err := client.Kubernetes.Create(ctx, testKubernetesProjectID, req); err == nil {
-				t.Error("expected validation error")
+			_, err := client.MK8S.Create(ctx, testMK8SProjectID, req)
+			var errs validation.Errors
+			if !errors.As(err, &errs) {
+				t.Errorf("expected ozzo-validation errors, got %T: %v", err, err)
 			}
 		})
 	}
 
 	for name, projectID := range map[string]string{"empty project": "", "non-uuid project": "my-project"} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := client.Kubernetes.Create(ctx, projectID, validCreateKubernetesClusterRequest()); err == nil {
+			if _, err := client.MK8S.Create(ctx, projectID, validCreateMK8SClusterRequest()); err == nil {
 				t.Error("expected create error")
 			}
-			if _, err := client.Kubernetes.Get(ctx, projectID, "demo"); err == nil {
+			if _, err := client.MK8S.Get(ctx, projectID, "demo"); err == nil {
 				t.Error("expected get error")
 			}
-			if _, err := client.Kubernetes.Update(ctx, projectID, "demo", UpdateKubernetesClusterRequest{KubernetesVersion: "1.36.4"}); err == nil {
+			if _, err := client.MK8S.Update(ctx, projectID, "demo", UpdateMK8SClusterRequest{KubernetesVersion: "1.36.4"}); err == nil {
 				t.Error("expected update error")
 			}
-			if err := client.Kubernetes.Delete(ctx, projectID, "demo"); err == nil {
+			if err := client.MK8S.Delete(ctx, projectID, "demo"); err == nil {
 				t.Error("expected delete error")
 			}
 		})
 	}
 
 	t.Run("empty name", func(t *testing.T) {
-		if _, err := client.Kubernetes.Get(ctx, testKubernetesProjectID, ""); err == nil {
+		if _, err := client.MK8S.Get(ctx, testMK8SProjectID, ""); err == nil {
 			t.Error("expected get error")
 		}
-		if _, err := client.Kubernetes.Update(ctx, testKubernetesProjectID, "", UpdateKubernetesClusterRequest{KubernetesVersion: "1.36.4"}); err == nil {
+		if _, err := client.MK8S.Update(ctx, testMK8SProjectID, "", UpdateMK8SClusterRequest{KubernetesVersion: "1.36.4"}); err == nil {
 			t.Error("expected update error")
 		}
-		if err := client.Kubernetes.Delete(ctx, testKubernetesProjectID, ""); err == nil {
+		if err := client.MK8S.Delete(ctx, testMK8SProjectID, ""); err == nil {
 			t.Error("expected delete error")
 		}
 	})
 
 	t.Run("update missing version", func(t *testing.T) {
-		if _, err := client.Kubernetes.Update(ctx, testKubernetesProjectID, "demo", UpdateKubernetesClusterRequest{}); err == nil {
+		if _, err := client.MK8S.Update(ctx, testMK8SProjectID, "demo", UpdateMK8SClusterRequest{}); err == nil {
 			t.Error("expected validation error")
 		}
 	})
@@ -384,7 +373,7 @@ func TestKubernetesService_ValidationBeforeHTTP(t *testing.T) {
 	}
 }
 
-func TestKubernetesService_SelectorValidationErrorFields(t *testing.T) {
+func TestMK8SService_SelectorValidationErrorFields(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
@@ -397,11 +386,11 @@ func TestKubernetesService_SelectorValidationErrorFields(t *testing.T) {
 		wantField string
 	}{
 		{"non-uuid project", "my-project", "demo", "projectID"},
-		{"empty name", testKubernetesProjectID, "", "name"},
+		{"empty name", testMK8SProjectID, "", "name"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := client.Kubernetes.Get(ctx, tc.projectID, tc.cluster)
+			_, err := client.MK8S.Get(ctx, tc.projectID, tc.cluster)
 			var vErr *ValidationError
 			if !errors.As(err, &vErr) {
 				t.Fatalf("expected *ValidationError, got %T: %v", err, err)
@@ -413,7 +402,7 @@ func TestKubernetesService_SelectorValidationErrorFields(t *testing.T) {
 	}
 }
 
-func TestKubernetesService_APIErrors(t *testing.T) {
+func TestMK8SService_APIErrors(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
@@ -438,13 +427,13 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var got capturedRequest
-			mockServer.SetHandler(http.MethodGet, testKubernetesClusterPath, func(w http.ResponseWriter, r *http.Request) {
+			mockServer.SetHandler(http.MethodGet, testMK8SClusterPath, func(w http.ResponseWriter, r *http.Request) {
 				got.projectID = r.URL.Query().Get("projectId")
 				w.WriteHeader(tc.status)
 				_, _ = w.Write([]byte(tc.body))
 			})
 
-			cluster, err := client.Kubernetes.Get(ctx, testKubernetesProjectID, "demo")
+			cluster, err := client.MK8S.Get(ctx, testMK8SProjectID, "demo")
 			if err == nil {
 				t.Fatalf("expected error, got cluster %+v", cluster)
 			}
@@ -461,36 +450,36 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 		})
 	}
 
-	createCall := func() (*KubernetesCluster, error) {
-		return client.Kubernetes.Create(ctx, testKubernetesProjectID, validCreateKubernetesClusterRequest())
+	createCall := func() (*MK8SCluster, error) {
+		return client.MK8S.Create(ctx, testMK8SProjectID, validCreateMK8SClusterRequest())
 	}
-	updateCall := func() (*KubernetesCluster, error) {
-		return client.Kubernetes.Update(ctx, testKubernetesProjectID, "demo", UpdateKubernetesClusterRequest{KubernetesVersion: "1.36.4"})
+	updateCall := func() (*MK8SCluster, error) {
+		return client.MK8S.Update(ctx, testMK8SProjectID, "demo", UpdateMK8SClusterRequest{KubernetesVersion: "1.36.4"})
 	}
 	mutationCases := []struct {
 		name   string
 		method string
 		path   string
-		call   func() (*KubernetesCluster, error)
+		call   func() (*MK8SCluster, error)
 		status int
 		body   string
 	}{
 		{
 			"create already exists",
 			http.MethodPost,
-			kubernetesClustersBasePath,
+			mk8sClustersBasePath,
 			createCall,
 			http.StatusConflict,
 			`{"code":"conflict","message":"resource already exists","details":{"reason":"resource_already_exists"}}`,
 		},
-		{"create foreign network", http.MethodPost, kubernetesClustersBasePath, createCall,
+		{"create foreign network", http.MethodPost, mk8sClustersBasePath, createCall,
 			http.StatusBadRequest, `{"message":"network \"pn_other_project\" not found"}`},
-		{"update immutable network", http.MethodPatch, testKubernetesClusterPath, updateCall,
+		{"update immutable network", http.MethodPatch, testMK8SClusterPath, updateCall,
 			http.StatusBadRequest, `{"message":"network and subnet are immutable"}`},
 		{
 			"update not found",
 			http.MethodPatch,
-			testKubernetesClusterPath,
+			testMK8SClusterPath,
 			updateCall,
 			http.StatusNotFound,
 			`{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`,
@@ -523,11 +512,11 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 
 	t.Run("delete not found", func(t *testing.T) {
 		body := `{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`
-		mockServer.SetHandler(http.MethodDelete, testKubernetesClusterPath, func(w http.ResponseWriter, _ *http.Request) {
+		mockServer.SetHandler(http.MethodDelete, testMK8SClusterPath, func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusNotFound)
 			_, _ = w.Write([]byte(body))
 		})
-		err := client.Kubernetes.Delete(ctx, testKubernetesProjectID, "demo")
+		err := client.MK8S.Delete(ctx, testMK8SProjectID, "demo")
 		var apiErr *APIError
 		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
 			t.Fatalf("expected 404 *APIError, got %v", err)
@@ -538,13 +527,13 @@ func TestKubernetesService_APIErrors(t *testing.T) {
 	})
 }
 
-func TestKubernetesService_DoesNotAffectComputeClusters(t *testing.T) {
+func TestMK8SService_DoesNotAffectComputeClusters(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
 	client := NewTestClient(t, mockServer)
 
-	if client.Kubernetes == nil {
-		t.Fatal("expected Kubernetes service to be wired")
+	if client.MK8S == nil {
+		t.Fatal("expected MK8S service to be wired")
 	}
 	if client.Clusters == nil {
 		t.Fatal("expected compute Clusters service to remain wired")
@@ -554,22 +543,20 @@ func TestKubernetesService_DoesNotAffectComputeClusters(t *testing.T) {
 	}
 }
 
-func TestCreateKubernetesClusterRequest_NameValidation(t *testing.T) {
-	withName := func(name string) CreateKubernetesClusterRequest {
-		req := validCreateKubernetesClusterRequest()
+func TestCreateMK8SClusterRequest_NameValidation(t *testing.T) {
+	withName := func(name string) CreateMK8SClusterRequest {
+		req := validCreateMK8SClusterRequest()
 		req.Name = name
 		return req
 	}
 
-	// The 30-character backend limit is deliberately not enforced by the SDK
 	valid := map[string]string{
-		"single letter":     "a",
-		"single digit":      "1",
-		"digits only":       "123",
-		"leading digit":     "1demo",
-		"inner hyphens":     "my-demo--cluster",
-		"31 characters":     strings.Repeat("a", 31),
-		"63 characters max": strings.Repeat("a", 63),
+		"single letter":  "a",
+		"single digit":   "1",
+		"digits only":    "123",
+		"leading digit":  "1demo",
+		"inner hyphens":  "my-demo--cluster",
+		"maximum length": strings.Repeat("a", MK8SClusterNameMaxLength),
 	}
 	for name, clusterName := range valid {
 		t.Run("valid "+name, func(t *testing.T) {
@@ -580,15 +567,18 @@ func TestCreateKubernetesClusterRequest_NameValidation(t *testing.T) {
 	}
 
 	invalid := map[string]string{
-		"uppercase":         "Demo",
-		"underscore":        "my_cluster",
-		"dot":               "demo.prod",
-		"leading hyphen":    "-demo",
-		"trailing hyphen":   "demo-",
-		"whitespace":        "my demo",
-		"surrounding space": " demo ",
-		"non-ascii":         "démo",
-		"64 characters":     strings.Repeat("a", 64),
+		"empty":                  "",
+		"exceeds maximum length": strings.Repeat("a", MK8SClusterNameMaxLength+1),
+		"63 characters":          strings.Repeat("a", 63),
+		"uppercase":              "Demo",
+		"underscore":             "my_cluster",
+		"dot":                    "demo.prod",
+		"leading hyphen":         "-demo",
+		"trailing hyphen":        "demo-",
+		"whitespace":             "my demo",
+		"surrounding space":      " demo ",
+		"non-ascii":              "démo",
+		"64 characters":          strings.Repeat("a", 64),
 	}
 	for name, clusterName := range invalid {
 		t.Run("invalid "+name, func(t *testing.T) {

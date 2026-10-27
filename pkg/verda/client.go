@@ -62,7 +62,7 @@ type Client struct {
 	PrivateNetworks      *PrivateNetworkService
 	ContainerDeployments *ContainerDeploymentsService
 	ServerlessJobs       *ServerlessJobsService
-	Kubernetes           *KubernetesService
+	MK8S                 *MK8SService
 }
 
 type ClientOption func(*Client)
@@ -118,7 +118,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.PrivateNetworks = &PrivateNetworkService{client: client}
 	client.ContainerDeployments = &ContainerDeploymentsService{client: client}
 	client.ServerlessJobs = &ServerlessJobsService{client: client}
-	client.Kubernetes = &KubernetesService{client: client}
+	client.MK8S = &MK8SService{client: client}
 
 	return client, nil
 }

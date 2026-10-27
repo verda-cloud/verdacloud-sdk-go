@@ -374,15 +374,17 @@ expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances
 ### Managed Kubernetes
 
 > **Experimental**: Managed Kubernetes support is experimental. Its public routes and SDK types
-> may change in backwards-incompatible ways while the API is finalized.
+> may change in ways that break existing callers before the API becomes final.
 
-Clusters are identified by name, and every call takes an explicit project ID. Worker nodes are
-added separately through node pools (not yet in the SDK).
+Each Managed Kubernetes (MK8S) call takes an explicit project ID. Cluster names identify
+clusters within that project. Names must be DNS-1123 labels with 1–30 characters.
+Use lowercase letters, digits, and hyphens. Start and end each name with a letter or digit.
+Worker nodes require separate node pools. The SDK does not yet support node pools.
 
 ```go
 ctx := context.Background()
 
-cluster, err := client.Kubernetes.Create(ctx, projectID, verda.CreateKubernetesClusterRequest{
+cluster, err := client.MK8S.Create(ctx, projectID, verda.CreateMK8SClusterRequest{
     Name:              "demo",
     KubernetesVersion: "1.35.8",
     PodCIDR:           "10.244.0.0/16",
@@ -392,17 +394,20 @@ cluster, err := client.Kubernetes.Create(ctx, projectID, verda.CreateKubernetesC
     SubnetID:          subnet.ID,
 })
 
-// Mutations return once accepted; poll Get to observe progress
-cluster, err = client.Kubernetes.Get(ctx, projectID, "demo")
+// Create returns after the API accepts the request.
+// Poll Get to check progress.
+cluster, err = client.MK8S.Get(ctx, projectID, "demo")
 fmt.Println(cluster.Phase, cluster.ExternalEndpoint)
 
-// Request an upgrade (KubernetesVersion is the desired version, not proof it finished)
-cluster, err = client.Kubernetes.Update(ctx, projectID, "demo", verda.UpdateKubernetesClusterRequest{
+// Request a version upgrade.
+// KubernetesVersion contains the requested version. It does not prove that the upgrade finished.
+cluster, err = client.MK8S.Update(ctx, projectID, "demo", verda.UpdateMK8SClusterRequest{
     KubernetesVersion: "1.36.4",
 })
 
-// Deletion continues asynchronously; Get returns a 404 *verda.APIError once it's gone
-err = client.Kubernetes.Delete(ctx, projectID, "demo")
+// Deletion continues after Delete returns.
+// Get returns a 404 *verda.APIError after deletion completes.
+err = client.MK8S.Delete(ctx, projectID, "demo")
 ```
 
 ### Other Services
