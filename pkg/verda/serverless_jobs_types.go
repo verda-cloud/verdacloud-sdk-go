@@ -56,6 +56,13 @@ type UpdateJobDeploymentRequest struct {
 	Scaling                   *JobScalingOptions          `json:"scaling,omitempty"`
 }
 
+// Limits the API enforces on job scaling options.
+const (
+	maxJobQueueMessageTTLSeconds = 604800 // 7 days
+	minJobDeadlineSeconds        = 600    // 10 minutes
+	maxJobDeadlineSeconds        = 604800 // 7 days
+)
+
 // JobScalingOptions represents scaling configuration for a job deployment
 type JobScalingOptions struct {
 	MaxReplicaCount        int `json:"max_replica_count"`
@@ -75,6 +82,18 @@ func (r CreateJobDeploymentRequest) Validate() error {
 		validation.Field(&r.Containers, validation.Required, validation.Length(1, 0)),
 		validation.Field(&r.Compute, validation.Required),
 		validation.Field(&r.Scaling, validation.Required),
+	)
+}
+
+// Validate validates the JobScalingOptions fields. A zero DeadlineSeconds is not checked here;
+// ValidateCreateJobDeploymentRequest requires it.
+func (o JobScalingOptions) Validate() error {
+	return validation.ValidateStruct(&o,
+		validation.Field(&o.MaxReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&o.QueueMessageTTLSeconds, validation.Min(0), validation.Max(maxJobQueueMessageTTLSeconds)),
+		validation.Field(&o.DeadlineSeconds,
+			validation.When(o.DeadlineSeconds != 0, validation.Min(minJobDeadlineSeconds)),
+			validation.Max(maxJobDeadlineSeconds)),
 	)
 }
 

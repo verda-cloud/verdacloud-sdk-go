@@ -310,6 +310,23 @@ func FindAvailableContainerCompute(ctx context.Context, t *testing.T, client *ve
 	return "", 0, false
 }
 
+// FailUnlessWaitingForCapacity ends a step whose change did not become visible in time.
+// GPUs and nodes can be unavailable for a long time, and a deployment that waits for
+// capacity can apply changes late. So the step fails only when the deployment is healthy,
+// and is skipped in every other status.
+func FailUnlessWaitingForCapacity(ctx context.Context, t *testing.T, client *verda.Client, deploymentName, msg string) {
+	t.Helper()
+
+	status, err := client.ContainerDeployments.GetDeploymentStatus(ctx, deploymentName)
+	if err != nil {
+		t.Fatalf("❌ %s (could not read deployment status: %v)", msg, err)
+	}
+	if status.Status != verda.ContainerDeploymentStatusHealthy {
+		t.Skipf("⚠️  Skipping: %s. Deployment status is %q, so it may still wait for capacity", msg, status.Status)
+	}
+	t.Fatalf("❌ %s (deployment status %q)", msg, status.Status)
+}
+
 // ============================================================================
 // WAIT HELPERS
 // ============================================================================

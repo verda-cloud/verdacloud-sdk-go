@@ -528,4 +528,69 @@ func TestCreateJobDeploymentRequest_Validate(t *testing.T) {
 			t.Error("expected error for nil scaling")
 		}
 	})
+
+	t.Run("scaling over API limits", func(t *testing.T) {
+		req := CreateJobDeploymentRequest{
+			Name:       "test-job",
+			Containers: []CreateDeploymentContainer{{Image: "nginx:1.25"}},
+			Compute:    &ContainerCompute{Name: "H100", Size: 1},
+			Scaling:    &JobScalingOptions{MaxReplicaCount: 1, DeadlineSeconds: 604801},
+		}
+		if err := req.Validate(); err == nil {
+			t.Error("expected error for deadline_seconds over the API limit")
+		}
+	})
+
+	t.Run("compute size over API limit", func(t *testing.T) {
+		req := CreateJobDeploymentRequest{
+			Name:       "test-job",
+			Containers: []CreateDeploymentContainer{{Image: "nginx:1.25"}},
+			Compute:    &ContainerCompute{Name: "H100", Size: 129},
+			Scaling:    &JobScalingOptions{MaxReplicaCount: 1, DeadlineSeconds: 3600},
+		}
+		if err := req.Validate(); err == nil {
+			t.Error("expected error for compute size over the API limit")
+		}
+	})
+
+	t.Run("exposed port over API limit", func(t *testing.T) {
+		req := CreateJobDeploymentRequest{
+			Name:       "test-job",
+			Containers: []CreateDeploymentContainer{{Image: "nginx:1.25", ExposedPort: 65536}},
+			Compute:    &ContainerCompute{Name: "H100", Size: 1},
+			Scaling:    &JobScalingOptions{MaxReplicaCount: 1, DeadlineSeconds: 3600},
+		}
+		if err := req.Validate(); err == nil {
+			t.Error("expected error for exposed_port over the API limit")
+		}
+	})
+}
+
+func TestJobScalingOptions_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    JobScalingOptions
+		wantErr bool
+	}{
+		{"valid", JobScalingOptions{MaxReplicaCount: 1, QueueMessageTTLSeconds: 300, DeadlineSeconds: 3600}, false},
+		{"replicas at max", JobScalingOptions{MaxReplicaCount: 1000}, false},
+		{"replicas over max", JobScalingOptions{MaxReplicaCount: 1001}, true},
+		{"queue ttl at max", JobScalingOptions{QueueMessageTTLSeconds: 604800}, false},
+		{"queue ttl over max", JobScalingOptions{QueueMessageTTLSeconds: 604801}, true},
+		{"zero values", JobScalingOptions{}, false},
+		{"negative replicas", JobScalingOptions{MaxReplicaCount: -1}, true},
+		{"deadline below min", JobScalingOptions{DeadlineSeconds: 599}, true},
+		{"deadline at min", JobScalingOptions{DeadlineSeconds: 600}, false},
+		{"deadline at max", JobScalingOptions{DeadlineSeconds: 604800}, false},
+		{"deadline over max", JobScalingOptions{DeadlineSeconds: 604801}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
 }

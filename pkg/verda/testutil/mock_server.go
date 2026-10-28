@@ -2281,7 +2281,7 @@ func (ms *MockServer) handleDeleteContainerDeployment(w http.ResponseWriter, _ *
 
 func (ms *MockServer) handleGetDeploymentStatus(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	writeBytes(w, []byte(`{"status": "running"}`))
+	writeBytes(w, []byte(`{"status": "healthy"}`))
 }
 
 func (ms *MockServer) handleDeploymentAction(w http.ResponseWriter, _ *http.Request) {
@@ -2291,7 +2291,7 @@ func (ms *MockServer) handleDeploymentAction(w http.ResponseWriter, _ *http.Requ
 
 func (ms *MockServer) handleGetDeploymentReplicas(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	writeBytes(w, []byte(`{"list": [{"id": "replica-1", "status": "running", "started_at": "2024-01-01T00:00:00.000Z"}]}`))
+	writeBytes(w, []byte(`{"list": [{"id": "replica-1", "status": "running", "started_at": "2024-01-01T00:00:00.000Z", "image": "docker.io/library/nginx:1.21", "image_name": "nginx", "image_tag": "1.21"}]}`))
 }
 
 func (ms *MockServer) handleGetEnvironmentVariables(w http.ResponseWriter, _ *http.Request) {
