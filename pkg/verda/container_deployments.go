@@ -24,9 +24,9 @@ type ContainerDeploymentsService struct {
 	client *Client
 }
 
-// deploymentPath returns the API path for a deployment plus an optional suffix such as "/scaling".
+// buildDeploymentPath returns the API path for a deployment plus an optional suffix such as "/scaling".
 // The name is validated and escaped so that it always stays a single path segment.
-func deploymentPath(deploymentName, suffix string) (string, error) {
+func buildDeploymentPath(deploymentName, suffix string) (string, error) {
 	if err := validateDeploymentName(deploymentName); err != nil {
 		return "", err
 	}
@@ -82,7 +82,7 @@ func (s *ContainerDeploymentsService) CreateDeployment(ctx context.Context, req 
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentByName(ctx context.Context, deploymentName string) (*ContainerDeployment, error) {
-	path, err := deploymentPath(deploymentName, "")
+	path, err := buildDeploymentPath(deploymentName, "")
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +97,7 @@ func (s *ContainerDeploymentsService) UpdateDeployment(ctx context.Context, depl
 	if req == nil {
 		return nil, fmt.Errorf("request cannot be nil")
 	}
-	path, err := deploymentPath(deploymentName, "")
+	path, err := buildDeploymentPath(deploymentName, "")
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +116,7 @@ func (s *ContainerDeploymentsService) UpdateDeployment(ctx context.Context, depl
 //   - 1-300000: Wait specified milliseconds
 //   - >300000: Capped at 300000ms
 func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, deploymentName string, timeoutMs int) error {
-	path, err := deploymentPath(deploymentName, "")
+	path, err := buildDeploymentPath(deploymentName, "")
 	if err != nil {
 		return err
 	}
@@ -133,7 +133,7 @@ func (s *ContainerDeploymentsService) DeleteDeployment(ctx context.Context, depl
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentStatus(ctx context.Context, deploymentName string) (*ContainerDeploymentStatus, error) {
-	path, err := deploymentPath(deploymentName, "/status")
+	path, err := buildDeploymentPath(deploymentName, "/status")
 	if err != nil {
 		return nil, err
 	}
@@ -161,7 +161,7 @@ func (s *ContainerDeploymentsService) PurgeDeploymentQueue(ctx context.Context, 
 }
 
 func (s *ContainerDeploymentsService) postDeploymentAction(ctx context.Context, deploymentName, action string) error {
-	path, err := deploymentPath(deploymentName, action)
+	path, err := buildDeploymentPath(deploymentName, action)
 	if err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (s *ContainerDeploymentsService) postDeploymentAction(ctx context.Context, 
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentScaling(ctx context.Context, deploymentName string) (*ContainerScalingOptions, error) {
-	path, err := deploymentPath(deploymentName, "/scaling")
+	path, err := buildDeploymentPath(deploymentName, "/scaling")
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +183,7 @@ func (s *ContainerDeploymentsService) GetDeploymentScaling(ctx context.Context, 
 
 // UpdateDeploymentScaling changes only the scaling options set in req; nil fields keep their current values.
 func (s *ContainerDeploymentsService) UpdateDeploymentScaling(ctx context.Context, deploymentName string, req *UpdateScalingOptionsRequest) (*ContainerScalingOptions, error) {
-	path, err := deploymentPath(deploymentName, "/scaling")
+	path, err := buildDeploymentPath(deploymentName, "/scaling")
 	if err != nil {
 		return nil, err
 	}
@@ -201,7 +201,7 @@ func (s *ContainerDeploymentsService) UpdateDeploymentScaling(ctx context.Contex
 }
 
 func (s *ContainerDeploymentsService) GetDeploymentReplicas(ctx context.Context, deploymentName string) (*DeploymentReplicas, error) {
-	path, err := deploymentPath(deploymentName, "/replicas")
+	path, err := buildDeploymentPath(deploymentName, "/replicas")
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (s *ContainerDeploymentsService) GetDeploymentReplicas(ctx context.Context,
 }
 
 func (s *ContainerDeploymentsService) GetEnvironmentVariables(ctx context.Context, deploymentName string) ([]ContainerEnvVar, error) {
-	path, err := deploymentPath(deploymentName, "/environment-variables")
+	path, err := buildDeploymentPath(deploymentName, "/environment-variables")
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,7 @@ func (s *ContainerDeploymentsService) AddEnvironmentVariables(ctx context.Contex
 	if err := validateContainerEnvVarsRequest(deploymentName, req); err != nil {
 		return err
 	}
-	path, err := deploymentPath(deploymentName, "/environment-variables")
+	path, err := buildDeploymentPath(deploymentName, "/environment-variables")
 	if err != nil {
 		return err
 	}
@@ -240,7 +240,7 @@ func (s *ContainerDeploymentsService) UpdateEnvironmentVariables(ctx context.Con
 	if err := validateContainerEnvVarsRequest(deploymentName, req); err != nil {
 		return err
 	}
-	path, err := deploymentPath(deploymentName, "/environment-variables")
+	path, err := buildDeploymentPath(deploymentName, "/environment-variables")
 	if err != nil {
 		return err
 	}
@@ -277,7 +277,7 @@ func (s *ContainerDeploymentsService) DeleteEnvironmentVariables(ctx context.Con
 	if len(req.Env) == 0 {
 		return fmt.Errorf("env array cannot be empty")
 	}
-	path, err := deploymentPath(deploymentName, "/environment-variables")
+	path, err := buildDeploymentPath(deploymentName, "/environment-variables")
 	if err != nil {
 		return err
 	}

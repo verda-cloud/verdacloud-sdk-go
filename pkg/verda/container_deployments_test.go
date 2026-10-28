@@ -1407,8 +1407,8 @@ func deploymentActions() []deploymentAction {
 	}
 }
 
-// Each method must build its path with deploymentPath: the name is escaped on the wire,
-// and an invalid name is rejected before any request is sent. TestDeploymentPath covers
+// Each method must build its path with buildDeploymentPath: the name is escaped on the wire,
+// and an invalid name is rejected before any request is sent. TestBuildDeploymentPath covers
 // every escaping and validation case; this test only proves that each method uses it.
 func TestContainerDeploymentsService_DeploymentNameInPath(t *testing.T) {
 	// Unescaped, this name would turn any action on "other-app" into a restart.
@@ -1451,7 +1451,7 @@ func TestContainerDeploymentsService_DeploymentNameInPath(t *testing.T) {
 	}
 }
 
-func TestDeploymentPath(t *testing.T) {
+func TestBuildDeploymentPath(t *testing.T) {
 	tests := []struct {
 		name           string
 		deploymentName string
@@ -1481,21 +1481,21 @@ func TestDeploymentPath(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := deploymentPath(tt.deploymentName, tt.suffix)
+			got, err := buildDeploymentPath(tt.deploymentName, tt.suffix)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
-					t.Fatalf("deploymentPath(%q, %q) error = %v, want error containing %q", tt.deploymentName, tt.suffix, err, tt.wantErr)
+					t.Fatalf("buildDeploymentPath(%q, %q) error = %v, want error containing %q", tt.deploymentName, tt.suffix, err, tt.wantErr)
 				}
 				if got != "" {
-					t.Errorf("deploymentPath(%q, %q) = %q, want empty path on error", tt.deploymentName, tt.suffix, got)
+					t.Errorf("buildDeploymentPath(%q, %q) = %q, want empty path on error", tt.deploymentName, tt.suffix, got)
 				}
 				return
 			}
 			if err != nil {
-				t.Fatalf("deploymentPath(%q, %q) unexpected error: %v", tt.deploymentName, tt.suffix, err)
+				t.Fatalf("buildDeploymentPath(%q, %q) unexpected error: %v", tt.deploymentName, tt.suffix, err)
 			}
 			if got != tt.want {
-				t.Errorf("deploymentPath(%q, %q) = %q, want %q", tt.deploymentName, tt.suffix, got, tt.want)
+				t.Errorf("buildDeploymentPath(%q, %q) = %q, want %q", tt.deploymentName, tt.suffix, got, tt.want)
 			}
 		})
 	}
