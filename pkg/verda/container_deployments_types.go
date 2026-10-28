@@ -25,6 +25,16 @@ import (
 // maxDeploymentNameLength is the longest deployment name the API accepts.
 const maxDeploymentNameLength = 63
 
+// Limits the API enforces on deployment and job requests.
+const (
+	maxContainerPort                    = 65535
+	maxComputeSize                      = 128
+	maxReplicaCount                     = 1000
+	maxConcurrentRequestsPerReplica     = 5000
+	maxScalingDelaySeconds              = 3600  // 1 hour
+	maxDeploymentQueueMessageTTLSeconds = 86400 // 1 day
+)
+
 // ContainerDeployment represents a serverless container deployment
 type ContainerDeployment struct {
 	Name                      string                     `json:"name"`
@@ -166,7 +176,9 @@ type ScalingTriggers struct {
 	GPUUtilization *UtilizationTrigger `json:"gpu_utilization,omitempty"`
 }
 
-// QueueLoadTrigger represents queue load based scaling trigger
+// QueueLoadTrigger represents queue load based scaling trigger.
+// Threshold is the number of queued requests per replica that triggers a scale-up,
+// from 1 to 1000. Fractional values such as 1.5 are allowed.
 type QueueLoadTrigger struct {
 	Threshold float64 `json:"threshold"`
 }
@@ -322,7 +334,7 @@ type CreateRegistryCredentialsRequest struct {
 func (r ContainerCompute) Validate() error {
 	return validation.ValidateStruct(&r,
 		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.Size, validation.Required, validation.Min(1)),
+		validation.Field(&r.Size, validation.Required, validation.Min(1), validation.Max(maxComputeSize)),
 	)
 }
 
@@ -330,6 +342,15 @@ func (r ContainerCompute) Validate() error {
 func (r CreateDeploymentContainer) Validate() error {
 	return validation.ValidateStruct(&r,
 		validation.Field(&r.Image, validation.Required),
+		validation.Field(&r.ExposedPort, validation.Max(maxContainerPort)),
+		validation.Field(&r.Healthcheck),
+	)
+}
+
+// Validate validates the ContainerHealthcheck fields. Port is checked only when the healthcheck is enabled.
+func (h ContainerHealthcheck) Validate() error {
+	return validation.ValidateStruct(&h,
+		validation.Field(&h.Port, validation.When(h.Enabled, validation.Max(maxContainerPort))),
 	)
 }
 
@@ -371,15 +392,7 @@ func (r UpdateScalingOptionsRequest) Validate() error {
 	if r == (UpdateScalingOptionsRequest{}) {
 		return fmt.Errorf("at least one scaling option must be set")
 	}
-	if err := validation.ValidateStruct(&r,
-		validation.Field(&r.MinReplicaCount, validation.Min(0)),
-		validation.Field(&r.MaxReplicaCount, validation.Min(0)),
-		validation.Field(&r.ScaleDownPolicy),
-		validation.Field(&r.ScaleUpPolicy),
-		validation.Field(&r.QueueMessageTTLSeconds, validation.Min(0)),
-		validation.Field(&r.ConcurrentRequestsPerReplica, validation.Min(0)),
-		validation.Field(&r.ScalingTriggers),
-	); err != nil {
+	if err := r.validateLimits(); err != nil {
 		return err
 	}
 	if r.MinReplicaCount != nil && r.MaxReplicaCount != nil && *r.MinReplicaCount > *r.MaxReplicaCount {
@@ -388,10 +401,36 @@ func (r UpdateScalingOptionsRequest) Validate() error {
 	return nil
 }
 
+// validateLimits checks the scaling options that are set against the API limits.
+func (r UpdateScalingOptionsRequest) validateLimits() error {
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.MinReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&r.MaxReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&r.ScaleDownPolicy),
+		validation.Field(&r.ScaleUpPolicy),
+		validation.Field(&r.QueueMessageTTLSeconds, validation.Min(0), validation.Max(maxDeploymentQueueMessageTTLSeconds)),
+		validation.Field(&r.ConcurrentRequestsPerReplica, validation.Min(0), validation.Max(maxConcurrentRequestsPerReplica)),
+		validation.Field(&r.ScalingTriggers),
+	)
+}
+
+// Validate validates the ContainerScalingOptions fields against the API limits.
+func (o ContainerScalingOptions) Validate() error {
+	return UpdateScalingOptionsRequest{
+		MinReplicaCount:              &o.MinReplicaCount,
+		MaxReplicaCount:              &o.MaxReplicaCount,
+		ScaleDownPolicy:              o.ScaleDownPolicy,
+		ScaleUpPolicy:                o.ScaleUpPolicy,
+		QueueMessageTTLSeconds:       &o.QueueMessageTTLSeconds,
+		ConcurrentRequestsPerReplica: &o.ConcurrentRequestsPerReplica,
+		ScalingTriggers:              o.ScalingTriggers,
+	}.validateLimits()
+}
+
 // Validate validates the ScalingPolicy fields
 func (p ScalingPolicy) Validate() error {
 	return validation.ValidateStruct(&p,
-		validation.Field(&p.DelaySeconds, validation.Min(0)),
+		validation.Field(&p.DelaySeconds, validation.Min(0), validation.Max(maxScalingDelaySeconds)),
 	)
 }
 
@@ -404,17 +443,18 @@ func (t ScalingTriggers) Validate() error {
 	)
 }
 
-// Validate validates the QueueLoadTrigger fields
+// Validate validates the QueueLoadTrigger fields. Threshold must be from 1 to 1000.
 func (t QueueLoadTrigger) Validate() error {
 	return validation.ValidateStruct(&t,
-		validation.Field(&t.Threshold, validation.Min(0.0)),
+		validation.Field(&t.Threshold, validation.Required, validation.Min(1.0), validation.Max(1000.0)),
 	)
 }
 
-// Validate validates the UtilizationTrigger fields. Threshold is a percentage.
+// Validate validates the UtilizationTrigger fields. Threshold is a percentage from 5 to 100,
+// checked only when the trigger is enabled and the threshold is set.
 func (t UtilizationTrigger) Validate() error {
 	return validation.ValidateStruct(&t,
-		validation.Field(&t.Threshold, validation.Min(0), validation.Max(100)),
+		validation.Field(&t.Threshold, validation.When(t.Enabled && t.Threshold != 0, validation.Min(5), validation.Max(100))),
 	)
 }
 
@@ -444,7 +484,7 @@ func (r CreateRegistryCredentialsRequest) Validate() error {
 }
 
 // ValidateCreateDeploymentRequest performs extended validation beyond Validate(),
-// including image tag checks and scaling policy requirements.
+// including image tag checks, scaling policy requirements and scaling limits.
 func ValidateCreateDeploymentRequest(req *CreateDeploymentRequest) error {
 	if err := req.Validate(); err != nil {
 		return err
@@ -460,10 +500,8 @@ func ValidateCreateDeploymentRequest(req *CreateDeploymentRequest) error {
 	if req.Scaling.ScaleUpPolicy == nil {
 		return fmt.Errorf("scaling.scale_up_policy is required")
 	}
-	if req.Scaling.ScalingTriggers != nil && req.Scaling.ScalingTriggers.QueueLoad != nil {
-		if req.Scaling.ScalingTriggers.QueueLoad.Threshold < 1 {
-			return fmt.Errorf("scaling.scaling_triggers.queue_load.threshold must be >= 1")
-		}
+	if err := req.Scaling.Validate(); err != nil {
+		return fmt.Errorf("scaling: %w", err)
 	}
 	return nil
 }

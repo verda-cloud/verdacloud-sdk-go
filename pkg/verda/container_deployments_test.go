@@ -142,7 +142,7 @@ func TestContainerDeploymentsService_CreateDeployment(t *testing.T) {
 				QueueMessageTTLSeconds:       300,
 				ConcurrentRequestsPerReplica: 1,
 				ScalingTriggers: &ScalingTriggers{
-					QueueLoad:      &QueueLoadTrigger{Threshold: 1}, // Must be >= 1
+					QueueLoad:      &QueueLoadTrigger{Threshold: 1}, // 1..1000
 					CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 					GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 80},
 				},
@@ -596,6 +596,59 @@ func TestValidateCreateDeploymentRequest(t *testing.T) {
 		err := ValidateCreateDeploymentRequest(req)
 		if err == nil {
 			t.Error("expected error for queue_load threshold < 1, got nil")
+		}
+	})
+
+	t.Run("queue_load threshold > 1000 rejected", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:1.25.3",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+				ScalingTriggers: &ScalingTriggers{
+					QueueLoad: &QueueLoadTrigger{Threshold: 1500},
+				},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for queue_load threshold > 1000, got nil")
+		}
+	})
+
+	t.Run("scaling over API limits rejected", func(t *testing.T) {
+		req := &CreateDeploymentRequest{
+			Name: "test-deployment",
+			Compute: ContainerCompute{
+				Name: "H100",
+				Size: 1,
+			},
+			Containers: []CreateDeploymentContainer{
+				{
+					Image:       "nginx:1.25.3",
+					ExposedPort: 80,
+				},
+			},
+			Scaling: ContainerScalingOptions{
+				MaxReplicaCount: 1001,
+				ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 300},
+				ScaleUpPolicy:   &ScalingPolicy{DelaySeconds: 60},
+			},
+		}
+		err := ValidateCreateDeploymentRequest(req)
+		if err == nil {
+			t.Error("expected error for max_replica_count > 1000, got nil")
 		}
 	})
 
@@ -1176,15 +1229,109 @@ func TestUpdateScalingOptionsRequest_Validate(t *testing.T) {
 		{"negative concurrent requests", UpdateScalingOptionsRequest{ConcurrentRequestsPerReplica: new(-1)}, true},
 		{"negative scale down delay", UpdateScalingOptionsRequest{ScaleDownPolicy: &ScalingPolicy{DelaySeconds: -1}}, true},
 		{"zero scale up delay", UpdateScalingOptionsRequest{ScaleUpPolicy: &ScalingPolicy{DelaySeconds: 0}}, false},
+		{"scale up delay at max", UpdateScalingOptionsRequest{ScaleUpPolicy: &ScalingPolicy{DelaySeconds: 3600}}, false},
+		{"scale down delay over max", UpdateScalingOptionsRequest{ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 3601}}, true},
+		{"min replicas at max", UpdateScalingOptionsRequest{MinReplicaCount: new(1000)}, false},
+		{"min replicas over max", UpdateScalingOptionsRequest{MinReplicaCount: new(1001)}, true},
+		{"max replicas at max", UpdateScalingOptionsRequest{MaxReplicaCount: new(1000)}, false},
+		{"max replicas over max", UpdateScalingOptionsRequest{MaxReplicaCount: new(1001)}, true},
+		{"queue ttl at max", UpdateScalingOptionsRequest{QueueMessageTTLSeconds: new(86400)}, false},
+		{"queue ttl over max", UpdateScalingOptionsRequest{QueueMessageTTLSeconds: new(86401)}, true},
+		{"concurrent requests at max", UpdateScalingOptionsRequest{ConcurrentRequestsPerReplica: new(5000)}, false},
+		{"concurrent requests over max", UpdateScalingOptionsRequest{ConcurrentRequestsPerReplica: new(5001)}, true},
 		{"negative queue load threshold", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: -0.5}}}, true},
+		{"zero queue load threshold", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 0}}}, true},
+		{"queue load threshold below 1", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 0.5}}}, true},
+		{"queue load threshold at 1", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 1}}}, false},
+		{"fractional queue load threshold", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 1.5}}}, false},
+		{"queue load threshold at 1000", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 1000}}}, false},
+		{"queue load threshold over 1000", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 1000.5}}}, true},
+		{"cpu threshold below 5", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 4}}}, true},
+		{"cpu threshold at 5", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 5}}}, false},
+		{"cpu threshold at 100", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 100}}}, false},
 		{"cpu threshold over 100", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 101}}}, true},
+		{"gpu threshold below 5", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 4}}}, true},
 		{"gpu threshold at 100", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{GPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 100}}}, false},
+		{"enabled trigger with unset threshold", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true}}}, false},
+		{"disabled trigger threshold not checked", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{GPUUtilization: &UtilizationTrigger{Enabled: false, Threshold: 4}}}, false},
 		{"empty triggers object", UpdateScalingOptionsRequest{ScalingTriggers: &ScalingTriggers{}}, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.req.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestContainerScalingOptions_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		opts    ContainerScalingOptions
+		wantErr bool
+	}{
+		{"zero values", ContainerScalingOptions{}, false},
+		{"replicas at max", ContainerScalingOptions{MinReplicaCount: 1000, MaxReplicaCount: 1000}, false},
+		{"min replicas over max", ContainerScalingOptions{MinReplicaCount: 1001}, true},
+		{"max replicas over max", ContainerScalingOptions{MaxReplicaCount: 1001}, true},
+		{"queue ttl at max", ContainerScalingOptions{QueueMessageTTLSeconds: 86400}, false},
+		{"queue ttl over max", ContainerScalingOptions{QueueMessageTTLSeconds: 86401}, true},
+		{"concurrent requests at max", ContainerScalingOptions{ConcurrentRequestsPerReplica: 5000}, false},
+		{"concurrent requests over max", ContainerScalingOptions{ConcurrentRequestsPerReplica: 5001}, true},
+		{"delay at max", ContainerScalingOptions{ScaleUpPolicy: &ScalingPolicy{DelaySeconds: 3600}}, false},
+		{"delay over max", ContainerScalingOptions{ScaleDownPolicy: &ScalingPolicy{DelaySeconds: 3601}}, true},
+		{"cpu threshold below 5", ContainerScalingOptions{ScalingTriggers: &ScalingTriggers{CPUUtilization: &UtilizationTrigger{Enabled: true, Threshold: 4}}}, true},
+		{"queue load threshold over 1000", ContainerScalingOptions{ScalingTriggers: &ScalingTriggers{QueueLoad: &QueueLoadTrigger{Threshold: 1000.5}}}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.opts.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestCreateDeploymentRequest_Validate_Limits(t *testing.T) {
+	validRequest := func() CreateDeploymentRequest {
+		return CreateDeploymentRequest{
+			Name:       "test-deployment",
+			Compute:    ContainerCompute{Name: "H100", Size: 1},
+			Containers: []CreateDeploymentContainer{{Image: "nginx:1.25.3", ExposedPort: 80}},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		modify  func(r *CreateDeploymentRequest)
+		wantErr bool
+	}{
+		{"valid", func(r *CreateDeploymentRequest) {}, false},
+		{"compute size at max", func(r *CreateDeploymentRequest) { r.Compute.Size = 128 }, false},
+		{"compute size over max", func(r *CreateDeploymentRequest) { r.Compute.Size = 129 }, true},
+		{"exposed port at max", func(r *CreateDeploymentRequest) { r.Containers[0].ExposedPort = 65535 }, false},
+		{"exposed port over max", func(r *CreateDeploymentRequest) { r.Containers[0].ExposedPort = 65536 }, true},
+		{"healthcheck port at max", func(r *CreateDeploymentRequest) {
+			r.Containers[0].Healthcheck = &ContainerHealthcheck{Enabled: true, Port: 65535, Path: "/health"}
+		}, false},
+		{"healthcheck port over max", func(r *CreateDeploymentRequest) {
+			r.Containers[0].Healthcheck = &ContainerHealthcheck{Enabled: true, Port: 65536, Path: "/health"}
+		}, true},
+		{"disabled healthcheck port not checked", func(r *CreateDeploymentRequest) {
+			r.Containers[0].Healthcheck = &ContainerHealthcheck{Enabled: false, Port: 65536}
+		}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := validRequest()
+			tt.modify(&req)
+			err := req.Validate()
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
 			}
