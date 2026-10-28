@@ -373,6 +373,45 @@ none (a public `none` requires a private address), or pass a literal IPv4 your p
 Omitting both fields gives the platform default. Instance responses
 expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
 
+### Managed Kubernetes
+
+> **Experimental**: Managed Kubernetes support is experimental. Its public routes and SDK types
+> may change in ways that break existing callers before the API becomes final.
+
+Each Managed Kubernetes (MK8S) call takes an explicit project ID. Cluster names identify
+clusters within that project. Names must be DNS-1123 labels with 1–30 characters.
+Use lowercase letters, digits, and hyphens. Start and end each name with a letter or digit.
+Worker nodes require separate node pools. The SDK does not yet support node pools.
+
+```go
+ctx := context.Background()
+
+cluster, err := client.MK8S.Create(ctx, projectID, verda.CreateMK8SClusterRequest{
+    Name:              "demo",
+    KubernetesVersion: "1.35.8",
+    PodCIDR:           "10.244.0.0/16",
+    ServiceCIDR:       "10.96.0.0/12",
+    Location:          "FIN-01",
+    NetworkID:         network.ID, // private network and subnet in the same location
+    SubnetID:          subnet.ID,
+})
+
+// Create returns after the API accepts the request.
+// Poll Get to check progress.
+cluster, err = client.MK8S.Get(ctx, projectID, "demo")
+fmt.Println(cluster.Phase, cluster.ExternalEndpoint)
+
+// Request a version upgrade.
+// KubernetesVersion contains the requested version. It does not prove that the upgrade finished.
+cluster, err = client.MK8S.Update(ctx, projectID, "demo", verda.UpdateMK8SClusterRequest{
+    KubernetesVersion: "1.36.4",
+})
+
+// Deletion continues after Delete returns.
+// Get returns a 404 *verda.APIError after deletion completes.
+err = client.MK8S.Delete(ctx, projectID, "demo")
+```
+
 ### Other Services
 
 ```go
