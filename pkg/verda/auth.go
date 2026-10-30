@@ -16,6 +16,7 @@ package verda
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -25,10 +26,17 @@ import (
 	"time"
 )
 
+// tokenExpiryMargin is how long before expiry a token is treated as expired, to avoid races
+const tokenExpiryMargin = 30 * time.Second
+
 type AuthService struct {
 	client *Client
-	mu     sync.RWMutex
+	mu     sync.RWMutex // guards token
 	token  *TokenResponse
+
+	// tokenSem serializes token requests; unlike a mutex, waiting for it can be canceled
+	tokenSemOnce sync.Once
+	tokenSem     chan struct{}
 }
 
 type TokenRequest struct {
@@ -47,49 +55,105 @@ type TokenResponse struct {
 	ExpiresAt    time.Time
 }
 
+// Authenticate requests a new token with client credentials.
+//
+// Deprecated: Use AuthenticateContext.
 func (s *AuthService) Authenticate() (*TokenResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	return s.doTokenRequest(TokenRequest{
-		GrantType:    "client_credentials",
-		ClientID:     s.client.ClientID,
-		ClientSecret: s.client.ClientSecret,
-	})
+	return s.AuthenticateContext(context.Background())
 }
 
-func (s *AuthService) RefreshToken() (*TokenResponse, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// AuthenticateContext requests a new token with client credentials. ctx bounds both
+// the wait for any in-flight token request and the token request itself.
+func (s *AuthService) AuthenticateContext(ctx context.Context) (*TokenResponse, error) {
+	release, err := s.acquireTokenLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
 
-	if s.token == nil || s.token.RefreshToken == "" {
-		return s.authenticateWithoutLock()
+	return s.doTokenRequest(ctx, s.clientCredentialsRequest())
+}
+
+// RefreshToken refreshes the current token, or authenticates if there is none.
+//
+// Deprecated: Use RefreshTokenContext.
+func (s *AuthService) RefreshToken() (*TokenResponse, error) {
+	return s.RefreshTokenContext(context.Background())
+}
+
+// RefreshTokenContext refreshes the current token, or authenticates if there is none.
+// ctx bounds both the wait for any in-flight token request and the token request itself.
+func (s *AuthService) RefreshTokenContext(ctx context.Context) (*TokenResponse, error) {
+	release, err := s.acquireTokenLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	return s.refreshWithLock(ctx)
+}
+
+// refreshWithLock must be called while holding the token lock
+func (s *AuthService) refreshWithLock(ctx context.Context) (*TokenResponse, error) {
+	token := s.currentToken()
+	if token == nil || token.RefreshToken == "" {
+		return s.doTokenRequest(ctx, s.clientCredentialsRequest())
 	}
 
-	return s.doTokenRequest(TokenRequest{
+	return s.doTokenRequest(ctx, TokenRequest{
 		GrantType:    "refresh_token",
-		RefreshToken: s.token.RefreshToken,
+		RefreshToken: token.RefreshToken,
 		ClientID:     s.client.ClientID,
 		ClientSecret: s.client.ClientSecret,
 	})
 }
 
-func (s *AuthService) authenticateWithoutLock() (*TokenResponse, error) {
-	return s.doTokenRequest(TokenRequest{
+func (s *AuthService) clientCredentialsRequest() TokenRequest {
+	return TokenRequest{
 		GrantType:    "client_credentials",
 		ClientID:     s.client.ClientID,
 		ClientSecret: s.client.ClientSecret,
+	}
+}
+
+// acquireTokenLock waits until no other token request is in flight, or until ctx is done
+func (s *AuthService) acquireTokenLock(ctx context.Context) (release func(), err error) {
+	s.tokenSemOnce.Do(func() {
+		s.tokenSem = make(chan struct{}, 1)
 	})
+
+	select {
+	case s.tokenSem <- struct{}{}:
+		return func() { <-s.tokenSem }, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("waiting for token request: %w", ctx.Err())
+	}
+}
+
+func (s *AuthService) currentToken() *TokenResponse {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.token
+}
+
+func (s *AuthService) setToken(token *TokenResponse) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.token = token
+}
+
+func tokenExpired(token *TokenResponse) bool {
+	return token == nil || time.Now().Add(tokenExpiryMargin).After(token.ExpiresAt)
 }
 
 // doTokenRequest tries JSON first (production), falls back to form-encoded (staging quirk)
-func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) {
+func (s *AuthService) doTokenRequest(ctx context.Context, body TokenRequest) (*TokenResponse, error) {
 	payload, err := json.Marshal(body) //nolint:gosec // G117: OAuth token request must include client_secret
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal token request: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", bytes.NewReader(payload))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.client.BaseURL+"/oauth2/token", bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create token request: %w", err)
 	}
@@ -108,7 +172,7 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 	err = s.client.handleResponse(resp, &tokenResp)
 	if err == nil {
 		tokenResp.ExpiresAt = time.Now().Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
-		s.token = &tokenResp
+		s.setToken(&tokenResp)
 		return &tokenResp, nil
 	}
 
@@ -128,7 +192,7 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 				form.Set("refresh_token", body.RefreshToken)
 			}
 
-			req2, err2 := http.NewRequest(http.MethodPost, s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
+			req2, err2 := http.NewRequestWithContext(ctx, http.MethodPost, s.client.BaseURL+"/oauth2/token", strings.NewReader(form.Encode()))
 			if err2 != nil {
 				return nil, fmt.Errorf("failed to create token request (form): %w", err2)
 			}
@@ -142,47 +206,65 @@ func (s *AuthService) doTokenRequest(body TokenRequest) (*TokenResponse, error) 
 				return nil, fmt.Errorf("authentication request failed (form): %w", err2)
 			}
 			var tokenResp2 TokenResponse
-			if err3 := s.client.handleResponse(resp2, &tokenResp2); err3 == nil {
+			err3 := s.client.handleResponse(resp2, &tokenResp2)
+			if err3 == nil {
 				tokenResp2.ExpiresAt = time.Now().Add(time.Duration(tokenResp2.ExpiresIn) * time.Second)
-				s.token = &tokenResp2
+				s.setToken(&tokenResp2)
 				return &tokenResp2, nil
+			}
+			// Report the cancellation rather than the JSON request's 400
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("authentication request failed (form): %w", err3)
 			}
 		}
 	}
 	return nil, fmt.Errorf("authentication failed: %w", err)
 }
 
+// GetValidToken returns the current token, authenticating or refreshing it when needed.
+//
+// Deprecated: Use GetValidTokenContext.
 func (s *AuthService) GetValidToken() (*TokenResponse, error) {
-	s.mu.RLock()
-	token := s.token
-	s.mu.RUnlock()
+	return s.GetValidTokenContext(context.Background())
+}
 
-	if token == nil {
-		return s.Authenticate()
+// GetValidTokenContext returns the current token, authenticating or refreshing it when
+// needed. Concurrent callers share a single token request. ctx bounds both the wait for
+// an in-flight token request and the token request itself.
+func (s *AuthService) GetValidTokenContext(ctx context.Context) (*TokenResponse, error) {
+	if token := s.currentToken(); !tokenExpired(token) {
+		return token, nil
 	}
 
-	// Refresh 30s before expiry to avoid races
-	if time.Now().Add(30 * time.Second).After(token.ExpiresAt) {
-		return s.RefreshToken()
+	release, err := s.acquireTokenLock(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer release()
+
+	// Another caller may have obtained a token while this one waited
+	if token := s.currentToken(); !tokenExpired(token) {
+		return token, nil
 	}
 
-	return token, nil
+	return s.refreshWithLock(ctx)
 }
 
 func (s *AuthService) IsExpired() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.token == nil {
-		return true
-	}
-
-	// Consider expired 30s before actual expiry
-	return time.Now().Add(30 * time.Second).After(s.token.ExpiresAt)
+	return tokenExpired(s.currentToken())
 }
 
+// GetBearerToken returns the Authorization header value for the current token.
+//
+// Deprecated: Use GetBearerTokenContext.
 func (s *AuthService) GetBearerToken() (string, error) {
-	token, err := s.GetValidToken()
+	return s.GetBearerTokenContext(context.Background())
+}
+
+// GetBearerTokenContext returns the Authorization header value for the current token,
+// authenticating or refreshing it when needed. See GetValidTokenContext.
+func (s *AuthService) GetBearerTokenContext(ctx context.Context) (string, error) {
+	token, err := s.GetValidTokenContext(ctx)
 	if err != nil {
 		return "", err
 	}

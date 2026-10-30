@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -618,4 +619,58 @@ func TestLoggingMiddleware(t *testing.T) {
 	if !called {
 		t.Error("Handler was not called")
 	}
+}
+
+func TestExponentialBackoffRetryMiddleware_HonorsContext(t *testing.T) {
+	t.Run("deadline during backoff", func(t *testing.T) {
+		attempts := 0
+		middleware := ExponentialBackoffRetryMiddleware(3, 10*time.Second, &NoOpLogger{})
+		handler := middleware(func(ctx *RequestContext) error {
+			attempts++
+			return &APIError{StatusCode: http.StatusServiceUnavailable, Message: "Service Unavailable"}
+		})
+
+		reqCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+		req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, "https://api.test.com/test", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		start := time.Now()
+		err = handler(&RequestContext{Method: http.MethodGet, Path: "/test", Request: req})
+		assertDeadlineExceeded(t, err, time.Since(start))
+
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Errorf("expected the last attempt's error to stay wrapped: %v", err)
+		}
+		if attempts != 1 {
+			t.Errorf("expected 1 attempt, got %d", attempts)
+		}
+	})
+
+}
+
+func TestAuthenticationMiddleware_UsesRequestContext(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+	mockServer.SetHandler(http.MethodPost, "/oauth2/token", stallTokenHandler)
+	client := NewTestClient(t, mockServer)
+
+	reqCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, mockServer.URL()+"/balance", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := AuthenticationMiddleware()(func(ctx *RequestContext) error {
+		t.Error("handler should not be called when authentication fails")
+		return nil
+	})
+
+	start := time.Now()
+	err = handler(&RequestContext{Headers: make(http.Header), Client: client, Request: req})
+	assertDeadlineExceeded(t, err, time.Since(start))
 }
