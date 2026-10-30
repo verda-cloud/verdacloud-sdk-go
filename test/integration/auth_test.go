@@ -17,6 +17,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 )
 
@@ -29,7 +30,7 @@ func TestAuthIntegration(t *testing.T) {
 
 	t.Run("authentication", func(t *testing.T) {
 		// Test that we can authenticate
-		token, err := client.Auth.GetValidToken()
+		token, err := client.Auth.GetValidTokenContext(context.Background())
 		if err != nil {
 			t.Errorf("authentication failed: %v", err)
 		}

@@ -16,6 +16,7 @@ package verda
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
@@ -38,6 +39,14 @@ type RequestContext struct {
 	Client  *Client
 }
 
+// Context returns the context of the underlying request, or context.Background() if there is none
+func (ctx *RequestContext) Context() context.Context {
+	if ctx.Request == nil {
+		return context.Background()
+	}
+	return ctx.Request.Context()
+}
+
 type ResponseContext struct {
 	Request    *RequestContext
 	Response   *http.Response
@@ -57,7 +66,7 @@ type ResponseHandler func(ctx *ResponseContext) error
 func AuthenticationMiddleware() RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
-			bearerToken, err := ctx.Client.Auth.GetBearerToken()
+			bearerToken, err := ctx.Client.Auth.GetBearerTokenContext(ctx.Context())
 			if err != nil {
 				return fmt.Errorf("failed to get authentication token: %w", err)
 			}
@@ -134,9 +143,15 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
 			var lastErr error
+			reqCtx := ctx.Context()
 
 			for attempt := 0; attempt <= maxRetries; attempt++ {
 				if attempt > 0 {
+					// Don't retry once the caller has given up
+					if reqCtx.Err() != nil {
+						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, reqCtx.Err(), lastErr)
+					}
+
 					// Exponential backoff: initialDelay * 2^(attempt-1), capped at 30s
 					baseDelay := float64(initialDelay) * math.Pow(2, float64(attempt-1))
 					cappedDelay := time.Duration(math.Min(baseDelay, float64(maxDelay)))
@@ -147,7 +162,11 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 
 					logger.Debug("Retrying request %s %s (attempt %d/%d) after %v",
 						ctx.Method, ctx.Path, attempt+1, maxRetries+1, actualDelay)
-					time.Sleep(actualDelay)
+					select {
+					case <-time.After(actualDelay):
+					case <-reqCtx.Done():
+						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, reqCtx.Err(), lastErr)
+					}
 				}
 
 				lastErr = next(ctx)
