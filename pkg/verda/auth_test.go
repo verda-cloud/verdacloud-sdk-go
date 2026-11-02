@@ -15,9 +15,15 @@
 package verda
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -289,4 +295,158 @@ func TestAuthService_GetBearerToken(t *testing.T) {
 			t.Errorf("expected bearer token to contain access token")
 		}
 	})
+}
+
+// stallTokenHandler blocks until the client gives up on the request
+func stallTokenHandler(w http.ResponseWriter, r *http.Request) {
+	drainBody(r)
+	<-r.Context().Done()
+}
+
+// drainBody reads the request body: the server only notices a client disconnect,
+// and cancels r.Context(), once the body has been consumed
+func drainBody(r *http.Request) {
+	_, _ = io.Copy(io.Discard, r.Body)
+}
+
+func writeTestToken(t *testing.T, w http.ResponseWriter, accessToken string) {
+	t.Helper()
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]any{
+		"access_token":  accessToken,
+		"refresh_token": "test_refresh_token",
+		"token_type":    "Bearer",
+		"expires_in":    3600,
+	}); err != nil {
+		t.Errorf("mock JSON operation failed: %v", err)
+	}
+}
+
+// assertDeadlineExceeded checks that a call with a 50ms deadline ended promptly because of it
+func assertDeadlineExceeded(t *testing.T, err error, elapsed time.Duration) {
+	t.Helper()
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("expected context.DeadlineExceeded, got %v", err)
+	}
+	if elapsed > time.Second {
+		t.Errorf("expected the call to end near its 50ms deadline, took %v", elapsed)
+	}
+}
+
+func TestAuthService_ContextMethods(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(t, mockServer)
+	ctx := context.Background()
+
+	token, err := client.Auth.AuthenticateContext(ctx)
+	if err != nil || token.AccessToken == "" {
+		t.Fatalf("AuthenticateContext: token %v, err %v", token, err)
+	}
+
+	token, err = client.Auth.RefreshTokenContext(ctx)
+	if err != nil || token.AccessToken == "" {
+		t.Fatalf("RefreshTokenContext: token %v, err %v", token, err)
+	}
+
+	token, err = client.Auth.GetValidTokenContext(ctx)
+	if err != nil || token.AccessToken == "" {
+		t.Fatalf("GetValidTokenContext: token %v, err %v", token, err)
+	}
+
+	bearer, err := client.Auth.GetBearerTokenContext(ctx)
+	if err != nil || bearer != "Bearer "+token.AccessToken {
+		t.Fatalf("GetBearerTokenContext: bearer %q, err %v", bearer, err)
+	}
+}
+
+func TestAuthService_HonorsContext(t *testing.T) {
+	t.Run("stalled token endpoint", func(t *testing.T) {
+		mockServer := testutil.NewMockServer()
+		defer mockServer.Close()
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", stallTokenHandler)
+		client := NewTestClient(t, mockServer)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		_, err := client.Balance.Get(ctx)
+		assertDeadlineExceeded(t, err, time.Since(start))
+	})
+
+	t.Run("waiting for another caller's token request", func(t *testing.T) {
+		mockServer := testutil.NewMockServer()
+		defer mockServer.Close()
+		started := make(chan struct{})
+		release := make(chan struct{})
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+			drainBody(r)
+			close(started)
+			select {
+			case <-release:
+				writeTestToken(t, w, "slow_token")
+			case <-r.Context().Done():
+			}
+		})
+		client := NewTestClient(t, mockServer)
+
+		firstDone := make(chan error, 1)
+		go func() {
+			_, err := client.Auth.GetBearerTokenContext(context.Background())
+			firstDone <- err
+		}()
+		<-started
+
+		ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		_, err := client.Auth.GetBearerTokenContext(ctx)
+		assertDeadlineExceeded(t, err, time.Since(start))
+
+		close(release)
+		if err := <-firstDone; err != nil {
+			t.Errorf("first caller: unexpected error: %v", err)
+		}
+	})
+}
+
+func TestAuthService_ConcurrentCallersShareTokenRequest(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+	var tokenRequests atomic.Int32
+	release := make(chan struct{})
+	mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+		tokenRequests.Add(1)
+		<-release
+		writeTestToken(t, w, "shared_token")
+	})
+	client := NewTestClient(t, mockServer)
+
+	const callers = 20
+	var wg sync.WaitGroup
+	errs := make(chan error, callers)
+	for range callers {
+		wg.Go(func() {
+			bearer, err := client.Auth.GetBearerTokenContext(context.Background())
+			if err == nil && bearer != "Bearer shared_token" {
+				err = fmt.Errorf("unexpected bearer %q", bearer)
+			}
+			errs <- err
+		})
+	}
+	close(release)
+	wg.Wait()
+	close(errs)
+
+	for err := range errs {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+	if n := tokenRequests.Load(); n != 1 {
+		t.Errorf("expected 1 token request, got %d", n)
+	}
 }

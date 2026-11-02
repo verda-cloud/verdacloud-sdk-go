@@ -100,7 +100,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		return nil, fmt.Errorf("client secret is required")
 	}
 
-	client.Auth = &AuthService{client: client}
+	client.Auth = newAuthService(client)
 	client.Balance = &BalanceService{client: client}
 	client.Instances = &InstanceService{client: client}
 	client.Volumes = &VolumeService{client: client}
@@ -350,7 +350,7 @@ func (c *Client) makeRequest(ctx context.Context, method, path string, body any)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", BuildUserAgent(c.UserAgent))
 
-	bearerToken, err := c.Auth.GetBearerToken()
+	bearerToken, err := c.Auth.GetBearerTokenContext(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get authentication token: %w", err)
 	}

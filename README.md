@@ -434,6 +434,25 @@ client, err := verda.NewClient(
 )
 ```
 
+### Timeouts and Cancellation
+
+Every service method takes a `context.Context`. Its deadline or cancellation also bounds the OAuth token request made on the way, the wait for another goroutine's token request, and retry backoff:
+
+```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
+instances, err := client.Instances.List(ctx, nil)
+if errors.Is(err, context.DeadlineExceeded) {
+    // the call, including authentication, took longer than 30s
+}
+
+// To fetch a token directly, use the Context variants
+bearer, err := client.Auth.GetBearerTokenContext(ctx)
+```
+
+`Authenticate`, `RefreshToken`, `GetValidToken` and `GetBearerToken` are deprecated: they use `context.Background()` and are never canceled. Use `AuthenticateContext`, `RefreshTokenContext`, `GetValidTokenContext` and `GetBearerTokenContext` instead. Custom middleware can read the request's context with `ctx.Context()` on `*verda.RequestContext`.
+
 ### Debug Logging
 
 **Optional and disabled by default.** There are two ways to enable detailed debug logging:
