@@ -100,7 +100,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		return nil, fmt.Errorf("client secret is required")
 	}
 
-	client.Auth = &AuthService{client: client}
+	client.Auth = newAuthService(client)
 	client.Balance = &BalanceService{client: client}
 	client.Instances = &InstanceService{client: client}
 	client.Volumes = &VolumeService{client: client}

@@ -448,14 +448,12 @@ func TestAuthenticationMiddleware(t *testing.T) {
 			BaseURL:      "https://api.test.com",
 			HTTPClient:   &http.Client{},
 		}
-		client.Auth = &AuthService{
-			client: client,
-			token: &TokenResponse{
-				AccessToken: "test-token",
-				ExpiresIn:   3600,
-				TokenType:   "Bearer",
-				ExpiresAt:   time.Now().Add(1 * time.Hour),
-			},
+		client.Auth = newAuthService(client)
+		client.Auth.token = &TokenResponse{
+			AccessToken: "test-token",
+			ExpiresIn:   3600,
+			TokenType:   "Bearer",
+			ExpiresAt:   time.Now().Add(1 * time.Hour),
 		}
 
 		middleware := AuthenticationMiddleware()

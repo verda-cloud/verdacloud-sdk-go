@@ -34,9 +34,15 @@ type AuthService struct {
 	mu     sync.RWMutex // guards token
 	token  *TokenResponse
 
-	// tokenSem serializes token requests; unlike a mutex, waiting for it can be canceled
-	tokenSemOnce sync.Once
-	tokenSem     chan struct{}
+	// tokenSem (capacity 1) serializes token requests; unlike a mutex, waiting for it can be canceled
+	tokenSem chan struct{}
+}
+
+func newAuthService(client *Client) *AuthService {
+	return &AuthService{
+		client:   client,
+		tokenSem: make(chan struct{}, 1),
+	}
 }
 
 type TokenRequest struct {
@@ -118,10 +124,6 @@ func (s *AuthService) clientCredentialsRequest() TokenRequest {
 
 // acquireTokenLock waits until no other token request is in flight, or until ctx is done
 func (s *AuthService) acquireTokenLock(ctx context.Context) (release func(), err error) {
-	s.tokenSemOnce.Do(func() {
-		s.tokenSem = make(chan struct{}, 1)
-	})
-
 	select {
 	case s.tokenSem <- struct{}{}:
 		return func() { <-s.tokenSem }, nil
