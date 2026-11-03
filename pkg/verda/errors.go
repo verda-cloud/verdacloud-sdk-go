@@ -14,13 +14,50 @@
 
 package verda
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type APIError struct {
 	StatusCode int    `json:"status_code,omitempty"`
 	Code       string `json:"code,omitempty"`
 	Message    string `json:"message"`
 	Details    string `json:"details,omitempty"`
+}
+
+// UnmarshalJSON accepts details as either a string or an object with a
+// reason string; API services send both shapes.
+func (e *APIError) UnmarshalJSON(data []byte) error {
+	type apiErrorAlias APIError
+
+	aux := struct {
+		*apiErrorAlias
+		Details json.RawMessage `json:"details"`
+	}{apiErrorAlias: (*apiErrorAlias)(e)}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	if len(aux.Details) == 0 || string(aux.Details) == "null" {
+		return nil
+	}
+
+	var details string
+	if err := json.Unmarshal(aux.Details, &details); err == nil {
+		e.Details = details
+		return nil
+	}
+
+	var detailsObj struct {
+		Reason string `json:"reason"`
+	}
+	if err := json.Unmarshal(aux.Details, &detailsObj); err == nil {
+		e.Details = detailsObj.Reason
+	}
+
+	return nil
 }
 
 func (e *APIError) Error() string {
