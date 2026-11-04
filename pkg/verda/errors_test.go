@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -41,6 +42,63 @@ func TestAPIError_Error(t *testing.T) {
 		expected := "API error 400: Bad request (Invalid parameter)"
 		if err.Error() != expected {
 			t.Errorf("expected error message '%s', got '%s'", expected, err.Error())
+		}
+	})
+}
+
+func TestAPIError_UnmarshalJSON(t *testing.T) {
+	t.Run("without details", func(t *testing.T) {
+		body := []byte(`{"code": "not_found", "message": "cluster not found"}`)
+
+		var apiError APIError
+		if err := json.Unmarshal(body, &apiError); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+
+		if apiError.Code != "not_found" || apiError.Message != "cluster not found" || apiError.Details != "" {
+			t.Errorf("unexpected decode result: %+v", apiError)
+		}
+	})
+
+	t.Run("string details", func(t *testing.T) {
+		body := []byte(`{"code": "invalid_request", "message": "Bad request", "details": "Invalid parameter"}`)
+
+		var apiError APIError
+		if err := json.Unmarshal(body, &apiError); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+
+		if apiError.Details != "Invalid parameter" {
+			t.Errorf("expected details 'Invalid parameter', got '%s'", apiError.Details)
+		}
+	})
+
+	t.Run("object details", func(t *testing.T) {
+		body := []byte(`{"code": "conflict", "message": "cluster is being deleted", "details": {"reason": "cluster_deleting"}}`)
+
+		var apiError APIError
+		if err := json.Unmarshal(body, &apiError); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+
+		if apiError.Code != "conflict" || apiError.Message != "cluster is being deleted" {
+			t.Errorf("unexpected decode result: %+v", apiError)
+		}
+		if apiError.Details != "cluster_deleting" {
+			t.Errorf("expected details 'cluster_deleting', got '%s'", apiError.Details)
+		}
+	})
+
+	t.Run("null details", func(t *testing.T) {
+		body := []byte(`{"code": "server_error", "message": "internal", "details": null}`)
+
+		var apiError APIError
+		if err := json.Unmarshal(body, &apiError); err != nil {
+			t.Fatalf("unexpected unmarshal error: %v", err)
+		}
+
+		if apiError.Details != "" {
+			t.Errorf("expected empty details, got '%s'", apiError.Details)
 		}
 	})
 }
