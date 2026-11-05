@@ -233,6 +233,14 @@ func TestParseAPIError(t *testing.T) {
 			"Not Found",
 			"",
 		},
+		{
+			"empty body with unknown status",
+			522,
+			"",
+			"",
+			"HTTP 522",
+			"",
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

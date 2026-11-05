@@ -53,6 +53,10 @@ func parseAPIError(statusCode int, body []byte) *APIError {
 	trimmed := bytes.TrimSpace(body)
 	if len(trimmed) == 0 {
 		apiErr.Message = http.StatusText(statusCode)
+		if apiErr.Message == "" {
+			// Statuses such as a CDN's 52x have no standard text
+			apiErr.Message = fmt.Sprintf("HTTP %d", statusCode)
+		}
 		return apiErr
 	}
 
@@ -92,10 +96,8 @@ func jsonText(raw json.RawMessage) string {
 		return s
 	}
 	var compact bytes.Buffer
-	if json.Compact(&compact, raw) == nil {
-		return compact.String()
-	}
-	return string(raw)
+	_ = json.Compact(&compact, raw) //nolint:errcheck // raw comes from a successful decode, so Compact cannot fail
+	return compact.String()
 }
 
 type ValidationError struct {
