@@ -699,4 +699,20 @@ func TestErrorHandlingMiddleware(t *testing.T) {
 			t.Errorf("Error() = %q, want %q", got, want)
 		}
 	})
+
+	t.Run("APIError from Client.Do is kept", func(t *testing.T) {
+		prior := &APIError{StatusCode: http.StatusNotFound, Code: "not_found", Message: "resource not found"}
+		err := run(http.StatusNotFound, `{"code":"not_found","message":"resource not found"}`, prior)
+		if err != prior {
+			t.Errorf("expected the decoded APIError to be kept, got %#v", err)
+		}
+	})
+
+	t.Run("other error is replaced", func(t *testing.T) {
+		err := run(http.StatusBadGateway, "Bad Gateway", errors.New("unrelated"))
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadGateway || apiErr.Message != "Bad Gateway" {
+			t.Fatalf("unexpected error %#v", err)
+		}
+	})
 }
