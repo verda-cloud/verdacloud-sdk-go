@@ -20,12 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"unicode/utf8"
 )
-
-// maxRawErrorMessageLength bounds the Message taken from a non-JSON error
-// body such as a proxy's HTML page
-const maxRawErrorMessageLength = 1024
 
 type APIError struct {
 	StatusCode int    `json:"status_code,omitempty"`
@@ -52,7 +47,7 @@ type errorEnvelope struct {
 }
 
 // parseAPIError builds an APIError from a non-2xx response. Known JSON
-// envelopes are decoded; anything else becomes a bounded raw-text message.
+// envelopes are decoded; anything else becomes the raw body text.
 func parseAPIError(statusCode int, body []byte) *APIError {
 	apiErr := &APIError{StatusCode: statusCode}
 	trimmed := bytes.TrimSpace(body)
@@ -71,7 +66,7 @@ func parseAPIError(statusCode int, body []byte) *APIError {
 		}
 	}
 	if apiErr.Message == "" {
-		apiErr.Message = truncateErrorText(string(trimmed))
+		apiErr.Message = string(trimmed)
 	}
 	return apiErr
 }
@@ -95,18 +90,6 @@ func jsonText(raw json.RawMessage) string {
 		return compact.String()
 	}
 	return string(raw)
-}
-
-func truncateErrorText(s string) string {
-	s = strings.ToValidUTF8(s, "�") // Replace invalid UTF-8 sequences with the Unicode replacement character (U+FFFD).
-	if len(s) <= maxRawErrorMessageLength {
-		return s
-	}
-	cut := maxRawErrorMessageLength
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + "…"
 }
 
 type ValidationError struct {

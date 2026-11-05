@@ -18,7 +18,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -66,8 +65,6 @@ func TestValidationError_Error(t *testing.T) {
 }
 
 func TestParseAPIError(t *testing.T) {
-	longHTML := "<html>" + strings.Repeat("x", 2000) + "</html>"
-
 	cases := []struct {
 		name    string
 		status  int
@@ -220,14 +217,6 @@ func TestParseAPIError(t *testing.T) {
 			"Not Found",
 			"",
 		},
-		{
-			"long body is truncated",
-			502,
-			longHTML,
-			"",
-			longHTML[:maxRawErrorMessageLength] + "…",
-			"",
-		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -246,16 +235,6 @@ func TestParseAPIError(t *testing.T) {
 		}
 	})
 
-	t.Run("truncation keeps valid UTF-8", func(t *testing.T) {
-		got := parseAPIError(502, []byte(strings.Repeat("é", maxRawErrorMessageLength)))
-		if !strings.HasSuffix(got.Message, "…") || !utf8ValidString(got.Message) {
-			t.Errorf("expected valid truncated UTF-8, got %q", got.Message[len(got.Message)-8:])
-		}
-	})
-}
-
-func utf8ValidString(s string) bool {
-	return strings.ToValidUTF8(s, "") == s
 }
 
 // TestAPIErrorDecodingAcrossServices checks that every request path (generic

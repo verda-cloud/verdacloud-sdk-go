@@ -420,7 +420,7 @@ if err != nil {
 }
 ```
 
-JSON error bodies are decoded into `Code`, `Message` and `Details`. `Code` is empty when the API sends none. A non-JSON body, such as a proxy error page, becomes `Message`, truncated to 1 KiB.
+JSON error bodies are decoded into `Code`, `Message` and `Details`. `Code` is empty when the API sends none. A non-JSON body, such as a proxy error page, becomes `Message`.
 
 ## Configuration
 
