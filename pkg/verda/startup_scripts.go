@@ -99,15 +99,7 @@ func (s *StartupScriptService) createWithPlainTextResponse(ctx context.Context, 
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiError APIError
-		if err := json.Unmarshal(body, &apiError); err != nil {
-			return nil, &APIError{
-				StatusCode: resp.StatusCode,
-				Message:    string(body),
-			}
-		}
-		apiError.StatusCode = resp.StatusCode
-		return nil, &apiError
+		return nil, parseAPIError(resp.StatusCode, body)
 	}
 
 	// Try JSON first, fall back to plain text ID

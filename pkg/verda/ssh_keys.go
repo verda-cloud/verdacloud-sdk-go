@@ -98,7 +98,7 @@ func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req *Cr
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+		return nil, parseAPIError(resp.StatusCode, body)
 	}
 
 	keyID := strings.TrimSpace(string(body))

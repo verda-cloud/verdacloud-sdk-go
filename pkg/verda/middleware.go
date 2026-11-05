@@ -250,23 +250,14 @@ func shouldRetry(err error) bool {
 	return false
 }
 
+// ErrorHandlingMiddleware sets ctx.Error to an *APIError for non-2xx responses.
+// An *APIError already set by Client.Do is kept, so each body is decoded once.
 func ErrorHandlingMiddleware() ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			if ctx.StatusCode < 200 || ctx.StatusCode >= 300 {
-				var apiError APIError
-				if len(ctx.Body) > 0 {
-					apiError = APIError{
-						StatusCode: ctx.StatusCode,
-						Message:    string(ctx.Body),
-					}
-				} else {
-					apiError = APIError{
-						StatusCode: ctx.StatusCode,
-						Message:    http.StatusText(ctx.StatusCode),
-					}
-				}
-				ctx.Error = &apiError
+			var apiErr *APIError
+			if (ctx.StatusCode < 200 || ctx.StatusCode >= 300) && !errors.As(ctx.Error, &apiErr) {
+				ctx.Error = parseAPIError(ctx.StatusCode, ctx.Body)
 			}
 
 			return next(ctx)

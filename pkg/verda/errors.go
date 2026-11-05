@@ -14,7 +14,13 @@
 
 package verda
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"strings"
+)
 
 type APIError struct {
 	StatusCode int    `json:"status_code,omitempty"`
@@ -28,6 +34,70 @@ func (e *APIError) Error() string {
 		return fmt.Sprintf("API error %d: %s (%s)", e.StatusCode, e.Message, e.Details)
 	}
 	return fmt.Sprintf("API error %d: %s", e.StatusCode, e.Message)
+}
+
+// errorEnvelope accepts the error bodies the API returns:
+// {"code","message","details"}, and {"error"} from some auth layers.
+// Fields are decoded loosely because message can also be a list of strings.
+type errorEnvelope struct {
+	Code    json.RawMessage `json:"code"`
+	Message json.RawMessage `json:"message"`
+	Error   json.RawMessage `json:"error"`
+	Details json.RawMessage `json:"details"`
+}
+
+// parseAPIError builds an APIError from a non-2xx response. Known JSON
+// envelopes are decoded; anything else becomes the raw body text.
+func parseAPIError(statusCode int, body []byte) *APIError {
+	apiErr := &APIError{StatusCode: statusCode}
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		apiErr.Message = http.StatusText(statusCode)
+		if apiErr.Message == "" {
+			// Statuses such as a CDN's 52x have no standard text
+			apiErr.Message = fmt.Sprintf("HTTP %d", statusCode)
+		}
+		return apiErr
+	}
+
+	var envelope errorEnvelope
+	if trimmed[0] == '{' && json.Unmarshal(trimmed, &envelope) == nil {
+		apiErr.Code = jsonText(envelope.Code)
+		apiErr.Details = jsonText(envelope.Details)
+		apiErr.Message = messageText(envelope.Message)
+		if apiErr.Message == "" {
+			apiErr.Message = jsonText(envelope.Error)
+		}
+	}
+	if apiErr.Message == "" {
+		apiErr.Message = string(trimmed)
+	}
+	return apiErr
+}
+
+// messageText renders the message field: a list of strings is joined with
+// "; ", and any other value is rendered by jsonText
+func messageText(raw json.RawMessage) string {
+	var list []string
+	if json.Unmarshal(raw, &list) == nil {
+		return strings.Join(list, "; ")
+	}
+	return jsonText(raw)
+}
+
+// jsonText renders a JSON value as text: strings as-is, and any other value
+// as compact JSON
+func jsonText(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var compact bytes.Buffer
+	_ = json.Compact(&compact, raw) //nolint:errcheck // raw comes from a successful decode, so Compact cannot fail
+	return compact.String()
 }
 
 type ValidationError struct {

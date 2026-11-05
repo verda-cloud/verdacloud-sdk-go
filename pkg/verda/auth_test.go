@@ -80,6 +80,56 @@ func TestAuthService_Authenticate(t *testing.T) {
 			t.Error("expected error, got nil")
 		}
 	})
+
+	t.Run("authentication error body is decoded", func(t *testing.T) {
+		// The token endpoint answers bad credentials with the standard envelope
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, `{"code":"unauthorized_request","message":"Invalid client id or client secret"}`)
+		})
+
+		client := NewTestClient(t, mockServer)
+		_, err := client.Auth.Authenticate()
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected *APIError, got %v", err)
+		}
+		if apiErr.StatusCode != http.StatusUnauthorized || apiErr.Code != "unauthorized_request" ||
+			apiErr.Message != "Invalid client id or client secret" {
+			t.Errorf("unexpected APIError %#v", apiErr)
+		}
+	})
+
+	t.Run("form-encoded fallback on decoded error", func(t *testing.T) {
+		// Endpoints that only read form bodies reject JSON with this error
+		var jsonRequests, formRequests int
+		mockServer.SetHandler(http.MethodPost, "/oauth2/token", func(w http.ResponseWriter, r *http.Request) {
+			if r.Header.Get("Content-Type") == "application/json" {
+				jsonRequests++
+				drainBody(r)
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = io.WriteString(w, `{"code":"invalid_request","message":"grant_type was not specified"}`)
+				return
+			}
+			formRequests++
+			drainBody(r)
+			writeTestToken(t, w, "form_access_token")
+		})
+
+		client := NewTestClient(t, mockServer)
+		token, err := client.Auth.Authenticate()
+		if err != nil {
+			t.Fatalf("expected the form-encoded retry to succeed, got %v", err)
+		}
+		if token.AccessToken != "form_access_token" {
+			t.Errorf("expected the form-encoded token, got %q", token.AccessToken)
+		}
+		if jsonRequests != 1 || formRequests != 1 {
+			t.Errorf("expected 1 JSON and 1 form request, got %d and %d", jsonRequests, formRequests)
+		}
+	})
 }
 
 func TestAuthService_RefreshToken(t *testing.T) {

@@ -258,24 +258,13 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	}
 
 	var parseErr error
-	if result != nil {
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			var apiError APIError
-			if err := json.Unmarshal(bodyBytes, &apiError); err != nil {
-				parseErr = &APIError{
-					StatusCode: resp.StatusCode,
-					Message:    string(bodyBytes),
-				}
-			} else {
-				apiError.StatusCode = resp.StatusCode
-				parseErr = &apiError
-			}
-		} else {
-			trimmed := bytes.TrimSpace(bodyBytes)
-			if len(trimmed) > 0 && result != nil {
-				if err := json.Unmarshal(trimmed, result); err != nil {
-					parseErr = fmt.Errorf("failed to unmarshal response: %w", err)
-				}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		parseErr = parseAPIError(resp.StatusCode, bodyBytes)
+	} else if result != nil {
+		trimmed := bytes.TrimSpace(bodyBytes)
+		if len(trimmed) > 0 {
+			if err := json.Unmarshal(trimmed, result); err != nil {
+				parseErr = fmt.Errorf("failed to unmarshal response: %w", err)
 			}
 		}
 	}
@@ -371,15 +360,7 @@ func (c *Client) handleResponse(resp *http.Response, result any) error {
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var apiError APIError
-		if err := json.Unmarshal(body, &apiError); err != nil {
-			return &APIError{
-				StatusCode: resp.StatusCode,
-				Message:    string(body),
-			}
-		}
-		apiError.StatusCode = resp.StatusCode
-		return &apiError
+		return parseAPIError(resp.StatusCode, body)
 	}
 
 	trimmed := bytes.TrimSpace(body)
