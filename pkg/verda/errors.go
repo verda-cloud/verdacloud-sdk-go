@@ -60,7 +60,7 @@ func parseAPIError(statusCode int, body []byte) *APIError {
 	if trimmed[0] == '{' && json.Unmarshal(trimmed, &envelope) == nil {
 		apiErr.Code = jsonText(envelope.Code)
 		apiErr.Details = jsonText(envelope.Details)
-		apiErr.Message = jsonText(envelope.Message)
+		apiErr.Message = messageText(envelope.Message)
 		if apiErr.Message == "" {
 			apiErr.Message = jsonText(envelope.Error)
 		}
@@ -71,8 +71,18 @@ func parseAPIError(statusCode int, body []byte) *APIError {
 	return apiErr
 }
 
-// jsonText renders a JSON value as text: strings as-is, lists of strings
-// joined with "; ", and any other value as compact JSON
+// messageText renders the message field: a list of strings is joined with
+// "; ", and any other value is rendered by jsonText
+func messageText(raw json.RawMessage) string {
+	var list []string
+	if json.Unmarshal(raw, &list) == nil {
+		return strings.Join(list, "; ")
+	}
+	return jsonText(raw)
+}
+
+// jsonText renders a JSON value as text: strings as-is, and any other value
+// as compact JSON
 func jsonText(raw json.RawMessage) string {
 	if len(raw) == 0 || string(raw) == "null" {
 		return ""
@@ -80,10 +90,6 @@ func jsonText(raw json.RawMessage) string {
 	var s string
 	if json.Unmarshal(raw, &s) == nil {
 		return s
-	}
-	var list []string
-	if json.Unmarshal(raw, &list) == nil {
-		return strings.Join(list, "; ")
 	}
 	var compact bytes.Buffer
 	if json.Compact(&compact, raw) == nil {

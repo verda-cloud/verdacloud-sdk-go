@@ -98,6 +98,22 @@ func TestParseAPIError(t *testing.T) {
 			`{"field":"name"}`,
 		},
 		{
+			"list details",
+			400,
+			`{"code":"invalid_request","message":"bad input","details":["a","b; c"]}`,
+			"invalid_request",
+			"bad input",
+			`["a","b; c"]`,
+		},
+		{
+			"empty list details",
+			400,
+			`{"code":"invalid_request","message":"bad input","details":[]}`,
+			"invalid_request",
+			"bad input",
+			`[]`,
+		},
+		{
 			"structured details reason",
 			404,
 			`{"code":"not_found","message":"resource not found","details":{"reason":"resource_not_found"}}`,
