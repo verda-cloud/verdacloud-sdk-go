@@ -221,7 +221,7 @@ func TestManagedKubernetesService_Create(t *testing.T) {
 			}(),
 			"name too long": func() CreateManagedKubernetesClusterRequest {
 				r := validReq
-				r.Name = "a1234567890123456789012345678901234567890123456789012345678901234"
+				r.Name = strings.Repeat("a", managedKubernetesNameMaxLength+1)
 				return r
 			}(),
 			"pod cidr too small": func() CreateManagedKubernetesClusterRequest {
@@ -468,7 +468,7 @@ func TestManagedKubernetesService_CreateNodePool(t *testing.T) {
 			}(),
 			"name too long": func() CreateManagedKubernetesNodePoolRequest {
 				r := validReq
-				r.Name = "a123456789012345678901234567890"
+				r.Name = strings.Repeat("a", managedKubernetesNameMaxLength+1)
 				return r
 			}(),
 			"negative replicas": func() CreateManagedKubernetesNodePoolRequest {
@@ -837,6 +837,41 @@ func TestManagedKubernetesService_ErrorHandling(t *testing.T) {
 	})
 }
 
+func TestManagedKubernetesCreateRequests_NameLengthBoundaries(t *testing.T) {
+	cluster := CreateManagedKubernetesClusterRequest{
+		KubernetesVersion: "1.31.1",
+		PodCIDR:           "10.0.0.0/21",
+		ServiceCIDR:       "10.1.0.0/16",
+		Location:          "FIN-03",
+		NetworkID:         "net_123",
+		SubnetID:          "sub_123",
+	}
+	pool := CreateManagedKubernetesNodePoolRequest{
+		InstanceType: "CPU.4V.16",
+		SSHKeyIDs:    []string{"key_1"},
+	}
+
+	for _, tc := range []struct {
+		length  int
+		wantErr bool
+	}{
+		{length: 30, wantErr: false},
+		{length: 31, wantErr: true},
+	} {
+		name := strings.Repeat("a", tc.length)
+
+		cluster.Name = name
+		if err := cluster.Validate(); (err != nil) != tc.wantErr {
+			t.Errorf("cluster name of %d characters: Validate() error = %v, wantErr %v", tc.length, err, tc.wantErr)
+		}
+
+		pool.Name = name
+		if err := pool.Validate(); (err != nil) != tc.wantErr {
+			t.Errorf("pool name of %d characters: Validate() error = %v, wantErr %v", tc.length, err, tc.wantErr)
+		}
+	}
+}
+
 func TestManagedKubernetesService_PathValidation(t *testing.T) {
 	mockServer := testutil.NewMockServer()
 	defer mockServer.Close()
@@ -866,7 +901,7 @@ func TestManagedKubernetesService_PathValidation(t *testing.T) {
 			return err
 		}},
 		{"pool too long", func() error {
-			return client.ManagedKubernetes.DeleteNodePool(ctx, "FIN-03", "c", strings.Repeat("a", 31))
+			return client.ManagedKubernetes.DeleteNodePool(ctx, "FIN-03", "c", strings.Repeat("a", 64))
 		}},
 		{"empty kubeconfig id", func() error { _, err := client.ManagedKubernetes.GetKubeconfig(ctx, "FIN-03", "c", ""); return err }},
 		{"dot-dot kubeconfig id", func() error { return client.ManagedKubernetes.DeleteKubeconfig(ctx, "FIN-03", "c", "..") }},
@@ -884,6 +919,39 @@ func TestManagedKubernetesService_PathValidation(t *testing.T) {
 			}
 		})
 	}
+
+	// The API checks the 30-character limit on create only, so paths of
+	// existing resources with longer names must still be sent.
+	t.Run("names over the create limit are sent", func(t *testing.T) {
+		longCluster := strings.Repeat("c", managedKubernetesNameMaxLength+1)
+		longPool := strings.Repeat("p", managedKubernetesNameMaxLength+1)
+
+		var clusterHit, poolHit bool
+		mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN-03/"+longCluster, func(w http.ResponseWriter, r *http.Request) {
+			clusterHit = true
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(testClusterJSON)); err != nil {
+				t.Errorf("write mock response: %v", err)
+			}
+		})
+		mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN-03/"+longCluster+"/pools/"+longPool, func(w http.ResponseWriter, r *http.Request) {
+			poolHit = true
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(testPoolJSON)); err != nil {
+				t.Errorf("write mock response: %v", err)
+			}
+		})
+
+		if _, err := client.ManagedKubernetes.Get(ctx, "FIN-03", longCluster); err != nil {
+			t.Fatalf("Get with a %d-character cluster name: %v", len(longCluster), err)
+		}
+		if _, err := client.ManagedKubernetes.GetNodePool(ctx, "FIN-03", longCluster, longPool); err != nil {
+			t.Fatalf("GetNodePool with a %d-character pool name: %v", len(longPool), err)
+		}
+		if !clusterHit || !poolHit {
+			t.Errorf("expected both requests to reach the server (cluster=%v, pool=%v)", clusterHit, poolHit)
+		}
+	})
 
 	t.Run("segments are escaped", func(t *testing.T) {
 		var escapedPath string

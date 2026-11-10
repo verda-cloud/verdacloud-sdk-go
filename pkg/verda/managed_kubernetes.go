@@ -33,7 +33,7 @@ func (s *ManagedKubernetesService) clusterPath(location, clusterName string) (st
 	if err != nil {
 		return "", err
 	}
-	if err := validateManagedKubernetesName("clusterName", clusterName, 63); err != nil {
+	if err := validateManagedKubernetesName("clusterName", clusterName, dns1123LabelMaxLength); err != nil {
 		return "", err
 	}
 	return managedKubernetesBasePath + "/" + loc + "/" + url.PathEscape(clusterName), nil
@@ -52,7 +52,7 @@ func (s *ManagedKubernetesService) nodePoolPath(location, clusterName, poolName 
 	if err != nil {
 		return "", err
 	}
-	if err := validateManagedKubernetesName("poolName", poolName, 30); err != nil {
+	if err := validateManagedKubernetesName("poolName", poolName, dns1123LabelMaxLength); err != nil {
 		return "", err
 	}
 	return base + "/" + url.PathEscape(poolName), nil

@@ -65,7 +65,8 @@ type ManagedKubernetesCluster struct {
 // NetworkID, SubnetID, PodCIDR, ServiceCIDR and Location are immutable
 // once the cluster exists.
 type CreateManagedKubernetesClusterRequest struct {
-	// Name becomes the cluster identifier; a DNS-1123 label.
+	// Name becomes the cluster identifier; a DNS-1123 label, max 30
+	// characters on create.
 	Name string `json:"name"`
 	// KubernetesVersion must exist in the version catalogue.
 	// Whitespace and a leading "v" are tolerated and stripped by the API.
@@ -85,7 +86,7 @@ type CreateManagedKubernetesClusterRequest struct {
 
 func (r CreateManagedKubernetesClusterRequest) Validate() error {
 	if err := validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required, validation.Length(1, 63), validation.Match(dns1123LabelRegexp)),
+		validation.Field(&r.Name, validation.Required, validation.Length(1, managedKubernetesNameMaxLength), validation.Match(dns1123LabelRegexp)),
 		validation.Field(&r.KubernetesVersion, validation.Required),
 		validation.Field(&r.PodCIDR, validation.Required, validation.By(validateIPv4CIDR), validation.By(validatePodCIDRPrefixLength)),
 		validation.Field(&r.ServiceCIDR, validation.Required, validation.By(validateIPv4CIDR)),
@@ -159,7 +160,8 @@ type ManagedKubernetesNodePool struct {
 // CreateManagedKubernetesNodePoolRequest is the body of POST
 // /mk8sclusters/{location}/{clusterName}/pools.
 type CreateManagedKubernetesNodePoolRequest struct {
-	// Name becomes the pool's name; a DNS-1123 label, max 30 characters.
+	// Name becomes the pool's name; a DNS-1123 label, max 30 characters on
+	// create.
 	Name string `json:"name"`
 	// Replicas is the desired worker count; nil uses the API default (1).
 	Replicas *int `json:"replicas,omitempty"`
@@ -171,7 +173,7 @@ type CreateManagedKubernetesNodePoolRequest struct {
 
 func (r CreateManagedKubernetesNodePoolRequest) Validate() error {
 	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required, validation.Length(1, 30), validation.Match(dns1123LabelRegexp)),
+		validation.Field(&r.Name, validation.Required, validation.Length(1, managedKubernetesNameMaxLength), validation.Match(dns1123LabelRegexp)),
 		validation.Field(&r.Replicas, validation.Min(0)),
 		validation.Field(&r.InstanceType, validation.Required),
 		validation.Field(&r.SSHKeyIDs, validation.Required, validation.Length(1, 0)),
@@ -327,8 +329,18 @@ func validateKubeconfigDuration(value any) error {
 	return nil
 }
 
+// Name length limits for clusters and node pools. The API accepts at most
+// managedKubernetesNameMaxLength characters when a cluster or pool is
+// created, and checks the length on create only. Paths of existing
+// resources are therefore validated against the DNS-1123 label limit, so
+// that resources with longer names stay reachable.
+const (
+	managedKubernetesNameMaxLength = 30
+	dns1123LabelMaxLength          = 63
+)
+
 // validateManagedKubernetesName checks a cluster or pool name: a DNS-1123
-// label of at most maxLen characters, as the API requires on create.
+// label of at most maxLen characters.
 func validateManagedKubernetesName(field, value string, maxLen int) error {
 	if value == "" {
 		return fmt.Errorf("%s must not be empty", field)
