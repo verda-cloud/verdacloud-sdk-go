@@ -835,3 +835,70 @@ func TestManagedKubernetesService_ErrorHandling(t *testing.T) {
 		}
 	})
 }
+
+func TestManagedKubernetesService_PathValidation(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(t, mockServer)
+	ctx := context.Background()
+
+	cases := []struct {
+		name string
+		call func() error
+	}{
+		{"empty location", func() error { _, err := client.ManagedKubernetes.Get(ctx, "", "my-cluster"); return err }},
+		{"dot location", func() error { _, err := client.ManagedKubernetes.Get(ctx, ".", "my-cluster"); return err }},
+		{"dot-dot location", func() error { _, err := client.ManagedKubernetes.Get(ctx, "..", "my-cluster"); return err }},
+		{"empty cluster", func() error { _, err := client.ManagedKubernetes.Get(ctx, "FIN-03", ""); return err }},
+		{"cluster with slash", func() error { _, err := client.ManagedKubernetes.Get(ctx, "FIN-03", "a/b"); return err }},
+		{"cluster dot-dot", func() error { return client.ManagedKubernetes.Delete(ctx, "FIN-03", "..") }},
+		{"cluster with query", func() error { _, err := client.ManagedKubernetes.Get(ctx, "FIN-03", "a?x=1"); return err }},
+		{"cluster uppercase", func() error { _, err := client.ManagedKubernetes.Get(ctx, "FIN-03", "MyCluster"); return err }},
+		{"cluster too long", func() error {
+			_, err := client.ManagedKubernetes.Get(ctx, "FIN-03", strings.Repeat("a", 64))
+			return err
+		}},
+		{"empty pool", func() error { _, err := client.ManagedKubernetes.GetNodePool(ctx, "FIN-03", "c", ""); return err }},
+		{"pool traversal", func() error {
+			_, err := client.ManagedKubernetes.GetNodePool(ctx, "FIN-03", "c", "../../other")
+			return err
+		}},
+		{"pool too long", func() error {
+			return client.ManagedKubernetes.DeleteNodePool(ctx, "FIN-03", "c", strings.Repeat("a", 31))
+		}},
+		{"empty kubeconfig id", func() error { _, err := client.ManagedKubernetes.GetKubeconfig(ctx, "FIN-03", "c", ""); return err }},
+		{"dot-dot kubeconfig id", func() error { return client.ManagedKubernetes.DeleteKubeconfig(ctx, "FIN-03", "c", "..") }},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.call()
+			if err == nil {
+				t.Fatal("expected validation error, got nil")
+			}
+			var apiErr *APIError
+			if errors.As(err, &apiErr) {
+				t.Fatalf("expected the request to be rejected before sending, got API error %v", apiErr)
+			}
+		})
+	}
+
+	t.Run("segments are escaped", func(t *testing.T) {
+		var escapedPath string
+		mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN 03/c/kubeconfigs/a/b", func(w http.ResponseWriter, r *http.Request) {
+			escapedPath = r.URL.EscapedPath()
+			w.Header().Set("Content-Type", "application/json")
+			if _, err := w.Write([]byte(testKubeconfigReadyJSON)); err != nil {
+				t.Errorf("write mock response: %v", err)
+			}
+		})
+
+		if _, err := client.ManagedKubernetes.GetKubeconfig(ctx, "FIN 03", "c", "a/b"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if want := "/mk8sclusters/FIN%2003/c/kubeconfigs/a%2Fb"; escapedPath != want {
+			t.Errorf("escaped path = %q, want %q", escapedPath, want)
+		}
+	})
+}

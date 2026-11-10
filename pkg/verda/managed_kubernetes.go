@@ -17,6 +17,7 @@ package verda
 import (
 	"context"
 	"fmt"
+	"net/url"
 )
 
 const managedKubernetesBasePath = "/mk8sclusters"
@@ -25,14 +26,17 @@ type ManagedKubernetesService struct {
 	client *Client
 }
 
+// clusterPath returns the API path of a cluster. Every user-supplied path
+// segment is validated and escaped so that it stays a single segment.
 func (s *ManagedKubernetesService) clusterPath(location, clusterName string) (string, error) {
-	if location == "" {
-		return "", fmt.Errorf("location must not be empty")
+	loc, err := managedKubernetesPathSegment("location", location)
+	if err != nil {
+		return "", err
 	}
-	if clusterName == "" {
-		return "", fmt.Errorf("clusterName must not be empty")
+	if err := validateManagedKubernetesName("clusterName", clusterName, 63); err != nil {
+		return "", err
 	}
-	return fmt.Sprintf("%s/%s/%s", managedKubernetesBasePath, location, clusterName), nil
+	return managedKubernetesBasePath + "/" + loc + "/" + url.PathEscape(clusterName), nil
 }
 
 func (s *ManagedKubernetesService) nodePoolsPath(location, clusterName string) (string, error) {
@@ -48,10 +52,10 @@ func (s *ManagedKubernetesService) nodePoolPath(location, clusterName, poolName 
 	if err != nil {
 		return "", err
 	}
-	if poolName == "" {
-		return "", fmt.Errorf("poolName must not be empty")
+	if err := validateManagedKubernetesName("poolName", poolName, 30); err != nil {
+		return "", err
 	}
-	return base + "/" + poolName, nil
+	return base + "/" + url.PathEscape(poolName), nil
 }
 
 func (s *ManagedKubernetesService) kubeconfigsPath(location, clusterName string) (string, error) {
@@ -67,10 +71,23 @@ func (s *ManagedKubernetesService) kubeconfigPath(location, clusterName, id stri
 	if err != nil {
 		return "", err
 	}
-	if id == "" {
-		return "", fmt.Errorf("id must not be empty")
+	segment, err := managedKubernetesPathSegment("id", id)
+	if err != nil {
+		return "", err
 	}
-	return base + "/" + id, nil
+	return base + "/" + segment, nil
+}
+
+// managedKubernetesPathSegment validates and escapes a free-form path segment.
+// "." and ".." survive path escaping and would change which endpoint is called.
+func managedKubernetesPathSegment(field, value string) (string, error) {
+	if value == "" {
+		return "", fmt.Errorf("%s must not be empty", field)
+	}
+	if value == "." || value == ".." {
+		return "", fmt.Errorf("%s %q is not a valid path segment", field, value)
+	}
+	return url.PathEscape(value), nil
 }
 
 func (s *ManagedKubernetesService) List(ctx context.Context) ([]ManagedKubernetesCluster, error) {

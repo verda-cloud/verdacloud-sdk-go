@@ -286,6 +286,21 @@ func validateKubeconfigDuration(value any) error {
 	return nil
 }
 
+// validateManagedKubernetesName checks a cluster or pool name: a DNS-1123
+// label of at most maxLen characters, as the API requires on create.
+func validateManagedKubernetesName(field, value string, maxLen int) error {
+	if value == "" {
+		return fmt.Errorf("%s must not be empty", field)
+	}
+	if len(value) > maxLen {
+		return fmt.Errorf("%s must be at most %d characters", field, maxLen)
+	}
+	if !dns1123LabelRegexp.MatchString(value) {
+		return fmt.Errorf("%s %q must be a DNS-1123 label", field, value)
+	}
+	return nil
+}
+
 var dns1123LabelRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
 func validatePodCIDRPrefixLength(value any) error {
