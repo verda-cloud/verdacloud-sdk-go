@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -901,4 +902,52 @@ func TestManagedKubernetesService_PathValidation(t *testing.T) {
 			t.Errorf("escaped path = %q, want %q", escapedPath, want)
 		}
 	})
+}
+
+func TestManagedKubernetesKubeconfig_FormatRedactsKubeconfig(t *testing.T) {
+	const secret = "PRIVATE-KEY-MATERIAL"
+	kc := ManagedKubernetesKubeconfig{ID: "kc-1", CommonName: "alice", Status: ManagedKubernetesKubeconfigStatusReady, Kubeconfig: secret}
+
+	outputs := map[string]string{
+		"%v value":   fmt.Sprintf("%v", kc),
+		"%+v value":  fmt.Sprintf("%+v", kc),
+		"%#v value":  fmt.Sprintf("%#v", kc),
+		"%s value":   fmt.Sprintf("%s", kc),
+		"%v pointer": fmt.Sprintf("%v", &kc),
+		"%#v ptr":    fmt.Sprintf("%#v", &kc),
+		"%v slice":   fmt.Sprintf("%v", []ManagedKubernetesKubeconfig{kc}),
+		"%v wrapped": fmt.Errorf("failed: %v", kc).Error(),
+		"%d value":   fmt.Sprintf("%d", kc),
+		"%q value":   fmt.Sprintf("%q", kc),
+		"%x value":   fmt.Sprintf("%x", kc),
+		"%10v value": fmt.Sprintf("%10v", kc),
+		"%d pointer": fmt.Sprintf("%d", &kc),
+		"%d slice":   fmt.Sprintf("%d", []ManagedKubernetesKubeconfig{kc}),
+	}
+	hexSecret := fmt.Sprintf("%x", secret)
+	for name, out := range outputs {
+		if strings.Contains(out, secret) || strings.Contains(out, hexSecret) {
+			t.Errorf("%s leaks the kubeconfig: %s", name, out)
+		}
+		readable := !strings.HasPrefix(name, "%d") && !strings.HasPrefix(name, "%x")
+		if readable && (!strings.Contains(out, "kc-1") || !strings.Contains(out, "[REDACTED]")) {
+			t.Errorf("%s should show the ID and a redaction marker, got: %s", name, out)
+		}
+	}
+
+	if got := fmt.Sprintf("%#v", kc); !strings.HasPrefix(got, "verda.ManagedKubernetesKubeconfig{") {
+		t.Errorf("%%#v should name the public type, got %s", got)
+	}
+
+	if out := fmt.Sprintf("%v", ManagedKubernetesKubeconfig{ID: "kc-2"}); strings.Contains(out, "[REDACTED]") {
+		t.Errorf("an empty kubeconfig should not show a redaction marker, got %s", out)
+	}
+
+	body, err := json.Marshal(kc)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), secret) {
+		t.Errorf("JSON encoding must keep the kubeconfig, got %s", body)
+	}
 }

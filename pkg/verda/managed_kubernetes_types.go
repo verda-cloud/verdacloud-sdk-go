@@ -16,6 +16,7 @@ package verda
 
 import (
 	"fmt"
+	"io"
 	"net/netip"
 	"regexp"
 	"strings"
@@ -216,6 +217,46 @@ type ManagedKubernetesKubeconfig struct {
 	Status      string     `json:"status"`
 	NotAfter    *time.Time `json:"not_after,omitempty"`
 	Kubeconfig  string     `json:"kubeconfig,omitempty"`
+}
+
+// String returns the kubeconfig record with the Kubeconfig YAML redacted;
+// the YAML holds a client private key.
+func (k ManagedKubernetesKubeconfig) String() string {
+	return fmt.Sprintf("%+v", k.redacted())
+}
+
+// GoString is String in Go syntax, as used by %#v.
+func (k ManagedKubernetesKubeconfig) GoString() string {
+	s := fmt.Sprintf("%#v", k.redacted())
+	return "verda.ManagedKubernetesKubeconfig" + strings.TrimPrefix(s, "verda.redactedManagedKubernetesKubeconfig")
+}
+
+// Format implements fmt.Formatter so that valid verbs, not only %v and %s,
+// print the record with the Kubeconfig YAML redacted. fmt handles malformed
+// directives such as %w outside fmt.Errorf, or %p on a non-pointer, before
+// calling Format, so those can still print the raw fields.
+func (k ManagedKubernetesKubeconfig) Format(f fmt.State, verb rune) {
+	var s string
+	switch {
+	case verb == 'v' && f.Flag('#'):
+		s = k.GoString()
+	case verb == 'v' || verb == 's':
+		s = k.String()
+	default:
+		s = fmt.Sprintf(fmt.FormatString(f, verb), k.redacted())
+	}
+	_, _ = io.WriteString(f, s) //nolint:errcheck // fmt.Formatter has no error return; fmt records write errors itself
+}
+
+// redactedManagedKubernetesKubeconfig has the fields of
+// ManagedKubernetesKubeconfig but no fmt methods, so fmt prints its fields.
+type redactedManagedKubernetesKubeconfig ManagedKubernetesKubeconfig
+
+func (k ManagedKubernetesKubeconfig) redacted() redactedManagedKubernetesKubeconfig {
+	if k.Kubeconfig != "" {
+		k.Kubeconfig = "[REDACTED]"
+	}
+	return redactedManagedKubernetesKubeconfig(k)
 }
 
 // CreateManagedKubernetesKubeconfigRequest is the body of POST
