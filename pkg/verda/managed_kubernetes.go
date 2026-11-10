@@ -124,7 +124,7 @@ func (s *ManagedKubernetesService) Update(ctx context.Context, location, cluster
 }
 
 // Delete schedules the cluster for deletion (async; poll Get until it
-// returns a not_found APIError).
+// returns an *APIError with StatusCode 404).
 func (s *ManagedKubernetesService) Delete(ctx context.Context, location, clusterName string) error {
 	path, err := s.clusterPath(location, clusterName)
 	if err != nil {
@@ -205,8 +205,8 @@ func (s *ManagedKubernetesService) UpdateNodePool(ctx context.Context, location,
 	return &pool, nil
 }
 
-// DeleteNodePool schedules the pool for deletion (async; poll GetNodePool until it
-// returns a not_found APIError).
+// DeleteNodePool schedules the pool for deletion (async; poll GetNodePool
+// until it returns an *APIError with StatusCode 404).
 func (s *ManagedKubernetesService) DeleteNodePool(ctx context.Context, location, clusterName, poolName string) error {
 	path, err := s.nodePoolPath(location, clusterName, poolName)
 	if err != nil {

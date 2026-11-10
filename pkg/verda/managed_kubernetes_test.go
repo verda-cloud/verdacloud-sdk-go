@@ -17,6 +17,7 @@ package verda
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -775,50 +776,61 @@ func TestManagedKubernetesService_ErrorHandling(t *testing.T) {
 
 	client := NewTestClient(t, mockServer)
 
-	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN-03/no-cluster", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		if _, err := w.Write([]byte(`{"code": "not_found", "message": "cluster not found", "details": {"reason": "cluster_not_found"}}`)); err != nil {
-			t.Errorf("write mock response: %v", err)
+	respond := func(status int, body string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			if _, err := w.Write([]byte(body)); err != nil {
+				t.Errorf("write mock response: %v", err)
+			}
 		}
-	})
+	}
 
-	mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/FIN-03/deleting-cluster", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusConflict)
-		if _, err := w.Write([]byte(`{"code": "conflict", "message": "cluster is being deleted", "details": {"reason": "cluster_deleting"}}`)); err != nil {
-			t.Errorf("write mock response: %v", err)
+	notFound := `{"code": "not_found", "message": "cluster not found", "details": {"reason": "cluster_not_found"}}`
+	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN-03/no-cluster", respond(http.StatusNotFound, notFound))
+	mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/FIN-03/no-cluster", respond(http.StatusNotFound, notFound))
+	mockServer.SetHandler(http.MethodGet, "/mk8sclusters/FIN-03/my-cluster/pools/no-pool",
+		respond(http.StatusNotFound, `{"code": "not_found", "message": "pool not found"}`))
+	mockServer.SetHandler(http.MethodDelete, "/mk8sclusters/FIN-03/deleting-cluster",
+		respond(http.StatusConflict, `{"code": "conflict", "message": "cluster is being deleted", "details": {"reason": "cluster_deleting"}}`))
+
+	asAPIError := func(t *testing.T, err error) *APIError {
+		t.Helper()
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) {
+			t.Fatalf("expected *APIError, got %T: %v", err, err)
 		}
-	})
+		return apiErr
+	}
 
-	t.Run("not found", func(t *testing.T) {
-		t.Skip("error body fields are clobbered by the default ErrorHandlingMiddleware chain; unskip when CC-1038 is fixed")
+	t.Run("get missing cluster", func(t *testing.T) {
 		_, err := client.ManagedKubernetes.Get(context.Background(), "FIN-03", "no-cluster")
-		if err == nil {
-			t.Fatal("expected error, got nil")
+		apiErr := asAPIError(t, err)
+		if apiErr.StatusCode != http.StatusNotFound || apiErr.Code != "not_found" || apiErr.Message != "cluster not found" ||
+			apiErr.Details != `{"reason":"cluster_not_found"}` {
+			t.Errorf("unexpected error: %+v", apiErr)
 		}
+	})
 
-		apiErr, ok := err.(*APIError)
-		if !ok {
-			t.Fatalf("expected *APIError, got %T", err)
+	t.Run("delete already deleted cluster", func(t *testing.T) {
+		err := client.ManagedKubernetes.Delete(context.Background(), "FIN-03", "no-cluster")
+		if apiErr := asAPIError(t, err); apiErr.StatusCode != http.StatusNotFound {
+			t.Errorf("expected status 404, got %+v", apiErr)
 		}
-		if apiErr.StatusCode != http.StatusNotFound || apiErr.Code != "not_found" || apiErr.Message != "cluster not found" || apiErr.Details != "cluster_not_found" {
+	})
+
+	t.Run("get missing node pool", func(t *testing.T) {
+		_, err := client.ManagedKubernetes.GetNodePool(context.Background(), "FIN-03", "my-cluster", "no-pool")
+		apiErr := asAPIError(t, err)
+		if apiErr.StatusCode != http.StatusNotFound || apiErr.Message != "pool not found" {
 			t.Errorf("unexpected error: %+v", apiErr)
 		}
 	})
 
 	t.Run("conflict with reason", func(t *testing.T) {
-		t.Skip("error body fields are clobbered by the default ErrorHandlingMiddleware chain; unskip when CC-1038 is fixed")
 		err := client.ManagedKubernetes.Delete(context.Background(), "FIN-03", "deleting-cluster")
-		if err == nil {
-			t.Fatal("expected error, got nil")
-		}
-
-		apiErr, ok := err.(*APIError)
-		if !ok {
-			t.Fatalf("expected *APIError, got %T", err)
-		}
-		if apiErr.Code != "conflict" || apiErr.Details != "cluster_deleting" {
+		apiErr := asAPIError(t, err)
+		if apiErr.StatusCode != http.StatusConflict || apiErr.Code != "conflict" || apiErr.Details != `{"reason":"cluster_deleting"}` {
 			t.Errorf("unexpected error: %+v", apiErr)
 		}
 	})
