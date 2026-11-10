@@ -386,8 +386,8 @@ locations, err := client.ManagedKubernetes.GetEnabledLocations(ctx)
 
 // Create a cluster on an existing private network and subnet (see Private Networks)
 cluster, err := client.ManagedKubernetes.Create(ctx, verda.CreateManagedKubernetesClusterRequest{
-    Name:              "my-cluster", // DNS-1123 label
-    KubernetesVersion: "1.31.1",
+    Name:              "my-cluster", // DNS-1123 label, max 30 characters
+    KubernetesVersion: "1.36.4",
     Location:          "FIN-03",
     NetworkID:         network.ID,
     SubnetID:          subnet.ID,
@@ -398,7 +398,7 @@ cluster, err := client.ManagedKubernetes.Create(ctx, verda.CreateManagedKubernet
 // Add workers
 replicas := 3
 pool, err := client.ManagedKubernetes.CreateNodePool(ctx, "FIN-03", "my-cluster", verda.CreateManagedKubernetesNodePoolRequest{
-    Name:         "cpu-workers",
+    Name:         "cpu-workers", // DNS-1123 label, max 30 characters
     Replicas:     &replicas,
     InstanceType: "CPU.4V.16G",
     SSHKeyIDs:    []string{sshKeyID},
