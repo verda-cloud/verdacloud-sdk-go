@@ -7,7 +7,7 @@
 
 > **Note**: Previously known as DataCrunch Go SDK. We're transitioning to Verda.com. Same functionality, new name.
 
-Go SDK for the Verda cloud platform. Manage GPU instances, serverless containers, serverless jobs, volumes, private networks, and more.
+Go SDK for the Verda cloud platform. Manage GPU instances, serverless containers, serverless jobs, volumes, private networks, managed Kubernetes, and more.
 
 ## Quick Start
 
@@ -372,6 +372,81 @@ instance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 none (a public `none` requires a private address), or pass a literal IPv4 your project holds.
 Omitting both fields gives the platform default. Instance responses
 expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
+
+### Managed Kubernetes
+
+> **Experimental**: Managed Kubernetes support is experimental. The API and the SDK types for it
+> may change in backwards-incompatible ways.
+
+```go
+ctx := context.Background()
+
+// Locations where the project may create clusters
+locations, err := client.ManagedKubernetes.GetEnabledLocations(ctx)
+
+// Create a cluster on an existing private network and subnet (see Private Networks)
+cluster, err := client.ManagedKubernetes.Create(ctx, verda.CreateManagedKubernetesClusterRequest{
+    Name:              "my-cluster", // DNS-1123 label, max 30 characters
+    KubernetesVersion: "1.36.4",
+    Location:          "FIN-03",
+    NetworkID:         network.ID,
+    SubnetID:          subnet.ID,
+    PodCIDR:           "10.100.0.0/16", // /21 or larger
+    ServiceCIDR:       "10.200.0.0/16", // must not overlap PodCIDR
+})
+
+// Add workers
+replicas := 3
+pool, err := client.ManagedKubernetes.CreateNodePool(ctx, "FIN-03", "my-cluster", verda.CreateManagedKubernetesNodePoolRequest{
+    Name:         "cpu-workers", // DNS-1123 label, max 30 characters
+    Replicas:     &replicas,
+    InstanceType: "CPU.4V.16G",
+    SSHKeyIDs:    []string{sshKeyID},
+})
+
+// Issue a kubeconfig; it is created pending, so poll until it is ready
+kc, err := client.ManagedKubernetes.CreateKubeconfig(ctx, "FIN-03", "my-cluster", verda.CreateManagedKubernetesKubeconfigRequest{
+    CommonName: "alice",
+    Groups:     []string{"system:masters"}, // cluster-admin
+    Duration:   "720h",
+})
+if err != nil {
+    return err
+}
+pollCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+defer cancel()
+for kc.Status != verda.ManagedKubernetesKubeconfigStatusReady {
+    select {
+    case <-pollCtx.Done():
+        return pollCtx.Err()
+    case <-time.After(5 * time.Second):
+    }
+    if kc, err = client.ManagedKubernetes.GetKubeconfig(pollCtx, "FIN-03", "my-cluster", kc.ID); err != nil {
+        return err
+    }
+}
+
+// The kubeconfig holds a private key: create the file owner-only, never reuse an existing one
+f, err := os.OpenFile("kubeconfig.yaml", os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+if err != nil {
+    return err
+}
+if _, err := f.WriteString(kc.Kubeconfig); err != nil {
+    f.Close()
+    return err
+}
+if err := f.Close(); err != nil {
+    return err
+}
+
+// Deletion is asynchronous: poll Get until it returns an *APIError with StatusCode 404
+err = client.ManagedKubernetes.Delete(ctx, "FIN-03", "my-cluster")
+```
+
+`Kubeconfig` holds a client private key. The SDK redacts it when a kubeconfig is printed with a valid
+`fmt` verb (malformed directives such as `%w` outside `fmt.Errorf` bypass this; `go vet` reports them)
+and leaves kubeconfig responses out of debug logs. Deleting a kubeconfig does not revoke copies already
+downloaded; they work until the certificate expires.
 
 ### Other Services
 

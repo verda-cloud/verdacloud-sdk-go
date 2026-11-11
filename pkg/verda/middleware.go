@@ -305,8 +305,7 @@ func CacheMiddleware() ResponseMiddleware {
 func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
-			// Don't log sensitive token refresh endpoints
-			if strings.Contains(ctx.Path, "/token") {
+			if isSensitivePath(ctx.Path) {
 				return next(ctx)
 			}
 
@@ -359,10 +358,24 @@ func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
 	}
 }
 
+// sensitivePaths are path fragments whose requests and responses the debug
+// logging middleware skips: token requests carry credentials, and
+// kubeconfig responses carry client private keys.
+var sensitivePaths = []string{"/token", "/kubeconfigs"}
+
+func isSensitivePath(path string) bool {
+	for _, p := range sensitivePaths {
+		if strings.Contains(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
 func DebugResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			if ctx.Request != nil && strings.Contains(ctx.Request.Path, "/token") {
+			if ctx.Request != nil && isSensitivePath(ctx.Request.Path) {
 				return next(ctx)
 			}
 

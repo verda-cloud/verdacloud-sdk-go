@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -713,6 +714,52 @@ func TestErrorHandlingMiddleware(t *testing.T) {
 		var apiErr *APIError
 		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadGateway || apiErr.Message != "Bad Gateway" {
 			t.Fatalf("unexpected error %#v", err)
+		}
+	})
+}
+
+type recordingLogger struct{ lines []string }
+
+func (l *recordingLogger) record(msg string, args ...any) {
+	l.lines = append(l.lines, fmt.Sprintf(msg, args...))
+}
+func (l *recordingLogger) Debug(msg string, args ...any) { l.record(msg, args...) }
+func (l *recordingLogger) Info(msg string, args ...any)  { l.record(msg, args...) }
+func (l *recordingLogger) Warn(msg string, args ...any)  { l.record(msg, args...) }
+func (l *recordingLogger) Error(msg string, args ...any) { l.record(msg, args...) }
+
+func TestDebugLoggingSkipsSensitivePaths(t *testing.T) {
+	const secret = "PRIVATE-KEY-MATERIAL"
+
+	logged := func(path string) []string {
+		logger := &recordingLogger{}
+		reqCtx := &RequestContext{Method: http.MethodGet, Path: path, Headers: make(http.Header)}
+		if err := DebugLoggingMiddleware(logger)(func(*RequestContext) error { return nil })(reqCtx); err != nil {
+			t.Fatalf("request middleware: %v", err)
+		}
+		respCtx := &ResponseContext{StatusCode: http.StatusOK, Body: []byte(`{"kubeconfig":"` + secret + `"}`), Request: reqCtx}
+		if err := DebugResponseLoggingMiddleware(logger)(func(*ResponseContext) error { return nil })(respCtx); err != nil {
+			t.Fatalf("response middleware: %v", err)
+		}
+		return logger.lines
+	}
+
+	for _, path := range []string{
+		"/oauth2/token",
+		"/mk8sclusters/FIN-03/my-cluster/kubeconfigs",
+		"/mk8sclusters/FIN-03/my-cluster/kubeconfigs/kc-1",
+	} {
+		t.Run(path, func(t *testing.T) {
+			if lines := logged(path); len(lines) != 0 {
+				t.Errorf("expected nothing logged, got %q", lines)
+			}
+		})
+	}
+
+	t.Run("other paths are logged", func(t *testing.T) {
+		lines := strings.Join(logged("/mk8sclusters/FIN-03/my-cluster"), "\n")
+		if !strings.Contains(lines, secret) {
+			t.Errorf("expected the response body in the log, got %q", lines)
 		}
 	})
 }
