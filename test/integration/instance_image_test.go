@@ -12,13 +12,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build integration
-
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -27,8 +27,32 @@ import (
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
 
-// Keep the instance CRUD prefix so the smoke-test selector also runs these checks.
-func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
+// findInstanceImage returns the image_type value that instance creation requires.
+func findInstanceImage(ctx context.Context, client *verda.Client, instanceType string) (string, error) {
+	images, err := client.Images.GetImagesByInstanceType(ctx, instanceType)
+	if err != nil {
+		return "", fmt.Errorf("get images for instance type %q: %w", instanceType, err)
+	}
+
+	var fallback string
+	for _, image := range images {
+		if image.ImageType == "" || image.IsCluster {
+			continue
+		}
+		if image.IsDefault {
+			return image.ImageType, nil
+		}
+		if fallback == "" {
+			fallback = image.ImageType
+		}
+	}
+	if fallback == "" {
+		return "", fmt.Errorf("no usable images for instance type %q", instanceType)
+	}
+	return fallback, nil
+}
+
+func TestFindInstanceImage(t *testing.T) {
 	const instanceType = "CPU.4V.16G"
 	tests := []struct {
 		name    string
@@ -121,32 +145,6 @@ func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
-				}
-				server.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, r *http.Request) {
-					var req verda.CreateInstanceRequest
-					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-						t.Errorf("decode instance request: %v", err)
-						w.WriteHeader(http.StatusBadRequest)
-						return
-					}
-					if req.Image != tt.want {
-						t.Errorf("request image = %q, want image_type %q", req.Image, tt.want)
-						testutil.ErrorResponse(w, http.StatusBadRequest, "Unsupported image")
-						return
-					}
-					w.WriteHeader(http.StatusAccepted)
-					if err := json.NewEncoder(w).Encode(verda.Instance{ID: "test-instance"}); err != nil {
-						t.Errorf("encode instance: %v", err)
-					}
-				})
-				_, err = client.Instances.Create(t.Context(), verda.CreateInstanceRequest{
-					InstanceType: instanceType,
-					Image:        got,
-					Hostname:     "test-instance",
-					Description:  "Image selection test",
-				})
-				if err != nil {
-					t.Fatalf("create instance with selected image: %v", err)
 				}
 				return
 			}

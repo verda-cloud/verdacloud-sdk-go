@@ -10,9 +10,11 @@
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
 
-# Pin development tools to go.mod's toolchain directive, as CI does via go-version-file.
-# The go directive sets the minimum version for SDK consumers.
+# Prefer go.mod's toolchain for development checks. Otherwise use its minimum Go release.
 GO_VERSION := $(shell sed -n 's/^toolchain go//p' go.mod)
+ifeq ($(GO_VERSION),)
+GO_VERSION := $(shell sed -n 's/^go //p' go.mod | sed -E 's/^([0-9]+\.[0-9]+)$$/\1.0/')
+endif
 GOLANGCI_LINT_VERSION := v2.15.0
 GOLANGCI_LINT := GOTOOLCHAIN=go$(GO_VERSION) go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 GOVULNCHECK_VERSION := v1.7.0
@@ -153,7 +155,7 @@ vet-integration: ## Type-check integration tests (build tag 'integration'; no cr
 test: ## Run unit tests (fast, no external dependencies)
 	@echo "→ Running unit tests..."
 	@mkdir -p build
-	@go test -v -race -coverprofile=build/coverage.out ./pkg/verda
+	@go test -v -race -coverprofile=build/coverage.out ./pkg/verda ./test/integration
 	@echo "✓ Unit tests passed!"
 
 test-unit: test ## Alias for 'test'
