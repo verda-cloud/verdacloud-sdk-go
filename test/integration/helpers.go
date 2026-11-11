@@ -70,7 +70,7 @@ func generateRandomName(prefix string) string {
 	return prefix + "-" + hex.EncodeToString(b)
 }
 
-// findInstanceImage selects a current OS image compatible with the instance type.
+// findInstanceImage returns the image_type value that instance creation requires.
 func findInstanceImage(ctx context.Context, client *verda.Client, instanceType string) (string, error) {
 	images, err := client.Images.GetImagesByInstanceType(ctx, instanceType)
 	if err != nil {
@@ -79,14 +79,14 @@ func findInstanceImage(ctx context.Context, client *verda.Client, instanceType s
 
 	var fallback string
 	for _, image := range images {
-		if image.Name == "" || image.IsCluster {
+		if image.ImageType == "" || image.IsCluster {
 			continue
 		}
 		if image.IsDefault {
-			return image.Name, nil
+			return image.ImageType, nil
 		}
 		if fallback == "" {
-			fallback = image.Name
+			fallback = image.ImageType
 		}
 	}
 	if fallback == "" {

@@ -40,26 +40,26 @@ func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
 		{
 			name: "prefer first default over earlier non-default",
 			images: []verda.Image{
-				{Name: "fallback"},
-				{Name: "current-default", IsDefault: true},
-				{Name: "another-default", IsDefault: true},
+				{ImageType: "fallback"},
+				{ID: "image-id", ImageType: "current-default", Name: "Jupyter", IsDefault: true},
+				{ImageType: "another-default", IsDefault: true},
 			},
 			want: "current-default",
 		},
 		{
 			name: "fall back in API order",
 			images: []verda.Image{
-				{Name: "z-first"},
-				{Name: "a-second"},
+				{ImageType: "z-first"},
+				{ImageType: "a-second"},
 			},
 			want: "z-first",
 		},
 		{
-			name: "ignore unnamed and cluster defaults",
+			name: "ignore missing image types and cluster defaults",
 			images: []verda.Image{
-				{IsDefault: true},
-				{Name: "cluster-default", IsDefault: true, IsCluster: true},
-				{Name: "instance-default", IsDefault: true},
+				{ID: "missing-type-id", Name: "Display name only", IsDefault: true},
+				{ImageType: "cluster-default", IsDefault: true, IsCluster: true},
+				{ImageType: "instance-default", IsDefault: true},
 			},
 			want: "instance-default",
 		},
@@ -67,8 +67,8 @@ func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
 			name: "ignore unusable fallback images",
 			images: []verda.Image{
 				{},
-				{Name: "cluster", IsCluster: true},
-				{Name: "instance"},
+				{ImageType: "cluster", IsCluster: true},
+				{ImageType: "instance"},
 			},
 			want: "instance",
 		},
@@ -84,8 +84,8 @@ func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
 		{
 			name: "no usable images",
 			images: []verda.Image{
-				{IsDefault: true},
-				{Name: "cluster", IsCluster: true},
+				{ID: "missing-type-id", Name: "Display name only", IsDefault: true},
+				{ImageType: "cluster", IsCluster: true},
 			},
 			wantErr: "no usable images",
 		},
@@ -121,6 +121,32 @@ func TestInstanceCRUDIntegrationImageSelection(t *testing.T) {
 			if tt.wantErr == "" {
 				if err != nil {
 					t.Fatalf("unexpected error: %v", err)
+				}
+				server.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, r *http.Request) {
+					var req verda.CreateInstanceRequest
+					if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+						t.Errorf("decode instance request: %v", err)
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
+					if req.Image != tt.want {
+						t.Errorf("request image = %q, want image_type %q", req.Image, tt.want)
+						testutil.ErrorResponse(w, http.StatusBadRequest, "Unsupported image")
+						return
+					}
+					w.WriteHeader(http.StatusAccepted)
+					if err := json.NewEncoder(w).Encode(verda.Instance{ID: "test-instance"}); err != nil {
+						t.Errorf("encode instance: %v", err)
+					}
+				})
+				_, err = client.Instances.Create(t.Context(), verda.CreateInstanceRequest{
+					InstanceType: instanceType,
+					Image:        got,
+					Hostname:     "test-instance",
+					Description:  "Image selection test",
+				})
+				if err != nil {
+					t.Fatalf("create instance with selected image: %v", err)
 				}
 				return
 			}
