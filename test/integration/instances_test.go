@@ -131,6 +131,11 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 	if !ok {
 		t.Skip("⏭️  SKIPPING: No instance types available at any location")
 	}
+	image, err := findInstanceImage(ctx, client, availableInstance.InstanceType)
+	if err != nil {
+		t.Fatalf("Failed to select instance image: %v", err)
+	}
+	t.Logf("Selected image %s for instance type %s at %s", image, availableInstance.InstanceType, availableInstance.Location)
 
 	// Track state for sequential CRUD operations
 	var instanceID string
@@ -165,7 +170,7 @@ func TestInstanceCRUDIntegration(t *testing.T) {
 		// Create instance
 		req := verda.CreateInstanceRequest{
 			InstanceType: availableInstance.InstanceType,
-			Image:        "ubuntu-24.04-cuda-12.8-open-docker",
+			Image:        image,
 			SSHKeyIDs:    []string{sshKeyID},
 			LocationCode: availableInstance.Location,
 			Hostname:     "integration-test-vm",

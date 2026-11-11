@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"fmt"
 	"os"
 	"sort"
 	"testing"
@@ -67,6 +68,31 @@ func generateRandomName(prefix string) string {
 		return prefix + "-test"
 	}
 	return prefix + "-" + hex.EncodeToString(b)
+}
+
+// findInstanceImage selects a current OS image compatible with the instance type.
+func findInstanceImage(ctx context.Context, client *verda.Client, instanceType string) (string, error) {
+	images, err := client.Images.GetImagesByInstanceType(ctx, instanceType)
+	if err != nil {
+		return "", fmt.Errorf("get images for instance type %q: %w", instanceType, err)
+	}
+
+	var fallback string
+	for _, image := range images {
+		if image.Name == "" || image.IsCluster {
+			continue
+		}
+		if image.IsDefault {
+			return image.Name, nil
+		}
+		if fallback == "" {
+			fallback = image.Name
+		}
+	}
+	if fallback == "" {
+		return "", fmt.Errorf("no usable images for instance type %q", instanceType)
+	}
+	return fallback, nil
 }
 
 // ============================================================================
