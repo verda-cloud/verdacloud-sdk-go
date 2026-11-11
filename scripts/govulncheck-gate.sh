@@ -4,7 +4,7 @@
 set -euo pipefail
 
 : "${GOVULNCHECK:?path to govulncheck binary required}"
-: "${GO_VERSION:?expected Go version without the go prefix required}"
+: "${GO_VERSION:?expected Go version (e.g. 1.26.10) required}"
 
 ACCEPTED_VULNS='[]'
 
