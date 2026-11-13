@@ -5,7 +5,7 @@
 # For static analysis and formatting, use pre-commit hooks (see setup-hooks).
 # ============================================================================
 
-.PHONY: help build vet-integration test test-integration test-smoke clean coverage
+.PHONY: help build vet-integration test test-integration test-integration-mk8s test-integration-mk8s-sweep test-smoke clean coverage
 .PHONY: versions lint security gosec vulncheck fmt fix fix-check license license-check setup pre-commit
 .PHONY: test-unit integration test-e2e e2e
 .DEFAULT_GOAL := help
@@ -36,7 +36,7 @@ help: ## Show this help message with all available commands
 	@echo 'Usage: make [target]'
 	@echo ''
 	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 	@echo ''
 	@echo 'Tip: Run "make setup" to install tools and configure hooks!'
 
@@ -178,6 +178,12 @@ test-integration: ## Run integration tests (requires VERDA_CLIENT_ID and VERDA_C
 	@echo "✓ Integration tests passed!"
 
 integration: test-integration ## Alias for 'test-integration'
+
+test-integration-mk8s: test-integration-mk8s-sweep ## Run managed Kubernetes E2E tests (creates billable resources; about 5 min, timeout 17 min)
+	VERDA_E2E_MK8S=1 go test -count=1 -tags=integration -v -timeout=17m -run TestManagedKubernetes ./test/integration/...
+
+test-integration-mk8s-sweep: ## Delete managed Kubernetes E2E resources left by killed runs (older than 30 min)
+	VERDA_E2E_MK8S=1 go test -count=1 -tags=integration -v -timeout=10m -run '^TestSweepManagedKubernetesLeftovers$$' ./test/integration/...
 
 test-smoke: ## Run smoke tests: CRUD lifecycle for instance, serverless container, serverless job (cheapest resources; cleanup on success and failure)
 	@echo "→ Running smoke tests (instance + serverless container + serverless job)..."
@@ -347,6 +353,6 @@ ci: ## Run all CI checks (format, mod-tidy, go fix, license-check, lint, build, 
 	@echo "✓ All CI checks passed! Ready to push."
 
 .PHONY: setup lint fmt fix fix-check license license-check security gosec
-.PHONY: build vet-integration test test-integration test-smoke coverage clean mod-tidy update-deps release
+.PHONY: build vet-integration test test-integration test-integration-mk8s test-integration-mk8s-sweep test-smoke coverage clean mod-tidy update-deps release
 .PHONY: test-unit integration test-e2e e2e
 .PHONY: pre-commit ci
