@@ -22,7 +22,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -139,7 +138,7 @@ func TestManagedKubernetesReadOnly(t *testing.T) {
 		t.Skip("no location is enabled for managed Kubernetes; skipping the not-found checks")
 	}
 	location := enabled.Locations[0]
-	missing := "sdk-e2e-" + randomHex(t)
+	missing := "sdk-e2e-" + randomHex()
 
 	_, err = call(ctx, func(c context.Context) (*verda.ManagedKubernetesCluster, error) {
 		return client.ManagedKubernetes.Get(c, location, missing)
@@ -152,7 +151,7 @@ func TestManagedKubernetesReadOnly(t *testing.T) {
 	requireAPIError(t, err, http.StatusNotFound, mk8sCodeNotFound, mk8sReasonClusterNotFound)
 
 	_, err = call(ctx, func(c context.Context) (*verda.ManagedKubernetesKubeconfig, error) {
-		return client.ManagedKubernetes.GetKubeconfig(c, location, missing, missingKubeconfigID(t, missing))
+		return client.ManagedKubernetes.GetKubeconfig(c, location, missing, missingKubeconfigID(missing))
 	})
 	requireAPIError(t, err, http.StatusNotFound, mk8sCodeNotFound, mk8sReasonClusterNotFound)
 }
@@ -190,7 +189,7 @@ func TestManagedKubernetesLifecycle(t *testing.T) {
 	defer cancelBody()
 	budget := cleanupBudget{end: deadline.Add(-mk8sReportMargin)}
 
-	suffix := randomHex(t)
+	suffix := randomHex()
 	clusterName := "sdk-e2e-" + suffix
 	poolName := "pool-" + suffix
 	step := func(name string) { t.Logf("=== step: %s", name) }
@@ -259,11 +258,11 @@ func TestManagedKubernetesLifecycle(t *testing.T) {
 
 	step("missing children of an existing cluster")
 	_, err = call(bodyCtx, func(c context.Context) (*verda.ManagedKubernetesNodePool, error) {
-		return client.ManagedKubernetes.GetNodePool(c, location, clusterName, "missing-"+randomHex(t))
+		return client.ManagedKubernetes.GetNodePool(c, location, clusterName, "missing-"+randomHex())
 	})
 	requireAPIError(t, err, http.StatusNotFound, mk8sCodeNotFound, mk8sReasonNodePoolNotFound)
 	_, err = call(bodyCtx, func(c context.Context) (*verda.ManagedKubernetesKubeconfig, error) {
-		return client.ManagedKubernetes.GetKubeconfig(c, location, clusterName, missingKubeconfigID(t, clusterName))
+		return client.ManagedKubernetes.GetKubeconfig(c, location, clusterName, missingKubeconfigID(clusterName))
 	})
 	requireAPIError(t, err, http.StatusNotFound, mk8sCodeNotFound, mk8sReasonKubeconfigNotFound)
 
@@ -1146,17 +1145,12 @@ func describeConditions(conditions []verda.ManagedKubernetesCondition) string {
 
 // missingKubeconfigID returns an id in the server's "<cluster>-kc-<suffix>"
 // form that does not exist.
-func missingKubeconfigID(t *testing.T, clusterName string) string {
-	t.Helper()
-	return clusterName + "-kc-" + randomHex(t)
+func missingKubeconfigID(clusterName string) string {
+	return clusterName + "-kc-" + randomHex()
 }
 
-// randomHex returns 8 random hex characters.
-func randomHex(t *testing.T) string {
-	t.Helper()
-	b := make([]byte, 4)
-	if _, err := rand.Read(b); err != nil {
-		t.Fatalf("read random bytes: %v", err)
-	}
-	return hex.EncodeToString(b)
+// randomHex returns 8 random lowercase hex characters. The names only need
+// to be unique, so math/rand is enough.
+func randomHex() string {
+	return fmt.Sprintf("%08x", mathrand.Uint32())
 }
