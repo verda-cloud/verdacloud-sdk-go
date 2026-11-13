@@ -112,8 +112,8 @@ func TestSweepManagedKubernetesLeftovers(t *testing.T) {
 			continue
 		}
 		t.Logf("sweep: deleting SSH key %s (%s)", k.ID, k.Name)
-		if err := callErr(ctx, func(c context.Context) error { return client.SSHKeys.DeleteSSHKey(c, k.ID) }); err != nil {
-			t.Errorf("sweep: SSH key %s (%s): %v", k.ID, k.Name, err)
+		if err := deleteSSHKey(ctx, t, client, k.ID, k.Name); err != nil {
+			t.Errorf("sweep: %v", err)
 		}
 	}
 }
@@ -177,12 +177,12 @@ func sweepNetwork(ctx context.Context, t *testing.T, client *verda.Client, netwo
 			t.Errorf("sweep: subnet %s of network %s: %v; instances: %v", s.ID, network.ID, err, leftover)
 			return
 		}
-		if err := callErr(ctx, func(c context.Context) error { return client.PrivateNetworks.DeleteSubnet(c, network.ID, s.ID) }); err != nil {
-			t.Errorf("sweep: subnet %s of network %s: %v", s.ID, network.ID, err)
+		if err := deleteSubnet(ctx, t, client, network.ID, s.ID); err != nil {
+			t.Errorf("sweep: %v", err)
 			return
 		}
 	}
-	if err := callErr(ctx, func(c context.Context) error { return client.PrivateNetworks.Delete(c, network.ID) }); err != nil {
-		t.Errorf("sweep: private network %s (%s): %v", network.ID, network.Name, err)
+	if err := deleteNetwork(ctx, t, client, &network); err != nil {
+		t.Errorf("sweep: %v", err)
 	}
 }

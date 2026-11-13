@@ -509,11 +509,13 @@ func cleanupKubeconfigs(ctx context.Context, t *testing.T, client *verda.Client,
 		}
 	}
 	for _, kcID := range ids {
-		err := callErr(ctx, func(c context.Context) error {
+		_, err := deleteWithRetry(ctx, t, "kubeconfig "+kcID+" of "+location+"/"+clusterName, true, func(c context.Context) error {
 			return client.ManagedKubernetes.DeleteKubeconfig(c, location, clusterName, kcID)
+		}, func(err error) bool {
+			return isAPIError(err, http.StatusNotFound, mk8sReasonKubeconfigNotFound, mk8sReasonClusterNotFound)
 		})
-		if err != nil && !isAPIError(err, http.StatusNotFound, mk8sReasonKubeconfigNotFound, mk8sReasonClusterNotFound) {
-			t.Errorf("cleanup: kubeconfig %s of %s/%s: %v", kcID, location, clusterName, err)
+		if err != nil {
+			t.Errorf("cleanup: %v", err)
 		}
 	}
 }
@@ -618,8 +620,8 @@ func createEphemeralSSHKey(ctx context.Context, t *testing.T, client *verda.Clie
 	t.Cleanup(func() {
 		cctx, cancel := budget.finalContext()
 		defer cancel()
-		if err := callErr(cctx, func(c context.Context) error { return client.SSHKeys.DeleteSSHKey(c, key.ID) }); err != nil {
-			t.Errorf("cleanup: SSH key %s (%s): %v", key.ID, name, err)
+		if err := deleteSSHKey(cctx, t, client, key.ID, name); err != nil {
+			t.Errorf("cleanup: %v", err)
 		}
 	})
 	return key.ID
@@ -658,8 +660,8 @@ func createMk8sNetwork(ctx context.Context, t *testing.T, client *verda.Client, 
 	t.Cleanup(func() {
 		cctx, cancel := budget.finalContext()
 		defer cancel()
-		if err := callErr(cctx, func(c context.Context) error { return client.PrivateNetworks.Delete(c, network.ID) }); err != nil {
-			t.Errorf("cleanup: private network %s (%s): %v", network.ID, network.Name, err)
+		if err := deleteNetwork(cctx, t, client, network); err != nil {
+			t.Errorf("cleanup: %v", err)
 		}
 	})
 
@@ -678,11 +680,38 @@ func createMk8sNetwork(ctx context.Context, t *testing.T, client *verda.Client, 
 	t.Cleanup(func() {
 		cctx, cancel := budget.finalContext()
 		defer cancel()
-		if err := callErr(cctx, func(c context.Context) error { return client.PrivateNetworks.DeleteSubnet(c, network.ID, subnet.ID) }); err != nil {
-			t.Errorf("cleanup: subnet %s of network %s: %v", subnet.ID, network.ID, err)
+		if err := deleteSubnet(cctx, t, client, network.ID, subnet.ID); err != nil {
+			t.Errorf("cleanup: %v", err)
 		}
 	})
 	return network, subnet
+}
+
+// deleteSSHKey, deleteNetwork and deleteSubnet are used by the cleanups and
+// the sweeper. They retry DELETE like deleteWithRetry, and a 404 counts as
+// already deleted, so that a parallel sweep does not fail the cleanup.
+func deleteSSHKey(ctx context.Context, t *testing.T, client *verda.Client, id, name string) error {
+	t.Helper()
+	_, err := deleteWithRetry(ctx, t, "SSH key "+id+" ("+name+")", true, func(c context.Context) error {
+		return client.SSHKeys.DeleteSSHKey(c, id)
+	}, isNotFound)
+	return err
+}
+
+func deleteNetwork(ctx context.Context, t *testing.T, client *verda.Client, network *verda.PrivateNetwork) error {
+	t.Helper()
+	_, err := deleteWithRetry(ctx, t, "private network "+network.ID+" ("+network.Name+")", true, func(c context.Context) error {
+		return client.PrivateNetworks.Delete(c, network.ID)
+	}, isNotFound)
+	return err
+}
+
+func deleteSubnet(ctx context.Context, t *testing.T, client *verda.Client, networkID, subnetID string) error {
+	t.Helper()
+	_, err := deleteWithRetry(ctx, t, "subnet "+subnetID+" of network "+networkID, true, func(c context.Context) error {
+		return client.PrivateNetworks.DeleteSubnet(c, networkID, subnetID)
+	}, isNotFound)
+	return err
 }
 
 // instancesInSubnet returns the instances in subnetID that are not
@@ -1021,6 +1050,13 @@ func isAPIError(err error, status int, reasons ...string) bool {
 		return false
 	}
 	return slices.Contains(reasons, apiErrorReason(apiErr))
+}
+
+// isNotFound reports whether err is an *verda.APIError with status 404,
+// whatever its reason.
+func isNotFound(err error) bool {
+	var apiErr *verda.APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
 // isTransient reports whether err is a timed-out call, a transport error (no
