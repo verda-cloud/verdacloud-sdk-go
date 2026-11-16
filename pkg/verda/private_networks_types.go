@@ -179,7 +179,7 @@ type Route struct {
 // CreateRouteRequest represents the request to route a subnet's traffic
 // through one of the network's instances. The instance must be in the subnet's
 // datacenter and have a public IP. Re-sending an existing destination moves it
-// to another instance.
+// to another instance and keeps the route's ID.
 type CreateRouteRequest struct {
 	Destination string `json:"destination"`
 	InstanceID  string `json:"instance_id"`
