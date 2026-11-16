@@ -31,8 +31,18 @@ import (
 )
 
 // TestPrivateNetworks exercises the private network lifecycle: create, list,
-// get, update, subnet CRUD, route listing. Route creation is not covered: it
-// requires a deployed instance with a public IP in the subnet's datacenter.
+// get, update, subnet CRUD, route listing. It also checks these API rules:
+//   - a network created without a mode gets mode "custom";
+//   - the location reports private networks and an IPv4 auto subnet;
+//   - an explicit is_default=false is honoured, an omitted one makes the
+//     first default subnet, and setting the default moves it;
+//   - both workload endpoints return an empty list for a fresh network, and
+//     a subnet of another network is not found;
+//   - a route for a destination other than 0.0.0.0/0 is rejected;
+//   - an unknown network is not found.
+//
+// Successful route creation and non-empty workloads are not covered: they
+// require a deployed instance in the subnet's datacenter.
 func TestPrivateNetworks(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration tests in short mode")
@@ -126,6 +136,16 @@ func TestPrivateNetworks(t *testing.T) {
 		t.Fatalf("failed to create subnet in %s (%s): %v", locationCode, cidr, err)
 	}
 	t.Logf("Created subnet %s (%s) in %s", subnet.ID, subnet.CIDR, subnet.Location.Code)
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		// The delete_subnet subtest normally removes it first
+		err := client.PrivateNetworks.DeleteSubnet(cleanupCtx, network.ID, subnet.ID)
+		var apiErr *verda.APIError
+		if err != nil && !(errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound) {
+			t.Logf("⚠️  Failed to delete subnet %s: %v", subnet.ID, err)
+		}
+	})
 
 	t.Run("get_subnet", func(t *testing.T) {
 		fetched, err := client.PrivateNetworks.GetSubnetByID(ctx, network.ID, subnet.ID)
@@ -249,26 +269,31 @@ func TestPrivateNetworks(t *testing.T) {
 		}
 	})
 
-	t.Run("create_network_default_mode", func(t *testing.T) {
-		other, err := client.PrivateNetworks.Create(ctx, verda.CreatePrivateNetworkRequest{
-			Name: generateRandomName("sdk-test-net"),
-		})
-		if err != nil {
-			t.Fatalf("failed to create network without a mode: %v", err)
+	// A second network, created without a mode. It is used by
+	// create_network_default_mode and subnet_workloads_wrong_network.
+	other, err := client.PrivateNetworks.Create(ctx, verda.CreatePrivateNetworkRequest{
+		Name: generateRandomName("sdk-test-net"),
+	})
+	if err != nil {
+		t.Fatalf("failed to create network without a mode: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.PrivateNetworks.Delete(cleanupCtx, other.ID); err != nil {
+			t.Logf("⚠️  Failed to delete private network %s: %v", other.ID, err)
 		}
-		t.Cleanup(func() {
-			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			if err := client.PrivateNetworks.Delete(cleanupCtx, other.ID); err != nil {
-				t.Logf("⚠️  Failed to delete private network %s: %v", other.ID, err)
-			}
-		})
+	})
+
+	t.Run("create_network_default_mode", func(t *testing.T) {
 		if other.Mode != verda.NetworkModeCustom {
 			t.Errorf("expected mode %q when omitted, got %q", verda.NetworkModeCustom, other.Mode)
 		}
+	})
 
+	t.Run("subnet_workloads_wrong_network", func(t *testing.T) {
 		// A subnet of one network is not found under another network
-		_, err = client.PrivateNetworks.GetSubnetWorkloads(ctx, other.ID, subnet.ID)
+		_, err := client.PrivateNetworks.GetSubnetWorkloads(ctx, other.ID, subnet.ID)
 		requireStatus(t, err, http.StatusNotFound)
 	})
 
@@ -281,11 +306,15 @@ func TestPrivateNetworks(t *testing.T) {
 			if loc.Code != locationCode {
 				continue
 			}
+			if !loc.IsPrivateNetworksEnabled {
+				t.Errorf("expected is_private_networks_enabled=true for %s", locationCode)
+			}
 			if loc.PrivateNetworkAutoSubnet == nil {
 				t.Fatalf("expected private_network_auto_subnet for %s", locationCode)
 			}
-			if _, err := netip.ParsePrefix(*loc.PrivateNetworkAutoSubnet); err != nil {
-				t.Errorf("private_network_auto_subnet %q is not a CIDR: %v", *loc.PrivateNetworkAutoSubnet, err)
+			prefix, err := netip.ParsePrefix(*loc.PrivateNetworkAutoSubnet)
+			if err != nil || !prefix.Addr().Is4() {
+				t.Errorf("private_network_auto_subnet %q is not an IPv4 prefix (err: %v)", *loc.PrivateNetworkAutoSubnet, err)
 			}
 			return
 		}
