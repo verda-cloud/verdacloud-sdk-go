@@ -97,7 +97,7 @@ type CreateInstanceRequest struct {
 	InstanceType    string                 `json:"instance_type"`
 	Image           string                 `json:"image"`
 	Hostname        string                 `json:"hostname"`
-	Description     string                 `json:"description"`
+	Description     string                 `json:"description,omitempty"`
 	SSHKeyIDs       []string               `json:"ssh_key_ids,omitempty"`
 	LocationCode    string                 `json:"location_code,omitempty"`
 	Contract        string                 `json:"contract,omitempty"`
@@ -111,12 +111,19 @@ type CreateInstanceRequest struct {
 	// Network and Subnet select the private network attachment for the instance.
 	// Omitting both takes the project's default network and its default subnet
 	// in the instance's location when the IPs request a private network.
+	// Network and Subnet require PrivateIP set to IPAllocAuto or an IPv4 address.
 	Network string `json:"network,omitempty"`
 	Subnet  string `json:"subnet,omitempty"`
 	// PrivateIP and PublicIP must be set together or not at all: IPAllocAuto,
 	// IPAllocNone, or a literal IPv4 (see IPAllocIPv4). PublicIP may only be
 	// IPAllocNone when a private address is assigned. Both omitted means
 	// platform default.
+	//
+	// When PrivateIP is IPAllocNone, PublicIP must be IPAllocAuto. The API
+	// accepts an IPv4 address for PublicIP only for an address that the
+	// project reserved. In a datacenter that supports only private networks,
+	// the API attaches every instance to a private network, also when
+	// PrivateIP is IPAllocNone.
 	PrivateIP *IPAllocation `json:"private_ip,omitempty"`
 	PublicIP  *IPAllocation `json:"public_ip,omitempty"`
 	// Tags are key-value tags applied to the new instance. Maximum 10.
@@ -196,7 +203,6 @@ func (r CreateInstanceRequest) Validate() error {
 		validation.Field(&r.InstanceType, validation.Required),
 		validation.Field(&r.Image, validation.Required),
 		validation.Field(&r.Hostname, validation.Required),
-		validation.Field(&r.Description, validation.Required),
 		validation.Field(&r.Contract,
 			validation.In("LONG_TERM", "PAY_AS_YOU_GO", "SPOT")),
 		validation.Field(&r.OSVolume),
@@ -213,7 +219,7 @@ func (r CreateInstanceRequest) Validate() error {
 // validateNetworkFields enforces the API's private/public IP pairing rules
 func (r CreateInstanceRequest) validateNetworkFields() error {
 	if (r.PrivateIP == nil) != (r.PublicIP == nil) {
-		return fmt.Errorf("private_ip and public_ip must both be set (or both omitted); to skip one address, set it to %q and the other to %q or an IPv4 address", IPAllocNone, IPAllocAuto)
+		return fmt.Errorf("private_ip and public_ip must both be set (or both omitted); for an instance without a private address use private_ip %q with public_ip %q", IPAllocNone, IPAllocAuto)
 	}
 
 	for _, alloc := range []*IPAllocation{r.PrivateIP, r.PublicIP} {
@@ -227,6 +233,16 @@ func (r CreateInstanceRequest) validateNetworkFields() error {
 
 	if r.PrivateIP != nil && *r.PrivateIP == IPAllocNone && *r.PublicIP == IPAllocNone {
 		return fmt.Errorf("private_ip and public_ip cannot both be %q", IPAllocNone)
+	}
+
+	// An instance without a private address is a classic instance: it always
+	// gets an automatic public IP, never an explicit one.
+	if r.PrivateIP != nil && *r.PrivateIP == IPAllocNone && *r.PublicIP != IPAllocAuto {
+		return fmt.Errorf("public_ip must be %q when private_ip is %q; an explicit public address is only supported on a private network", IPAllocAuto, IPAllocNone)
+	}
+
+	if (r.Network != "" || r.Subnet != "") && (r.PrivateIP == nil || *r.PrivateIP == IPAllocNone) {
+		return fmt.Errorf("network and subnet require a private address: set private_ip to %q (or a free address in the subnet) together with public_ip", IPAllocAuto)
 	}
 
 	return nil

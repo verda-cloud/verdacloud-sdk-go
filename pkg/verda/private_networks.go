@@ -75,6 +75,30 @@ func (s *PrivateNetworkService) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+// GetWorkloads lists the instances attached to a network, newest first.
+// The list does not include cluster nodes.
+func (s *PrivateNetworkService) GetWorkloads(ctx context.Context, networkID string) ([]PrivateNetworkWorkload, error) {
+	path := fmt.Sprintf("/private-networks/%s/workloads", networkID)
+
+	workloads, _, err := getRequest[[]PrivateNetworkWorkload](ctx, s.client, path)
+	if err != nil {
+		return nil, err
+	}
+	return workloads, nil
+}
+
+// GetSubnetWorkloads lists the instances that take their private address
+// from a subnet, newest first. The list does not include cluster nodes.
+func (s *PrivateNetworkService) GetSubnetWorkloads(ctx context.Context, networkID, subnetID string) ([]PrivateNetworkWorkload, error) {
+	path := fmt.Sprintf("/private-networks/%s/subnets/%s/workloads", networkID, subnetID)
+
+	workloads, _, err := getRequest[[]PrivateNetworkWorkload](ctx, s.client, path)
+	if err != nil {
+		return nil, err
+	}
+	return workloads, nil
+}
+
 func (s *PrivateNetworkService) CreateSubnet(ctx context.Context, networkID string, req CreateSubnetRequest) (*Subnet, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err

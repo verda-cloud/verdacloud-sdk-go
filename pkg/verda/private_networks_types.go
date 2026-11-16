@@ -92,12 +92,54 @@ type Subnet struct {
 	CreatedAt            time.Time         `json:"created_at"`
 }
 
+// PrivateNetworkWorkload is an instance attached to a private network
+type PrivateNetworkWorkload struct {
+	ID       string   `json:"id"`
+	SubnetID string   `json:"subnet_id"`
+	Location Location `json:"location"`
+	Hostname string   `json:"hostname"`
+	// Status is the instance's lifecycle status (see the Status* constants)
+	Status    string                         `json:"status"`
+	Model     PrivateNetworkWorkloadModel    `json:"model"`
+	Template  PrivateNetworkWorkloadTemplate `json:"template"`
+	PrivateIP string                         `json:"private_ip"`
+	// PublicIP is nil when the instance has no public address
+	PublicIP  *string   `json:"public_ip"`
+	CreatedAt time.Time `json:"created_at"`
+	// CreatedByUserID is nil when the API has no record of the creator
+	CreatedByUserID *string `json:"created_by_user_id"`
+}
+
+// PrivateNetworkWorkloadModel is the hardware model a workload runs on
+type PrivateNetworkWorkloadModel struct {
+	Code         string `json:"code"`
+	Name         string `json:"name"`
+	Category     string `json:"category"`
+	Manufacturer string `json:"manufacturer"`
+	// ClusterModelCode is nil for models that the API does not offer as clusters
+	ClusterModelCode *string `json:"cluster_model_code"`
+}
+
+// PrivateNetworkWorkloadTemplate is the instance type of a workload
+type PrivateNetworkWorkloadTemplate struct {
+	InstanceType string  `json:"instance_type"`
+	CPUCores     int     `json:"cpu_cores"`
+	CPUModel     *string `json:"cpu_model"`
+	GPUNumber    int     `json:"gpu_number"`
+	GPUVRAMGB    int     `json:"gpu_vram_gb"`
+	RAMGB        int     `json:"ram_gb"`
+}
+
 // CreateSubnetRequest represents the request to create a subnet
 type CreateSubnetRequest struct {
 	LocationCode string `json:"location_code"`
 	Name         string `json:"name"`
 	CIDR         string `json:"cidr"`
-	IsDefault    bool   `json:"is_default,omitempty"`
+	// IsDefault makes this subnet the default subnet of the network in its
+	// datacenter. If IsDefault is nil, the API decides: the subnet becomes
+	// the default when the network has no default subnet in that datacenter.
+	// The API keeps an explicit false, also for the first subnet.
+	IsDefault *bool `json:"is_default,omitempty"`
 }
 
 // Validate validates the CreateSubnetRequest fields
@@ -139,6 +181,9 @@ type Route struct {
 // datacenter and have a public IP. Re-sending an existing destination moves it
 // to another instance.
 type CreateRouteRequest struct {
+	// Destination is an IPv4 CIDR. At this time, the API accepts only
+	// "0.0.0.0/0" (all internet traffic) and rejects other values with HTTP
+	// 400. A moved route keeps its ID.
 	Destination string `json:"destination"`
 	InstanceID  string `json:"instance_id"`
 }

@@ -342,10 +342,12 @@ network, err := client.PrivateNetworks.Create(ctx, verda.CreatePrivateNetworkReq
     Name: "prod-net",
     Mode: verda.NetworkModeCustom, // or verda.NetworkModeAuto: subnets per location on first use
 })
+isDefault := true // nil lets the API decide; false keeps the subnet non-default
 subnet, err := client.PrivateNetworks.CreateSubnet(ctx, network.ID, verda.CreateSubnetRequest{
     LocationCode: "FIN-01",
     Name:         "workers",
     CIDR:         "10.0.0.0/24",
+    IsDefault:    &isDefault,
 })
 
 // Route the subnet's internet traffic through an instance (must have a public IP)
@@ -353,6 +355,10 @@ route, err := client.PrivateNetworks.CreateRoute(ctx, network.ID, subnet.ID, ver
     Destination: "0.0.0.0/0",
     InstanceID:  instanceID,
 })
+
+// List the instances on the network, or on one subnet
+workloads, err := client.PrivateNetworks.GetWorkloads(ctx, network.ID)
+subnetWorkloads, err := client.PrivateNetworks.GetSubnetWorkloads(ctx, network.ID, subnet.ID)
 
 // Deploy an instance onto the network
 private, public := verda.IPAllocAuto, verda.IPAllocAuto
@@ -372,6 +378,12 @@ instance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 none (a public `none` requires a private address), or pass a literal IPv4 your project holds.
 Omitting both fields gives the platform default. Instance responses
 expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
+
+When `private_ip` is `none`, `public_ip` must be `auto`. In a datacenter that supports only private
+networks, the API attaches every instance to a private network, also for `private_ip: none`.
+
+Routes accept only the destination `0.0.0.0/0` at this time. A route for a destination that already
+has one moves to the new instance and keeps its ID.
 
 ### Managed Kubernetes
 

@@ -274,7 +274,38 @@ type CreateSubnetRequest struct {
 	LocationCode string `json:"location_code"`
 	Name         string `json:"name"`
 	CIDR         string `json:"cidr"`
-	IsDefault    bool   `json:"is_default,omitempty"`
+	IsDefault    *bool  `json:"is_default,omitempty"`
+}
+
+type PrivateNetworkWorkloadModel struct {
+	Code             string  `json:"code"`
+	Name             string  `json:"name"`
+	Category         string  `json:"category"`
+	Manufacturer     string  `json:"manufacturer"`
+	ClusterModelCode *string `json:"cluster_model_code"`
+}
+
+type PrivateNetworkWorkloadTemplate struct {
+	InstanceType string  `json:"instance_type"`
+	CPUCores     int     `json:"cpu_cores"`
+	CPUModel     *string `json:"cpu_model"`
+	GPUNumber    int     `json:"gpu_number"`
+	GPUVRAMGB    int     `json:"gpu_vram_gb"`
+	RAMGB        int     `json:"ram_gb"`
+}
+
+type PrivateNetworkWorkload struct {
+	ID              string                         `json:"id"`
+	SubnetID        string                         `json:"subnet_id"`
+	Location        Location                       `json:"location"`
+	Hostname        string                         `json:"hostname"`
+	Status          string                         `json:"status"`
+	Model           PrivateNetworkWorkloadModel    `json:"model"`
+	Template        PrivateNetworkWorkloadTemplate `json:"template"`
+	PrivateIP       string                         `json:"private_ip"`
+	PublicIP        *string                        `json:"public_ip"`
+	CreatedAt       time.Time                      `json:"created_at"`
+	CreatedByUserID *string                        `json:"created_by_user_id"`
 }
 
 type UpdateSubnetRequest struct {
@@ -648,7 +679,9 @@ func (ms *MockServer) handleRequest(w http.ResponseWriter, r *http.Request) {
 		ms.handleDeleteMultipleSSHKeys(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == "/locations":
 		ms.handleGetLocations(w, r)
-	// Private Networks - deepest routes first so /routes beats /subnets, which beats the network itself
+	// Private Networks - deepest routes first so /routes and /workloads beat /subnets, which beats the network itself
+	case r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, pathPrivateNetworks+"/") && strings.HasSuffix(r.URL.Path, "/workloads"):
+		ms.handleGetPrivateNetworkWorkloads(w, r)
 	case r.Method == http.MethodPost && r.URL.Path == pathPrivateNetworks:
 		ms.handleCreatePrivateNetwork(w, r)
 	case r.Method == http.MethodGet && r.URL.Path == pathPrivateNetworks:
@@ -1219,7 +1252,8 @@ func (ms *MockServer) handleCreatePrivateNetworkSubnet(w http.ResponseWriter, r 
 	subnet := mockSubnetFixture("sn_new_123", req.LocationCode)
 	subnet.Name = req.Name
 	subnet.CIDR = req.CIDR
-	subnet.IsDefault = req.IsDefault
+	// Stand-in for the server rule: nil means "default if none exists yet"
+	subnet.IsDefault = req.IsDefault == nil || *req.IsDefault
 
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, subnet)
@@ -1326,6 +1360,76 @@ func (ms *MockServer) handleGetPrivateNetworkRoutes(w http.ResponseWriter, r *ht
 
 func (ms *MockServer) handleDeletePrivateNetworkRoute(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// handleGetPrivateNetworkWorkloads serves both /private-networks/{id}/workloads
+// and /private-networks/{id}/subnets/{subnetId}/workloads. Network "pn_empty"
+// returns an empty list and "pn_missing" a 404.
+func (ms *MockServer) handleGetPrivateNetworkWorkloads(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	parts := strings.Split(r.URL.Path, "/")
+	networkID := ""
+	if len(parts) > 2 {
+		networkID = parts[2]
+	}
+	switch networkID {
+	case "pn_missing":
+		w.WriteHeader(http.StatusNotFound)
+		writeJSON(w, map[string]string{"code": "not_found", "message": "Private network not found"})
+		return
+	case "pn_empty":
+		writeJSON(w, []PrivateNetworkWorkload{})
+		return
+	}
+
+	subnetID := "sn_123"
+	if strings.Contains(r.URL.Path, "/subnets/") {
+		subnetID, _ = subnetLocation(r.URL.Path)
+	}
+
+	location := Location{Code: "FIN-01", Name: "Finland 1", CountryCode: "FI", IsPrivateNetworksEnabled: true}
+	publicIP := mockIPAddress
+	userID := "7dfc2631-0158-4f74-93f6-6b46dcb90fef"
+	clusterModel := "B200"
+	cpuModel := "AMD EPYC 9654"
+
+	writeJSON(w, []PrivateNetworkWorkload{
+		{
+			ID:       "inst_wl_full",
+			SubnetID: subnetID,
+			Location: location,
+			Hostname: "hazy-star-swims-fin-01",
+			Status:   StatusRunning,
+			Model: PrivateNetworkWorkloadModel{
+				Code: "B200", Name: "NVIDIA B200", Category: "gpu",
+				Manufacturer: "NVIDIA", ClusterModelCode: &clusterModel,
+			},
+			Template: PrivateNetworkWorkloadTemplate{
+				InstanceType: "1B200.30V", CPUCores: 30, CPUModel: &cpuModel,
+				GPUNumber: 1, GPUVRAMGB: 180, RAMGB: 184,
+			},
+			PrivateIP:       "10.0.0.5",
+			PublicIP:        &publicIP,
+			CreatedAt:       time.Now(),
+			CreatedByUserID: &userID,
+		},
+		{
+			ID:       "inst_wl_nulls",
+			SubnetID: subnetID,
+			Location: location,
+			Hostname: "quiet-moon-rests-fin-01",
+			Status:   "provisioning",
+			Model: PrivateNetworkWorkloadModel{
+				Code: "CPU", Name: "CPU Node", Category: "cpu", Manufacturer: "AMD",
+			},
+			Template: PrivateNetworkWorkloadTemplate{
+				InstanceType: "CPU.4V.16G", CPUCores: 4, RAMGB: 16,
+			},
+			PrivateIP: "10.0.0.6",
+			CreatedAt: time.Now(),
+		},
+	})
 }
 
 // subnetLocation extracts the subnet ID and derives a location code hint from

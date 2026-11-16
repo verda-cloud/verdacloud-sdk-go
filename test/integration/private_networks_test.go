@@ -18,8 +18,12 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
+	"net/http"
+	"net/netip"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,10 +115,12 @@ func TestPrivateNetworks(t *testing.T) {
 		}
 	})
 
+	notDefault := false
 	subnet, err := client.PrivateNetworks.CreateSubnet(ctx, network.ID, verda.CreateSubnetRequest{
 		LocationCode: locationCode,
 		Name:         generateRandomName("sdk-test-subnet"),
 		CIDR:         cidr,
+		IsDefault:    &notDefault,
 	})
 	if err != nil {
 		t.Fatalf("failed to create subnet in %s (%s): %v", locationCode, cidr, err)
@@ -168,9 +174,156 @@ func TestPrivateNetworks(t *testing.T) {
 		}
 	})
 
+	t.Run("first_subnet_explicit_not_default", func(t *testing.T) {
+		if subnet.IsDefault {
+			t.Error("expected the create response to honor is_default=false")
+		}
+		fetched, err := client.PrivateNetworks.GetSubnetByID(ctx, network.ID, subnet.ID)
+		if err != nil {
+			t.Fatalf("failed to get subnet: %v", err)
+		}
+		if fetched.IsDefault {
+			t.Error("expected is_default=false to persist")
+		}
+	})
+
+	// The next /24 after the first subnet, in the same location
+	octets := netip.MustParsePrefix(cidr).Addr().As4()
+	octets[2]++
+	secondCIDR := netip.PrefixFrom(netip.AddrFrom4(octets), 24).String()
+	second, err := client.PrivateNetworks.CreateSubnet(ctx, network.ID, verda.CreateSubnetRequest{
+		LocationCode: locationCode,
+		Name:         generateRandomName("sdk-test-subnet"),
+		CIDR:         secondCIDR,
+	})
+	if err != nil {
+		t.Fatalf("failed to create second subnet in %s (%s): %v", locationCode, secondCIDR, err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := client.PrivateNetworks.DeleteSubnet(cleanupCtx, network.ID, second.ID); err != nil {
+			t.Logf("⚠️  Failed to delete subnet %s: %v", second.ID, err)
+		}
+	})
+
+	t.Run("second_subnet_omitted_default", func(t *testing.T) {
+		// The location has no default subnet yet, so the API makes this one the default
+		if !second.IsDefault {
+			t.Error("expected a subnet created without is_default to become the default")
+		}
+	})
+
+	t.Run("update_subnet_default_swaps", func(t *testing.T) {
+		isDefault := true
+		updated, err := client.PrivateNetworks.UpdateSubnet(ctx, network.ID, subnet.ID, verda.UpdateSubnetRequest{IsDefault: &isDefault})
+		if err != nil {
+			t.Fatalf("failed to update subnet: %v", err)
+		}
+		if !updated.IsDefault {
+			t.Error("expected the first subnet to become the default")
+		}
+		fetched, err := client.PrivateNetworks.GetSubnetByID(ctx, network.ID, second.ID)
+		if err != nil {
+			t.Fatalf("failed to get second subnet: %v", err)
+		}
+		if fetched.IsDefault {
+			t.Error("expected the second subnet to lose the default")
+		}
+	})
+
+	t.Run("workloads_empty", func(t *testing.T) {
+		workloads, err := client.PrivateNetworks.GetWorkloads(ctx, network.ID)
+		if err != nil {
+			t.Fatalf("failed to list network workloads: %v", err)
+		}
+		if len(workloads) != 0 {
+			t.Errorf("expected no workloads on a fresh network, got %d", len(workloads))
+		}
+		workloads, err = client.PrivateNetworks.GetSubnetWorkloads(ctx, network.ID, subnet.ID)
+		if err != nil {
+			t.Fatalf("failed to list subnet workloads: %v", err)
+		}
+		if len(workloads) != 0 {
+			t.Errorf("expected no workloads on a fresh subnet, got %d", len(workloads))
+		}
+	})
+
+	t.Run("create_network_default_mode", func(t *testing.T) {
+		other, err := client.PrivateNetworks.Create(ctx, verda.CreatePrivateNetworkRequest{
+			Name: generateRandomName("sdk-test-net"),
+		})
+		if err != nil {
+			t.Fatalf("failed to create network without a mode: %v", err)
+		}
+		t.Cleanup(func() {
+			cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if err := client.PrivateNetworks.Delete(cleanupCtx, other.ID); err != nil {
+				t.Logf("⚠️  Failed to delete private network %s: %v", other.ID, err)
+			}
+		})
+		if other.Mode != verda.NetworkModeCustom {
+			t.Errorf("expected mode %q when omitted, got %q", verda.NetworkModeCustom, other.Mode)
+		}
+
+		// A subnet of one network is not found under another network
+		_, err = client.PrivateNetworks.GetSubnetWorkloads(ctx, other.ID, subnet.ID)
+		requireStatus(t, err, http.StatusNotFound)
+	})
+
+	t.Run("location_private_network_fields", func(t *testing.T) {
+		locations, err := client.Locations.Get(ctx)
+		if err != nil {
+			t.Fatalf("failed to get locations: %v", err)
+		}
+		for _, loc := range locations {
+			if loc.Code != locationCode {
+				continue
+			}
+			if loc.PrivateNetworkAutoSubnet == nil {
+				t.Fatalf("expected private_network_auto_subnet for %s", locationCode)
+			}
+			if _, err := netip.ParsePrefix(*loc.PrivateNetworkAutoSubnet); err != nil {
+				t.Errorf("private_network_auto_subnet %q is not a CIDR: %v", *loc.PrivateNetworkAutoSubnet, err)
+			}
+			return
+		}
+		t.Fatalf("location %s not in the list", locationCode)
+	})
+
+	t.Run("create_route_rejects_non_default_destination", func(t *testing.T) {
+		// The API checks the destination before the instance, so no instance is needed
+		_, err := client.PrivateNetworks.CreateRoute(ctx, network.ID, subnet.ID, verda.CreateRouteRequest{
+			Destination: "10.0.0.0/8",
+			InstanceID:  "4f6e0a3c-1b2d-4c5e-8f9a-0b1c2d3e4f5a",
+		})
+		apiErr := requireStatus(t, err, http.StatusBadRequest)
+		if apiErr != nil && !strings.Contains(apiErr.Message, "0.0.0.0/0") {
+			t.Errorf("expected the error to mention 0.0.0.0/0, got %q", apiErr.Message)
+		}
+	})
+
+	t.Run("get_missing_network", func(t *testing.T) {
+		_, err := client.PrivateNetworks.GetByID(ctx, "pn_sdkmissing")
+		requireStatus(t, err, http.StatusNotFound)
+	})
+
 	t.Run("delete_subnet", func(t *testing.T) {
 		if err := client.PrivateNetworks.DeleteSubnet(ctx, network.ID, subnet.ID); err != nil {
 			t.Fatalf("failed to delete subnet: %v", err)
 		}
 	})
+}
+
+// requireStatus fails the test unless err is an *verda.APIError with the given
+// HTTP status. It returns the error for further checks, or nil.
+func requireStatus(t *testing.T, err error, status int) *verda.APIError {
+	t.Helper()
+	var apiErr *verda.APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != status {
+		t.Errorf("expected an API error with status %d, got %v", status, err)
+		return nil
+	}
+	return apiErr
 }
