@@ -158,10 +158,6 @@ func (s *PrivateNetworkService) DeleteSubnet(ctx context.Context, networkID, sub
 // CreateRoute routes a subnet's traffic for a destination through one of the
 // network's instances. The instance must be in the subnet's datacenter and
 // have a public IP.
-//
-// At this time, the API accepts only the destination "0.0.0.0/0" and returns
-// HTTP 400 for other values. If a route for the destination already exists,
-// the API moves it to the new instance and keeps its ID.
 func (s *PrivateNetworkService) CreateRoute(ctx context.Context, networkID, subnetID string, req CreateRouteRequest) (*Route, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err

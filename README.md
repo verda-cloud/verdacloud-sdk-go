@@ -383,9 +383,6 @@ Instance responses expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil fo
 When `private_ip` is `none`, `public_ip` must be `auto`. In a datacenter that supports only private
 networks, the API attaches every instance to a private network, also for `private_ip: none`.
 
-Routes accept only the destination `0.0.0.0/0` at this time. A route for a destination that already
-has one moves to the new instance and keeps its ID.
-
 ### Managed Kubernetes
 
 > **Experimental**: Managed Kubernetes support is experimental. The API and the SDK types for it

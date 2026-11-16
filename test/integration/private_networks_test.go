@@ -23,7 +23,6 @@ import (
 	"math/rand"
 	"net/http"
 	"net/netip"
-	"strings"
 	"testing"
 	"time"
 
@@ -38,7 +37,6 @@ import (
 //     first default subnet, and setting the default moves it;
 //   - both workload endpoints return an empty list for a fresh network, and
 //     a subnet of another network is not found;
-//   - a route for a destination other than 0.0.0.0/0 is rejected;
 //   - an unknown network is not found.
 //
 // Successful route creation and non-empty workloads are not covered: they
@@ -319,18 +317,6 @@ func TestPrivateNetworks(t *testing.T) {
 		t.Fatalf("location %s not in the list", locationCode)
 	})
 
-	t.Run("create_route_rejects_non_default_destination", func(t *testing.T) {
-		// The API checks the destination before the instance, so no instance is needed
-		_, err := client.PrivateNetworks.CreateRoute(ctx, network.ID, subnet.ID, verda.CreateRouteRequest{
-			Destination: "10.0.0.0/8",
-			InstanceID:  "4f6e0a3c-1b2d-4c5e-8f9a-0b1c2d3e4f5a",
-		})
-		apiErr := requireStatus(t, err, http.StatusBadRequest)
-		if apiErr != nil && !strings.Contains(apiErr.Message, "0.0.0.0/0") {
-			t.Errorf("expected the error to mention 0.0.0.0/0, got %q", apiErr.Message)
-		}
-	})
-
 	t.Run("get_missing_network", func(t *testing.T) {
 		_, err := client.PrivateNetworks.GetByID(ctx, "pn_sdkmissing")
 		requireStatus(t, err, http.StatusNotFound)
@@ -344,13 +330,11 @@ func TestPrivateNetworks(t *testing.T) {
 }
 
 // requireStatus fails the test unless err is an *verda.APIError with the given
-// HTTP status. It returns the error for further checks, or nil.
-func requireStatus(t *testing.T, err error, status int) *verda.APIError {
+// HTTP status.
+func requireStatus(t *testing.T, err error, status int) {
 	t.Helper()
 	var apiErr *verda.APIError
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != status {
 		t.Errorf("expected an API error with status %d, got %v", status, err)
-		return nil
 	}
-	return apiErr
 }

@@ -181,9 +181,6 @@ type Route struct {
 // datacenter and have a public IP. Re-sending an existing destination moves it
 // to another instance.
 type CreateRouteRequest struct {
-	// Destination is an IPv4 CIDR. At this time, the API accepts only
-	// "0.0.0.0/0" (all internet traffic) and rejects other values with HTTP
-	// 400. A moved route keeps its ID.
 	Destination string `json:"destination"`
 	InstanceID  string `json:"instance_id"`
 }
