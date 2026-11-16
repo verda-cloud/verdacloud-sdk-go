@@ -277,7 +277,7 @@ func TestPrivateNetworkService_Workloads(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
-	check := func(t *testing.T, workloads []PrivateNetworkWorkload, wantSubnet string) {
+	assertWorkloadFixtures := func(t *testing.T, workloads []PrivateNetworkWorkload, wantSubnet string) {
 		t.Helper()
 		if len(workloads) != 2 {
 			t.Fatalf("expected 2 workloads, got %d", len(workloads))
@@ -320,7 +320,7 @@ func TestPrivateNetworkService_Workloads(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		check(t, workloads, "sn_123")
+		assertWorkloadFixtures(t, workloads, "sn_123")
 	})
 
 	t.Run("subnet workloads", func(t *testing.T) {
@@ -328,7 +328,7 @@ func TestPrivateNetworkService_Workloads(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		check(t, workloads, "sn_other")
+		assertWorkloadFixtures(t, workloads, "sn_other")
 	})
 
 	t.Run("empty list", func(t *testing.T) {

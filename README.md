@@ -375,9 +375,10 @@ instance, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
 ```
 
 `private_ip` and `public_ip` must be set together: `auto` allocates an address, `none` means
-none (a public `none` requires a private address), or pass a literal IPv4 your project holds.
-Omitting both fields gives the platform default. Instance responses
-expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
+none (a public `none` requires a private address). A literal IPv4 is also accepted: for
+`private_ip`, an address in the subnet; for `public_ip`, an address your project reserved,
+and only together with a private address. Omitting both fields gives the platform default.
+Instance responses expose `PrivateIP`, `PrivateNetworkID` and `SubnetID` (nil for classic instances).
 
 When `private_ip` is `none`, `public_ip` must be `auto`. In a datacenter that supports only private
 networks, the API attaches every instance to a private network, also for `private_ip: none`.

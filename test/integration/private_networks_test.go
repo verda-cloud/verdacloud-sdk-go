@@ -140,9 +140,7 @@ func TestPrivateNetworks(t *testing.T) {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		// The delete_subnet subtest normally removes it first
-		err := client.PrivateNetworks.DeleteSubnet(cleanupCtx, network.ID, subnet.ID)
-		var apiErr *verda.APIError
-		if err != nil && !(errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound) {
+		if err := client.PrivateNetworks.DeleteSubnet(cleanupCtx, network.ID, subnet.ID); err != nil && !isNotFound(err) {
 			t.Logf("⚠️  Failed to delete subnet %s: %v", subnet.ID, err)
 		}
 	})

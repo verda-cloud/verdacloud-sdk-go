@@ -121,7 +121,8 @@ type CreateInstanceRequest struct {
 	//
 	// When PrivateIP is IPAllocNone, PublicIP must be IPAllocAuto. The API
 	// accepts an IPv4 address for PublicIP only for an address that the
-	// project reserved. In a datacenter that supports only private networks,
+	// project reserved, and only when the API enables this feature for the
+	// project. In a datacenter that supports only private networks,
 	// the API attaches every instance to a private network, also when
 	// PrivateIP is IPAllocNone.
 	PrivateIP *IPAllocation `json:"private_ip,omitempty"`
@@ -231,17 +232,20 @@ func (r CreateInstanceRequest) validateNetworkFields() error {
 		}
 	}
 
-	if r.PrivateIP != nil && *r.PrivateIP == IPAllocNone && *r.PublicIP == IPAllocNone {
+	// Set together with PublicIP, as checked above
+	privateNone := r.PrivateIP != nil && *r.PrivateIP == IPAllocNone
+
+	if privateNone && *r.PublicIP == IPAllocNone {
 		return fmt.Errorf("private_ip and public_ip cannot both be %q", IPAllocNone)
 	}
 
 	// An instance without a private address is a classic instance: it always
 	// gets an automatic public IP, never an explicit one.
-	if r.PrivateIP != nil && *r.PrivateIP == IPAllocNone && *r.PublicIP != IPAllocAuto {
+	if privateNone && *r.PublicIP != IPAllocAuto {
 		return fmt.Errorf("public_ip must be %q when private_ip is %q; an explicit public address is only supported on a private network", IPAllocAuto, IPAllocNone)
 	}
 
-	if (r.Network != "" || r.Subnet != "") && (r.PrivateIP == nil || *r.PrivateIP == IPAllocNone) {
+	if (r.Network != "" || r.Subnet != "") && (r.PrivateIP == nil || privateNone) {
 		return fmt.Errorf("network and subnet require a private address: set private_ip to %q (or a free address in the subnet) together with public_ip", IPAllocAuto)
 	}
 
