@@ -17,8 +17,6 @@ package verda
 import (
 	"fmt"
 	"time"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // InstanceCPU represents CPU information
@@ -87,9 +85,9 @@ type ListInstancesOptions struct {
 
 // Validate validates the ListInstancesOptions fields
 func (opts ListInstancesOptions) Validate() error {
-	return validation.ValidateStruct(&opts,
-		validation.Field(&opts.Tags),
-	)
+	errs := fieldErrors{}
+	errs.add("Tags", validateEach(opts.Tags, TagFilter.Validate))
+	return errs.err()
 }
 
 // CreateInstanceRequest represents the request to create an instance
@@ -200,17 +198,15 @@ const (
 
 // Validate validates the CreateInstanceRequest fields
 func (r CreateInstanceRequest) Validate() error {
-	err := validation.ValidateStruct(&r,
-		validation.Field(&r.InstanceType, validation.Required),
-		validation.Field(&r.Image, validation.Required),
-		validation.Field(&r.Hostname, validation.Required),
-		validation.Field(&r.Contract,
-			validation.In("LONG_TERM", "PAY_AS_YOU_GO", "SPOT")),
-		validation.Field(&r.OSVolume),
-		validation.Field(&r.Volumes),
-		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
-	)
-	if err != nil {
+	errs := fieldErrors{}
+	errs.add("instance_type", required(r.InstanceType))
+	errs.add("image", required(r.Image))
+	errs.add("hostname", required(r.Hostname))
+	errs.add("contract", oneOf(r.Contract, "LONG_TERM", "PAY_AS_YOU_GO", "SPOT"))
+	errs.add("os_volume", validateIfSet(r.OSVolume))
+	errs.add("volumes", validateEach(r.Volumes, VolumeCreateRequest.Validate))
+	errs.add("tags", firstErr(maxLength(len(r.Tags), MaxTagsPerResource), validateEach(r.Tags, TagRequest.Validate)))
+	if err := errs.err(); err != nil {
 		return err
 	}
 
@@ -254,21 +250,20 @@ func (r CreateInstanceRequest) validateNetworkFields() error {
 
 // Validate validates the OSVolumeCreateRequest fields
 func (r OSVolumeCreateRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.Size, validation.Required, validation.Min(1)),
-		validation.Field(&r.OnSpotDiscontinue,
-			validation.In("keep_detached", "move_to_trash", "delete_permanently")),
-	)
+	errs := fieldErrors{}
+	errs.add("name", required(r.Name))
+	errs.add("size", firstErr(required(r.Size), atLeast(r.Size, 1)))
+	errs.add("on_spot_discontinue", oneOf(r.OnSpotDiscontinue, "keep_detached", "move_to_trash", "delete_permanently"))
+	return errs.err()
 }
 
 // Validate validates the InstanceActionRequest fields
 func (r InstanceActionRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Action, validation.Required,
-			validation.In(ActionBoot, ActionStart, ActionShutdown, ActionDelete,
-				ActionDiscontinue, ActionHibernate, ActionConfigureSpot,
-				ActionForceShutdown, ActionDeleteStuck, ActionDeploy, ActionTransfer)),
-		validation.Field(&r.ID, validation.Required, validation.Length(1, 0)),
-	)
+	errs := fieldErrors{}
+	errs.add("action", firstErr(required(r.Action),
+		oneOf(r.Action, ActionBoot, ActionStart, ActionShutdown, ActionDelete,
+			ActionDiscontinue, ActionHibernate, ActionConfigureSpot,
+			ActionForceShutdown, ActionDeleteStuck, ActionDeploy, ActionTransfer)))
+	errs.add("id", requiredSlice(r.ID))
+	return errs.err()
 }

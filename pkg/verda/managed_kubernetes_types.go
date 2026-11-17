@@ -22,8 +22,6 @@ import (
 	"strings"
 	"time"
 	"unicode"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // Lifecycle phases of a ManagedKubernetesCluster.
@@ -85,15 +83,15 @@ type CreateManagedKubernetesClusterRequest struct {
 }
 
 func (r CreateManagedKubernetesClusterRequest) Validate() error {
-	if err := validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required, validation.Length(1, managedKubernetesNameMaxLength), validation.Match(dns1123LabelRegexp)),
-		validation.Field(&r.KubernetesVersion, validation.Required),
-		validation.Field(&r.PodCIDR, validation.Required, validation.By(validateIPv4CIDR), validation.By(validatePodCIDRPrefixLength)),
-		validation.Field(&r.ServiceCIDR, validation.Required, validation.By(validateIPv4CIDR)),
-		validation.Field(&r.Location, validation.Required),
-		validation.Field(&r.NetworkID, validation.Required),
-		validation.Field(&r.SubnetID, validation.Required),
-	); err != nil {
+	errs := fieldErrors{}
+	errs.add("name", validateNewManagedKubernetesName(r.Name))
+	errs.add("kubernetes_version", required(r.KubernetesVersion))
+	errs.add("pod_cidr", firstErr(required(r.PodCIDR), validateIPv4CIDR(r.PodCIDR), validatePodCIDRPrefixLength(r.PodCIDR)))
+	errs.add("service_cidr", firstErr(required(r.ServiceCIDR), validateIPv4CIDR(r.ServiceCIDR)))
+	errs.add("location", required(r.Location))
+	errs.add("network", required(r.NetworkID))
+	errs.add("subnet", required(r.SubnetID))
+	if err := errs.err(); err != nil {
 		return err
 	}
 	return validateClusterCIDROverlap(r.PodCIDR, r.ServiceCIDR)
@@ -107,9 +105,9 @@ type UpdateManagedKubernetesClusterRequest struct {
 }
 
 func (r UpdateManagedKubernetesClusterRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.KubernetesVersion, validation.Required),
-	)
+	errs := fieldErrors{}
+	errs.add("kubernetes_version", required(r.KubernetesVersion))
+	return errs.err()
 }
 
 // ManagedKubernetesEnabledLocations lists the sorted location codes the project may
@@ -172,12 +170,12 @@ type CreateManagedKubernetesNodePoolRequest struct {
 }
 
 func (r CreateManagedKubernetesNodePoolRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required, validation.Length(1, managedKubernetesNameMaxLength), validation.Match(dns1123LabelRegexp)),
-		validation.Field(&r.Replicas, validation.Min(0)),
-		validation.Field(&r.InstanceType, validation.Required),
-		validation.Field(&r.SSHKeyIDs, validation.Required, validation.Length(1, 0)),
-	)
+	errs := fieldErrors{}
+	errs.add("name", validateNewManagedKubernetesName(r.Name))
+	errs.add("replicas", validateReplicasIfSet(r.Replicas))
+	errs.add("instance_type", required(r.InstanceType))
+	errs.add("ssh_key_ids", requiredSlice(r.SSHKeyIDs))
+	return errs.err()
 }
 
 // UpdateManagedKubernetesNodePoolRequest is the body of PATCH
@@ -188,18 +186,26 @@ type UpdateManagedKubernetesNodePoolRequest struct {
 }
 
 func (r UpdateManagedKubernetesNodePoolRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Replicas, validation.By(validateReplicasPresent), validation.Min(0)),
-	)
+	errs := fieldErrors{}
+	errs.add("replicas", firstErr(validateReplicasPresent(r.Replicas), validateReplicasIfSet(r.Replicas)))
+	return errs.err()
 }
 
-// validateReplicasPresent requires a non-nil replicas pointer; ozzo's
-// Required would also reject a pointed-at zero, which is a valid value here.
-func validateReplicasPresent(value any) error {
-	if replicas, _ := value.(*int); replicas == nil {
-		return fmt.Errorf("cannot be blank")
+// validateReplicasPresent requires a non-nil replicas pointer; unlike
+// requiredPtr it accepts a pointed-at zero, which scales the pool to zero.
+func validateReplicasPresent(replicas *int) error {
+	if replicas == nil {
+		return errBlank
 	}
 	return nil
+}
+
+// validateReplicasIfSet rejects a negative replica count; nil uses the API default.
+func validateReplicasIfSet(replicas *int) error {
+	if replicas == nil {
+		return nil
+	}
+	return atLeast(*replicas, 0)
 }
 
 // Lifecycle statuses of a ManagedKubernetesKubeconfig.
@@ -278,24 +284,25 @@ type CreateManagedKubernetesKubeconfigRequest struct {
 }
 
 func (r CreateManagedKubernetesKubeconfigRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.CommonName, validation.Required, validation.By(validateKubeconfigCommonName)),
-		validation.Field(&r.Groups, validation.Each(validation.By(validateKubeconfigGroup))),
-		validation.Field(&r.DisplayName, validation.RuneLength(0, 128), validation.By(validatePrintable)),
-		validation.Field(&r.Duration, validation.By(validateKubeconfigDuration)),
-	)
+	errs := fieldErrors{}
+	errs.add("common_name", firstErr(required(r.CommonName), validateKubeconfigCommonName(r.CommonName)))
+	errs.add("groups", validateEach(r.Groups, validateKubeconfigGroup))
+	errs.add("display_name", firstErr(maxRuneLength(r.DisplayName, maxKubeconfigDisplayNameLength), validatePrintable(r.DisplayName)))
+	errs.add("duration", validateKubeconfigDuration(r.Duration))
+	return errs.err()
 }
 
-func validateKubeconfigCommonName(value any) error {
-	cn, _ := value.(string)
+// maxKubeconfigDisplayNameLength is in characters (runes), not bytes.
+const maxKubeconfigDisplayNameLength = 128
+
+func validateKubeconfigCommonName(cn string) error {
 	if strings.HasPrefix(strings.TrimSpace(cn), "system:") {
 		return fmt.Errorf("%q is a control-plane identity", cn)
 	}
 	return nil
 }
 
-func validateKubeconfigGroup(value any) error {
-	group, _ := value.(string)
+func validateKubeconfigGroup(group string) error {
 	trimmed := strings.TrimSpace(group)
 	if trimmed == "" {
 		return fmt.Errorf("must not be empty")
@@ -306,16 +313,14 @@ func validateKubeconfigGroup(value any) error {
 	return nil
 }
 
-func validatePrintable(value any) error {
-	s, _ := value.(string)
+func validatePrintable(s string) error {
 	if strings.IndexFunc(s, func(r rune) bool { return !unicode.IsPrint(r) }) >= 0 {
 		return fmt.Errorf("must contain printable characters only")
 	}
 	return nil
 }
 
-func validateKubeconfigDuration(value any) error {
-	s, _ := value.(string)
+func validateKubeconfigDuration(s string) error {
 	if s == "" {
 		return nil
 	}
@@ -356,8 +361,12 @@ func validateManagedKubernetesName(field, value string, maxLen int) error {
 
 var dns1123LabelRegexp = regexp.MustCompile(`^[a-z0-9]([-a-z0-9]*[a-z0-9])?$`)
 
-func validatePodCIDRPrefixLength(value any) error {
-	s, _ := value.(string)
+// validateNewManagedKubernetesName checks the name field of a create request.
+func validateNewManagedKubernetesName(name string) error {
+	return firstErr(required(name), lengthBetween(name, 1, managedKubernetesNameMaxLength), matches(name, dns1123LabelRegexp))
+}
+
+func validatePodCIDRPrefixLength(s string) error {
 	prefix, err := netip.ParsePrefix(s)
 	if err != nil {
 		return nil // syntax is reported by the CIDR rule

@@ -20,8 +20,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // SSHKey represents an SSH key
@@ -48,10 +46,10 @@ type DeleteMultipleSSHKeysRequest struct {
 
 // Validate validates the CreateSSHKeyRequest fields
 func (r CreateSSHKeyRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.PublicKey, validation.Required),
-	)
+	errs := fieldErrors{}
+	errs.add("name", required(r.Name))
+	errs.add("key", required(r.PublicKey))
+	return errs.err()
 }
 
 func (s *SSHKeyService) GetAllSSHKeys(ctx context.Context) ([]SSHKey, error) {

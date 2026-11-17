@@ -21,8 +21,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // StartupScript represents a startup script
@@ -48,10 +46,10 @@ type DeleteMultipleStartupScriptsRequest struct {
 
 // Validate validates the CreateStartupScriptRequest fields
 func (r CreateStartupScriptRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.Script, validation.Required),
-	)
+	errs := fieldErrors{}
+	errs.add("name", required(r.Name))
+	errs.add("script", required(r.Script))
+	return errs.err()
 }
 
 func (s *StartupScriptService) GetAllStartupScripts(ctx context.Context) ([]StartupScript, error) {

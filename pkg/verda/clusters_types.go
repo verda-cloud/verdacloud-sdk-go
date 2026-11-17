@@ -16,8 +16,6 @@ package verda
 
 import (
 	"time"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // ClusterWorkerNode represents a worker node in a cluster
@@ -160,22 +158,21 @@ const (
 
 // Validate validates the CreateClusterRequest fields
 func (r CreateClusterRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.ClusterType, validation.Required),
-		validation.Field(&r.Image, validation.Required),
-		validation.Field(&r.Hostname, validation.Required),
-		validation.Field(&r.Description, validation.Required),
-		validation.Field(&r.SharedVolume, validation.Required),
-		validation.Field(&r.Contract,
-			validation.In("PAY_AS_YOU_GO", "LONG_TERM")),
-		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
-	)
+	errs := fieldErrors{}
+	errs.add("cluster_type", required(r.ClusterType))
+	errs.add("image", required(r.Image))
+	errs.add("hostname", required(r.Hostname))
+	errs.add("description", required(r.Description))
+	errs.add("shared_volume", firstErr(required(r.SharedVolume), r.SharedVolume.Validate()))
+	errs.add("contract", oneOf(r.Contract, "PAY_AS_YOU_GO", "LONG_TERM"))
+	errs.add("tags", firstErr(maxLength(len(r.Tags), MaxTagsPerResource), validateEach(r.Tags, TagRequest.Validate)))
+	return errs.err()
 }
 
 // Validate validates the ClusterSharedVolumeSpec fields
 func (r ClusterSharedVolumeSpec) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.Size, validation.Required, validation.Min(1)),
-	)
+	errs := fieldErrors{}
+	errs.add("name", required(r.Name))
+	errs.add("size", firstErr(required(r.Size), atLeast(r.Size, 1)))
+	return errs.err()
 }

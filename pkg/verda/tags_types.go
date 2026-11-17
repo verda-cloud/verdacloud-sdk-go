@@ -17,8 +17,6 @@ package verda
 import (
 	"fmt"
 	"strings"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // Tag limits enforced by the API
@@ -47,10 +45,10 @@ type TagRequest struct {
 
 // Validate validates the TagRequest fields
 func (r TagRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Key, validation.Required, validation.Length(0, TagKeyMaxLength)),
-		validation.Field(&r.Value, validation.Length(0, TagValueMaxLength)),
-	)
+	errs := fieldErrors{}
+	errs.add("key", firstErr(required(r.Key), maxLength(len(r.Key), TagKeyMaxLength)))
+	errs.add("value", maxLength(len(r.Value), TagValueMaxLength))
+	return errs.err()
 }
 
 // TagFilter matches resources carrying a tag. An empty Value matches the key
@@ -70,15 +68,14 @@ func (filter TagFilter) String() string {
 
 // Validate validates the TagFilter fields
 func (filter TagFilter) Validate() error {
-	return validation.ValidateStruct(&filter,
-		validation.Field(&filter.Key, validation.Required, validation.Length(0, TagKeyMaxLength), validation.By(validateTagFilterKey)),
-		validation.Field(&filter.Value, validation.Length(0, TagValueMaxLength)),
-	)
+	errs := fieldErrors{}
+	errs.add("Key", firstErr(required(filter.Key), maxLength(len(filter.Key), TagKeyMaxLength), validateTagFilterKey(filter.Key)))
+	errs.add("Value", maxLength(len(filter.Value), TagValueMaxLength))
+	return errs.err()
 }
 
 // The API splits filters at the first "=", so a key containing one is ambiguous.
-func validateTagFilterKey(value any) error {
-	key, _ := value.(string)
+func validateTagFilterKey(key string) error {
 	if strings.Contains(key, "=") {
 		return fmt.Errorf("must not contain '=', got %q", key)
 	}

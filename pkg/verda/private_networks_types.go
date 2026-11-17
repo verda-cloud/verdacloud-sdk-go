@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"net/netip"
 	"time"
-
-	validation "github.com/go-ozzo/ozzo-validation/v4"
 )
 
 // Private network modes: "auto" creates subnets per location on first use,
@@ -49,10 +47,10 @@ type CreatePrivateNetworkRequest struct {
 
 // Validate validates the CreatePrivateNetworkRequest fields
 func (r CreatePrivateNetworkRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.Mode, validation.In(NetworkModeAuto, NetworkModeCustom)),
-	)
+	errs := fieldErrors{}
+	errs.add("name", required(r.Name))
+	errs.add("mode", oneOf(r.Mode, NetworkModeAuto, NetworkModeCustom))
+	return errs.err()
 }
 
 // UpdatePrivateNetworkRequest renames a network or marks it default.
@@ -64,9 +62,9 @@ type UpdatePrivateNetworkRequest struct {
 
 // Validate validates the UpdatePrivateNetworkRequest fields
 func (r UpdatePrivateNetworkRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.NilOrNotEmpty),
-	)
+	errs := fieldErrors{}
+	errs.add("name", notEmptyIfSet(r.Name))
+	return errs.err()
 }
 
 // AttachedInstance is the instance a subnet's default route or a route points at
@@ -144,11 +142,11 @@ type CreateSubnetRequest struct {
 
 // Validate validates the CreateSubnetRequest fields
 func (r CreateSubnetRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.LocationCode, validation.Required),
-		validation.Field(&r.Name, validation.Required),
-		validation.Field(&r.CIDR, validation.Required, validation.By(validateIPv4CIDR)),
-	)
+	errs := fieldErrors{}
+	errs.add("location_code", required(r.LocationCode))
+	errs.add("name", required(r.Name))
+	errs.add("cidr", firstErr(required(r.CIDR), validateIPv4CIDR(r.CIDR)))
+	return errs.err()
 }
 
 // UpdateSubnetRequest renames a subnet or marks it its datacenter's default.
@@ -160,9 +158,9 @@ type UpdateSubnetRequest struct {
 
 // Validate validates the UpdateSubnetRequest fields
 func (r UpdateSubnetRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Name, validation.NilOrNotEmpty),
-	)
+	errs := fieldErrors{}
+	errs.add("name", notEmptyIfSet(r.Name))
+	return errs.err()
 }
 
 // Route represents a route steering a subnet's traffic through an instance
@@ -187,14 +185,13 @@ type CreateRouteRequest struct {
 
 // Validate validates the CreateRouteRequest fields
 func (r CreateRouteRequest) Validate() error {
-	return validation.ValidateStruct(&r,
-		validation.Field(&r.Destination, validation.Required, validation.By(validateIPv4CIDR)),
-		validation.Field(&r.InstanceID, validation.Required),
-	)
+	errs := fieldErrors{}
+	errs.add("destination", firstErr(required(r.Destination), validateIPv4CIDR(r.Destination)))
+	errs.add("instance_id", required(r.InstanceID))
+	return errs.err()
 }
 
-func validateIPv4CIDR(value any) error {
-	s, _ := value.(string)
+func validateIPv4CIDR(s string) error {
 	prefix, err := netip.ParsePrefix(s)
 	if err != nil || !prefix.Addr().Is4() {
 		return fmt.Errorf("must be a valid IPv4 CIDR, got %q", s)
