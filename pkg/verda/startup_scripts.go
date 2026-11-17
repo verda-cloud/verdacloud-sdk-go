@@ -21,6 +21,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // StartupScript represents a startup script
@@ -46,10 +48,10 @@ type DeleteMultipleStartupScriptsRequest struct {
 
 // Validate validates the CreateStartupScriptRequest fields
 func (r CreateStartupScriptRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("script", required(r.Script))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Script, validation.Required),
+	)
 }
 
 func (s *StartupScriptService) GetAllStartupScripts(ctx context.Context) ([]StartupScript, error) {

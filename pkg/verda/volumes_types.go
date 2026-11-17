@@ -16,6 +16,8 @@ package verda
 
 import (
 	"time"
+
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // VolumeCreateRequest represents a volume to be created
@@ -197,48 +199,48 @@ const (
 
 // Validate validates the VolumeCreateRequest fields
 func (r VolumeCreateRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("size", firstErr(required(r.Size), atLeast(r.Size, 1)))
-	errs.add("type", firstErr(required(r.Type),
-		oneOf(r.Type, VolumeTypeHDD, VolumeTypeNVMe, VolumeTypeHDDShared,
-			VolumeTypeNVMeShared, VolumeTypeNVMeLocalStorage,
-			VolumeTypeNVMeSharedCluster, VolumeTypeNVMeOSCluster)))
-	errs.add("tags", firstErr(maxLength(len(r.Tags), MaxTagsPerResource), validateEach(r.Tags, TagRequest.Validate)))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Size, validation.Required, validation.Min(1)),
+		validation.Field(&r.Type, validation.Required,
+			validation.In(VolumeTypeHDD, VolumeTypeNVMe, VolumeTypeHDDShared,
+				VolumeTypeNVMeShared, VolumeTypeNVMeLocalStorage,
+				VolumeTypeNVMeSharedCluster, VolumeTypeNVMeOSCluster)),
+		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
+	)
 }
 
 // Validate validates the VolumeCloneRequest fields
 func (r VolumeCloneRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+	)
 }
 
 // Validate validates the VolumeResizeRequest fields
 func (r VolumeResizeRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("size", firstErr(required(r.Size), atLeast(r.Size, 1)))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Size, validation.Required, validation.Min(1)),
+	)
 }
 
 // Validate validates the VolumeRenameRequest fields
 func (r VolumeRenameRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+	)
 }
 
 // Validate validates the VolumeAttachRequest fields
 func (r VolumeAttachRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("instance_id", required(r.InstanceID))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.InstanceID, validation.Required),
+	)
 }
 
 // Validate validates the VolumeDetachRequest fields
 func (r VolumeDetachRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("instance_id", required(r.InstanceID))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.InstanceID, validation.Required),
+	)
 }

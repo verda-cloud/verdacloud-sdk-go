@@ -17,6 +17,8 @@ package verda
 import (
 	"fmt"
 	"time"
+
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // JobDeploymentShortInfo represents summary information about a job deployment
@@ -75,24 +77,24 @@ type JobDeploymentStatus struct {
 
 // Validate validates the CreateJobDeploymentRequest fields
 func (r CreateJobDeploymentRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("containers", firstErr(requiredSlice(r.Containers), validateEach(r.Containers, CreateDeploymentContainer.Validate)))
-	errs.add("compute", firstErr(requiredPtr(r.Compute), validateIfSet(r.Compute)))
-	errs.add("scaling", firstErr(requiredPtr(r.Scaling), validateIfSet(r.Scaling)))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Containers, validation.Required, validation.Length(1, 0)),
+		validation.Field(&r.Compute, validation.Required),
+		validation.Field(&r.Scaling, validation.Required),
+	)
 }
 
 // Validate validates the JobScalingOptions fields. A zero DeadlineSeconds is not checked here;
 // ValidateCreateJobDeploymentRequest requires it.
 func (o JobScalingOptions) Validate() error {
-	errs := fieldErrors{}
-	errs.add("max_replica_count", between(o.MaxReplicaCount, 0, maxReplicaCount))
-	errs.add("queue_message_ttl_seconds", between(o.QueueMessageTTLSeconds, 0, maxJobQueueMessageTTLSeconds))
-	errs.add("deadline_seconds", firstErr(
-		when(o.DeadlineSeconds != 0, atLeast(o.DeadlineSeconds, minJobDeadlineSeconds)),
-		atMost(o.DeadlineSeconds, maxJobDeadlineSeconds)))
-	return errs.err()
+	return validation.ValidateStruct(&o,
+		validation.Field(&o.MaxReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&o.QueueMessageTTLSeconds, validation.Min(0), validation.Max(maxJobQueueMessageTTLSeconds)),
+		validation.Field(&o.DeadlineSeconds,
+			validation.When(o.DeadlineSeconds != 0, validation.Min(minJobDeadlineSeconds)),
+			validation.Max(maxJobDeadlineSeconds)),
+	)
 }
 
 // ValidateCreateJobDeploymentRequest performs extended validation beyond Validate(),

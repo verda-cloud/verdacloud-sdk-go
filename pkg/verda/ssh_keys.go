@@ -20,6 +20,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // SSHKey represents an SSH key
@@ -46,10 +48,10 @@ type DeleteMultipleSSHKeysRequest struct {
 
 // Validate validates the CreateSSHKeyRequest fields
 func (r CreateSSHKeyRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("key", required(r.PublicKey))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.PublicKey, validation.Required),
+	)
 }
 
 func (s *SSHKeyService) GetAllSSHKeys(ctx context.Context) ([]SSHKey, error) {

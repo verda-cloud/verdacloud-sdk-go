@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"time"
 	"unicode/utf8"
+
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // maxDeploymentNameLength is the longest deployment name the API accepts.
@@ -330,35 +332,35 @@ type CreateRegistryCredentialsRequest struct {
 
 // Validate validates the ContainerCompute fields
 func (r ContainerCompute) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("size", firstErr(required(r.Size), between(r.Size, 1, maxComputeSize)))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Size, validation.Required, validation.Min(1), validation.Max(maxComputeSize)),
+	)
 }
 
 // Validate validates the CreateDeploymentContainer fields
 func (r CreateDeploymentContainer) Validate() error {
-	errs := fieldErrors{}
-	errs.add("image", required(r.Image))
-	errs.add("exposed_port", atMost(r.ExposedPort, maxContainerPort))
-	errs.add("healthcheck", validateIfSet(r.Healthcheck))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Image, validation.Required),
+		validation.Field(&r.ExposedPort, validation.Max(maxContainerPort)),
+		validation.Field(&r.Healthcheck),
+	)
 }
 
 // Validate validates the ContainerHealthcheck fields. Port is checked only when the healthcheck is enabled.
 func (h ContainerHealthcheck) Validate() error {
-	errs := fieldErrors{}
-	errs.add("port", when(h.Enabled, atMost(h.Port, maxContainerPort)))
-	return errs.err()
+	return validation.ValidateStruct(&h,
+		validation.Field(&h.Port, validation.When(h.Enabled, validation.Max(maxContainerPort))),
+	)
 }
 
 // Validate validates the CreateDeploymentRequest fields
 func (r CreateDeploymentRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("compute", firstErr(required(r.Compute), r.Compute.Validate()))
-	errs.add("containers", firstErr(requiredSlice(r.Containers), validateEach(r.Containers, CreateDeploymentContainer.Validate)))
-	if err := errs.err(); err != nil {
+	if err := validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Compute, validation.Required),
+		validation.Field(&r.Containers, validation.Required, validation.Length(1, 0)),
+	); err != nil {
 		return err
 	}
 	for i, c := range r.Containers {
@@ -401,15 +403,15 @@ func (r UpdateScalingOptionsRequest) Validate() error {
 
 // validateLimits checks the scaling options that are set against the API limits.
 func (r UpdateScalingOptionsRequest) validateLimits() error {
-	errs := fieldErrors{}
-	errs.add("min_replica_count", betweenIfSet(r.MinReplicaCount, 0, maxReplicaCount))
-	errs.add("max_replica_count", betweenIfSet(r.MaxReplicaCount, 0, maxReplicaCount))
-	errs.add("scale_down_policy", validateIfSet(r.ScaleDownPolicy))
-	errs.add("scale_up_policy", validateIfSet(r.ScaleUpPolicy))
-	errs.add("queue_message_ttl_seconds", betweenIfSet(r.QueueMessageTTLSeconds, 0, maxDeploymentQueueMessageTTLSeconds))
-	errs.add("concurrent_requests_per_replica", betweenIfSet(r.ConcurrentRequestsPerReplica, 0, maxConcurrentRequestsPerReplica))
-	errs.add("scaling_triggers", validateIfSet(r.ScalingTriggers))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.MinReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&r.MaxReplicaCount, validation.Min(0), validation.Max(maxReplicaCount)),
+		validation.Field(&r.ScaleDownPolicy),
+		validation.Field(&r.ScaleUpPolicy),
+		validation.Field(&r.QueueMessageTTLSeconds, validation.Min(0), validation.Max(maxDeploymentQueueMessageTTLSeconds)),
+		validation.Field(&r.ConcurrentRequestsPerReplica, validation.Min(0), validation.Max(maxConcurrentRequestsPerReplica)),
+		validation.Field(&r.ScalingTriggers),
+	)
 }
 
 // Validate validates the ContainerScalingOptions fields against the API limits.
@@ -427,58 +429,58 @@ func (o ContainerScalingOptions) Validate() error {
 
 // Validate validates the ScalingPolicy fields
 func (p ScalingPolicy) Validate() error {
-	errs := fieldErrors{}
-	errs.add("delay_seconds", between(p.DelaySeconds, 0, maxScalingDelaySeconds))
-	return errs.err()
+	return validation.ValidateStruct(&p,
+		validation.Field(&p.DelaySeconds, validation.Min(0), validation.Max(maxScalingDelaySeconds)),
+	)
 }
 
 // Validate validates the triggers that are set
 func (t ScalingTriggers) Validate() error {
-	errs := fieldErrors{}
-	errs.add("queue_load", validateIfSet(t.QueueLoad))
-	errs.add("cpu_utilization", validateIfSet(t.CPUUtilization))
-	errs.add("gpu_utilization", validateIfSet(t.GPUUtilization))
-	return errs.err()
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.QueueLoad),
+		validation.Field(&t.CPUUtilization),
+		validation.Field(&t.GPUUtilization),
+	)
 }
 
 // Validate validates the QueueLoadTrigger fields. Threshold must be from 1 to 1000.
 func (t QueueLoadTrigger) Validate() error {
-	errs := fieldErrors{}
-	errs.add("threshold", firstErr(required(t.Threshold), between(t.Threshold, 1.0, 1000.0)))
-	return errs.err()
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.Threshold, validation.Required, validation.Min(1.0), validation.Max(1000.0)),
+	)
 }
 
 // Validate validates the UtilizationTrigger fields. Threshold is a percentage from 5 to 100,
 // checked only when the trigger is enabled and the threshold is set.
 func (t UtilizationTrigger) Validate() error {
-	errs := fieldErrors{}
-	errs.add("threshold", when(t.Enabled && t.Threshold != 0, between(t.Threshold, 5, 100)))
-	return errs.err()
+	return validation.ValidateStruct(&t,
+		validation.Field(&t.Threshold, validation.When(t.Enabled && t.Threshold != 0, validation.Min(5), validation.Max(100))),
+	)
 }
 
 // Validate validates the CreateSecretRequest fields
 func (r CreateSecretRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("value", required(r.Value))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Value, validation.Required),
+	)
 }
 
 // Validate validates the CreateFileSecretRequest fields
 func (r CreateFileSecretRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("files", requiredSlice(r.Files))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Files, validation.Required, validation.Length(1, 0)),
+	)
 }
 
 // Validate validates the CreateRegistryCredentialsRequest fields
 func (r CreateRegistryCredentialsRequest) Validate() error {
-	errs := fieldErrors{}
-	errs.add("name", required(r.Name))
-	errs.add("type", firstErr(required(r.Type),
-		oneOf(r.Type, "verda", "gcr", "dockerhub", "ghcr", "aws-ecr", "scaleway", "custom")))
-	return errs.err()
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Name, validation.Required),
+		validation.Field(&r.Type, validation.Required,
+			validation.In("verda", "gcr", "dockerhub", "ghcr", "aws-ecr", "scaleway", "custom")),
+	)
 }
 
 // ValidateCreateDeploymentRequest performs extended validation beyond Validate(),
