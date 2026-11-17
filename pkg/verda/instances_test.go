@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -344,44 +345,129 @@ func TestInstanceService_Create(t *testing.T) {
 	})
 
 	t.Run("network field validation", func(t *testing.T) {
-		privateIP := IPAllocAuto
-		publicIP := IPAllocNone
-		bogusIP := IPAllocation("999.1.1.1")
+		auto, none := IPAllocAuto, IPAllocNone
+		privLiteral := IPAllocation("10.0.0.5")
+		pubLiteral := IPAllocation("1.2.3.4")
+		bogus := IPAllocation("bogus")
 
-		base := CreateInstanceRequest{
-			InstanceType: "CPU.4V.16G",
-			Image:        "ubuntu-24.04",
-			Hostname:     "vpc-invalid",
-			Description:  "invalid network config",
+		cases := []struct {
+			name           string
+			private, pub   *IPAllocation
+			network        string
+			subnet         string
+			wantErr        bool
+			wantErrMention string
+		}{
+			{name: "both omitted", wantErr: false},
+			{name: "both omitted with network", network: "pn_123", wantErr: true, wantErrMention: "network and subnet"},
+			{name: "both omitted with subnet", subnet: "sn_123", wantErr: true, wantErrMention: "network and subnet"},
+			{name: "auto/auto", private: &auto, pub: &auto, wantErr: false},
+			{name: "auto/none on subnet", private: &auto, pub: &none, subnet: "sn_123", wantErr: false},
+			{name: "literal private/auto on subnet", private: &privLiteral, pub: &auto, subnet: "sn_123", wantErr: false},
+			{name: "auto/literal public", private: &auto, pub: &pubLiteral, wantErr: false},
+			{name: "none/auto", private: &none, pub: &auto, wantErr: false},
+			{name: "none/auto with network", private: &none, pub: &auto, network: "pn_123", wantErr: true, wantErrMention: "network and subnet"},
+			{name: "none/auto with subnet", private: &none, pub: &auto, subnet: "sn_123", wantErr: true, wantErrMention: "network and subnet"},
+			{name: "none/none", private: &none, pub: &none, wantErr: true, wantErrMention: "cannot both be"},
+			{name: "none/literal public", private: &none, pub: &pubLiteral, wantErr: true, wantErrMention: "public_ip must be"},
+			{name: "only private", private: &auto, wantErr: true, wantErrMention: "both be set"},
+			{name: "only public", pub: &auto, wantErr: true, wantErrMention: "both be set"},
+			{name: "malformed private", private: &bogus, pub: &auto, wantErr: true},
 		}
 
-		ctx := context.Background()
+		// Rejected requests go through Instances.Create to prove that the SDK
+		// sends no HTTP request for them.
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, _ *http.Request) {
+			t.Errorf("an invalid request reached the server")
+			w.WriteHeader(http.StatusBadRequest)
+		})
+		c := NewTestClient(t, srv)
 
-		onlyPrivate := base
-		onlyPrivate.PrivateIP = &privateIP
-		if _, err := client.Instances.Create(ctx, onlyPrivate); err == nil {
-			t.Error("expected error when only private_ip is set")
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				req := CreateInstanceRequest{
+					InstanceType: "CPU.4V.16G",
+					Image:        "ubuntu-24.04",
+					Hostname:     "vpc-validation",
+					PrivateIP:    tc.private,
+					PublicIP:     tc.pub,
+					Network:      tc.network,
+					Subnet:       tc.subnet,
+				}
+				var err error
+				if tc.wantErr {
+					_, err = c.Instances.Create(context.Background(), req)
+				} else {
+					err = req.Validate()
+				}
+				if tc.wantErr != (err != nil) {
+					t.Fatalf("wantErr=%v, got %v", tc.wantErr, err)
+				}
+				if err == nil {
+					return
+				}
+				if tc.wantErrMention != "" && !strings.Contains(err.Error(), tc.wantErrMention) {
+					t.Errorf("expected error to mention %q, got %q", tc.wantErrMention, err)
+				}
+				if strings.Contains(err.Error(), "or an IPv4 address") {
+					t.Errorf("error suggests a combination the API rejects: %q", err)
+				}
+			})
+		}
+	})
+
+	t.Run("description on the wire", func(t *testing.T) {
+		cases := []struct {
+			name        string
+			description string
+			want        any // nil means the key must be absent
+		}{
+			{"omitted when empty", "", nil},
+			{"sent unchanged", "GPU worker", "GPU worker"},
 		}
 
-		onlyPublic := base
-		onlyPublic.PublicIP = &privateIP
-		if _, err := client.Instances.Create(ctx, onlyPublic); err == nil {
-			t.Error("expected error when only public_ip is set")
-		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				srv := testutil.NewMockServer()
+				defer srv.Close()
 
-		bothNone := base
-		noneIP := IPAllocNone
-		bothNone.PrivateIP = &noneIP
-		bothNone.PublicIP = &publicIP
-		if _, err := client.Instances.Create(ctx, bothNone); err == nil {
-			t.Error("expected error when both IPs are \"none\"")
-		}
+				var body map[string]any
+				srv.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Errorf("decode request body: %v", err)
+					}
+					w.Header().Set("Content-Type", "text/plain")
+					_, _ = w.Write([]byte("inst_desc"))
+				})
+				srv.SetHandler(http.MethodGet, "/instances/inst_desc", func(w http.ResponseWriter, _ *http.Request) {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"id":"inst_desc","status":"provisioning"}`))
+				})
 
-		badFormat := base
-		badFormat.PrivateIP = &bogusIP
-		badFormat.PublicIP = &privateIP
-		if _, err := client.Instances.Create(ctx, badFormat); err == nil {
-			t.Error("expected error for malformed IP allocation")
+				c := NewTestClient(t, srv)
+				_, err := c.Instances.Create(context.Background(), CreateInstanceRequest{
+					InstanceType: "CPU.4V.16G",
+					Image:        "ubuntu-24.04",
+					Hostname:     "description-test",
+					Description:  tc.description,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				got, present := body["description"]
+				if tc.want == nil {
+					if present {
+						t.Errorf("expected description to be omitted, got %v", got)
+					}
+					return
+				}
+				if got != tc.want {
+					t.Errorf("expected description %v, got %v (present=%v)", tc.want, got, present)
+				}
+			})
 		}
 	})
 }

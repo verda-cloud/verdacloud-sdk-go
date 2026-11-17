@@ -16,6 +16,9 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -126,12 +129,14 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 	client := NewTestClient(t, mockServer)
 	ctx := context.Background()
 
+	isDefaultTrue := true
+
 	t.Run("create subnet", func(t *testing.T) {
 		subnet, err := client.PrivateNetworks.CreateSubnet(ctx, "pn_123", CreateSubnetRequest{
 			LocationCode: "FIN-01",
 			Name:         "workers",
 			CIDR:         "10.0.0.0/24",
-			IsDefault:    true,
+			IsDefault:    &isDefaultTrue,
 		})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -148,6 +153,58 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 		}
 		if subnet.TotalIPCount != 254 {
 			t.Errorf("expected 254 total IPs, got %d", subnet.TotalIPCount)
+		}
+	})
+
+	t.Run("create subnet is_default on the wire", func(t *testing.T) {
+		isFalse, isTrue := false, true
+		cases := []struct {
+			name      string
+			isDefault *bool
+			want      any // nil means the key must be absent
+		}{
+			{"omitted", nil, nil},
+			{"explicit false", &isFalse, false},
+			{"explicit true", &isTrue, true},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				srv := testutil.NewMockServer()
+				defer srv.Close()
+
+				var body map[string]any
+				srv.SetHandler(http.MethodPost, "/private-networks/pn_wire/subnets", func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Errorf("decode request body: %v", err)
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"id":"sn_wire","cidr":"10.0.0.0/24"}`))
+				})
+
+				c := NewTestClient(t, srv)
+				_, err := c.PrivateNetworks.CreateSubnet(ctx, "pn_wire", CreateSubnetRequest{
+					LocationCode: "FIN-01",
+					Name:         "workers",
+					CIDR:         "10.0.0.0/24",
+					IsDefault:    tc.isDefault,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				got, present := body["is_default"]
+				if tc.want == nil {
+					if present {
+						t.Errorf("expected is_default to be absent, got %v", got)
+					}
+					return
+				}
+				if !present || got != tc.want {
+					t.Errorf("expected is_default %v, got %v (present=%v)", tc.want, got, present)
+				}
+			})
 		}
 	})
 
@@ -209,6 +266,91 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 	t.Run("delete subnet", func(t *testing.T) {
 		if err := client.PrivateNetworks.DeleteSubnet(ctx, "pn_123", "sn_123"); err != nil {
 			t.Errorf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestPrivateNetworkService_Workloads(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+
+	client := NewTestClient(t, mockServer)
+	ctx := context.Background()
+
+	assertWorkloadFixtures := func(t *testing.T, workloads []PrivateNetworkWorkload, wantSubnet string) {
+		t.Helper()
+		if len(workloads) != 2 {
+			t.Fatalf("expected 2 workloads, got %d", len(workloads))
+		}
+
+		full := workloads[0]
+		if full.ID != "inst_wl_full" || full.SubnetID != wantSubnet || full.Hostname == "" || full.Status != StatusRunning {
+			t.Errorf("unexpected workload: %+v", full)
+		}
+		if full.Location.Code != "FIN-01" || full.PrivateIP != "10.0.0.5" || full.CreatedAt.IsZero() {
+			t.Errorf("unexpected location, private IP or created_at: %+v", full)
+		}
+		if full.PublicIP == nil || full.CreatedByUserID == nil {
+			t.Error("expected public_ip and created_by_user_id to be set")
+		}
+		if full.Model.Code != "B200" || full.Model.Name != "NVIDIA B200" || full.Model.Category != "gpu" ||
+			full.Model.Manufacturer != "NVIDIA" || full.Model.ClusterModelCode == nil || *full.Model.ClusterModelCode != "B200" {
+			t.Errorf("unexpected model: %+v", full.Model)
+		}
+		if full.Template.InstanceType != "1B200.30V" || full.Template.CPUCores != 30 || full.Template.GPUNumber != 1 ||
+			full.Template.GPUVRAMGB != 180 || full.Template.RAMGB != 184 ||
+			full.Template.CPUModel == nil || *full.Template.CPUModel != "AMD EPYC 9654" {
+			t.Errorf("unexpected template: %+v", full.Template)
+		}
+		if full.PublicIP != nil && *full.PublicIP == "" {
+			t.Error("expected a non-empty public_ip")
+		}
+		if full.CreatedByUserID != nil && *full.CreatedByUserID != "7dfc2631-0158-4f74-93f6-6b46dcb90fef" {
+			t.Errorf("unexpected created_by_user_id %q", *full.CreatedByUserID)
+		}
+
+		nulls := workloads[1]
+		if nulls.PublicIP != nil || nulls.CreatedByUserID != nil || nulls.Model.ClusterModelCode != nil || nulls.Template.CPUModel != nil {
+			t.Errorf("expected null fields to decode as nil: %+v", nulls)
+		}
+	}
+
+	t.Run("network workloads", func(t *testing.T) {
+		workloads, err := client.PrivateNetworks.GetWorkloads(ctx, "pn_123")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertWorkloadFixtures(t, workloads, "sn_123")
+	})
+
+	t.Run("subnet workloads", func(t *testing.T) {
+		workloads, err := client.PrivateNetworks.GetSubnetWorkloads(ctx, "pn_123", "sn_other")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertWorkloadFixtures(t, workloads, "sn_other")
+	})
+
+	t.Run("empty list", func(t *testing.T) {
+		workloads, err := client.PrivateNetworks.GetWorkloads(ctx, "pn_empty")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if workloads == nil || len(workloads) != 0 {
+			t.Errorf("expected an empty, non-nil slice, got %#v", workloads)
+		}
+	})
+
+	t.Run("not found", func(t *testing.T) {
+		_, err := client.PrivateNetworks.GetWorkloads(ctx, "pn_missing")
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+			t.Errorf("GetWorkloads: expected 404 APIError, got %v", err)
+		}
+
+		_, err = client.PrivateNetworks.GetSubnetWorkloads(ctx, "pn_missing", "sn_123")
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+			t.Errorf("GetSubnetWorkloads: expected 404 APIError, got %v", err)
 		}
 	})
 }
