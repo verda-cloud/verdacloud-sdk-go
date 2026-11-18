@@ -48,9 +48,19 @@ type TagRequest struct {
 // Validate validates the TagRequest fields
 func (r TagRequest) Validate() error {
 	return validation.ValidateStruct(&r,
-		validation.Field(&r.Key, validation.Required, validation.Length(0, TagKeyMaxLength)),
+		validation.Field(&r.Key, validation.Required, validation.Length(0, TagKeyMaxLength), validation.By(validateTagKeySegment)),
 		validation.Field(&r.Value, validation.Length(0, TagValueMaxLength)),
 	)
+}
+
+// A tag key is a path segment when the tag is deleted, so "." and ".." are
+// rejected on create too: such a tag could not be deleted safely.
+func validateTagKeySegment(value any) error {
+	key, _ := value.(string)
+	if key == "." || key == ".." {
+		return fmt.Errorf("must not be %q", key)
+	}
+	return nil
 }
 
 // TagFilter matches resources carrying a tag. An empty Value matches the key

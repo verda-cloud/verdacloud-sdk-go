@@ -16,7 +16,6 @@ package verda
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 )
 
@@ -33,7 +32,10 @@ func (s *ClusterService) Get(ctx context.Context) ([]Cluster, error) {
 }
 
 func (s *ClusterService) GetByID(ctx context.Context, id string) (*Cluster, error) {
-	path := fmt.Sprintf("/clusters/%s", id)
+	path, err := joinPath("/clusters", "id", id, "")
+	if err != nil {
+		return nil, err
+	}
 
 	cluster, _, err := getRequest[Cluster](ctx, s.client, path)
 	if err != nil {
@@ -114,7 +116,10 @@ func (s *ClusterService) GetAvailabilities(ctx context.Context, locationCode str
 }
 
 func (s *ClusterService) CheckClusterTypeAvailability(ctx context.Context, clusterType string, locationCode string) (bool, error) {
-	path := fmt.Sprintf("/cluster-availability/%s", clusterType)
+	path, err := joinPath("/cluster-availability", "clusterType", clusterType, "")
+	if err != nil {
+		return false, err
+	}
 
 	if locationCode != "" {
 		params := url.Values{}

@@ -24,6 +24,12 @@ type ServerlessJobsService struct {
 	client *Client
 }
 
+// jobDeploymentPath returns /job-deployments/{jobName} followed by suffix,
+// with jobName validated and escaped
+func jobDeploymentPath(jobName, suffix string) (string, error) {
+	return joinPath("/job-deployments", "jobName", jobName, suffix)
+}
+
 func (s *ServerlessJobsService) GetJobDeployments(ctx context.Context) ([]JobDeploymentShortInfo, error) {
 	jobs, _, err := getRequest[[]JobDeploymentShortInfo](ctx, s.client, "/job-deployments")
 	if err != nil {
@@ -48,7 +54,10 @@ func (s *ServerlessJobsService) CreateJobDeployment(ctx context.Context, req *Cr
 }
 
 func (s *ServerlessJobsService) GetJobDeploymentByName(ctx context.Context, jobName string) (*JobDeployment, error) {
-	path := fmt.Sprintf("/job-deployments/%s", jobName)
+	path, err := jobDeploymentPath(jobName, "")
+	if err != nil {
+		return nil, err
+	}
 	job, _, err := getRequest[JobDeployment](ctx, s.client, path)
 	if err != nil {
 		return nil, err
@@ -63,7 +72,10 @@ func (s *ServerlessJobsService) UpdateJobDeployment(ctx context.Context, jobName
 	if jobName == "" {
 		return nil, fmt.Errorf("jobName is required")
 	}
-	path := fmt.Sprintf("/job-deployments/%s", jobName)
+	path, err := jobDeploymentPath(jobName, "")
+	if err != nil {
+		return nil, err
+	}
 	job, _, err := patchRequest[JobDeployment](ctx, s.client, path, req)
 	if err != nil {
 		return nil, err
@@ -78,7 +90,10 @@ func (s *ServerlessJobsService) UpdateJobDeployment(ctx context.Context, jobName
 //   - 1-300000: Wait specified milliseconds
 //   - >300000: Capped at 300000ms
 func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName string, timeoutMs int) error {
-	path := fmt.Sprintf("/job-deployments/%s", jobName)
+	path, err := jobDeploymentPath(jobName, "")
+	if err != nil {
+		return err
+	}
 
 	if timeoutMs >= 0 {
 		timeout := min(timeoutMs, 300000)
@@ -87,7 +102,7 @@ func (s *ServerlessJobsService) DeleteJobDeployment(ctx context.Context, jobName
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -95,7 +110,10 @@ func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, job
 	if jobName == "" {
 		return nil, fmt.Errorf("jobName is required")
 	}
-	path := fmt.Sprintf("/job-deployments/%s/scaling", jobName)
+	path, err := jobDeploymentPath(jobName, "/scaling")
+	if err != nil {
+		return nil, err
+	}
 	scaling, _, err := getRequest[JobScalingOptions](ctx, s.client, path)
 	if err != nil {
 		return nil, err
@@ -104,25 +122,37 @@ func (s *ServerlessJobsService) GetJobDeploymentScaling(ctx context.Context, job
 }
 
 func (s *ServerlessJobsService) PurgeJobDeploymentQueue(ctx context.Context, jobName string) error {
-	path := fmt.Sprintf("/job-deployments/%s/purge-queue", jobName)
-	_, _, err := postRequest[any](ctx, s.client, path, nil)
+	path, err := jobDeploymentPath(jobName, "/purge-queue")
+	if err != nil {
+		return err
+	}
+	_, _, err = postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ServerlessJobsService) PauseJobDeployment(ctx context.Context, jobName string) error {
-	path := fmt.Sprintf("/job-deployments/%s/pause", jobName)
-	_, _, err := postRequest[any](ctx, s.client, path, nil)
+	path, err := jobDeploymentPath(jobName, "/pause")
+	if err != nil {
+		return err
+	}
+	_, _, err = postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ServerlessJobsService) ResumeJobDeployment(ctx context.Context, jobName string) error {
-	path := fmt.Sprintf("/job-deployments/%s/resume", jobName)
-	_, _, err := postRequest[any](ctx, s.client, path, nil)
+	path, err := jobDeploymentPath(jobName, "/resume")
+	if err != nil {
+		return err
+	}
+	_, _, err = postRequest[any](ctx, s.client, path, nil)
 	return err
 }
 
 func (s *ServerlessJobsService) GetJobDeploymentStatus(ctx context.Context, jobName string) (*JobDeploymentStatus, error) {
-	path := fmt.Sprintf("/job-deployments/%s/status", jobName)
+	path, err := jobDeploymentPath(jobName, "/status")
+	if err != nil {
+		return nil, err
+	}
 	status, _, err := getRequest[JobDeploymentStatus](ctx, s.client, path)
 	if err != nil {
 		return nil, err

@@ -17,7 +17,6 @@ package verda
 import (
 	"context"
 	"fmt"
-	"net/url"
 )
 
 // addResourceTag adds a single tag to the resource at basePath/resourceID.
@@ -32,7 +31,10 @@ func addResourceTag(ctx context.Context, client *Client, basePath, resourceID st
 		return nil, err
 	}
 
-	path := fmt.Sprintf("%s/%s/tags", basePath, url.PathEscape(resourceID))
+	path, err := joinPath(basePath, "resourceID", resourceID, "/tags")
+	if err != nil {
+		return nil, err
+	}
 
 	tag, _, err := postRequest[Tag](ctx, client, path, req)
 	if err != nil {
@@ -52,10 +54,18 @@ func deleteResourceTag(ctx context.Context, client *Client, basePath, resourceID
 		return fmt.Errorf("tag key is required")
 	}
 
-	// Tag keys are arbitrary user-supplied text, so they must be escaped before
-	// being interpolated into the request path.
-	path := fmt.Sprintf("%s/%s/tags/%s", basePath, url.PathEscape(resourceID), url.PathEscape(key))
+	// Tag keys are arbitrary user-supplied text, so they are validated and
+	// escaped like IDs. A key of "." or ".." is rejected: a proxy that removes
+	// dot segments would turn ".../tags/.." into a DELETE of the resource itself.
+	base, err := joinPath(basePath, "resourceID", resourceID, "/tags")
+	if err != nil {
+		return err
+	}
+	path, err := joinPath(base, "key", key, "")
+	if err != nil {
+		return err
+	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, client, path)
+	_, err = deleteRequestAllowEmptyResponse(ctx, client, path)
 	return err
 }

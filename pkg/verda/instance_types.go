@@ -80,7 +80,10 @@ func (s *InstanceTypesService) Get(ctx context.Context, currency string) ([]Inst
 }
 
 func (s *InstanceTypesService) GetByInstanceType(ctx context.Context, instanceType string, isSpot bool, locationCode string, currency string) (*InstanceTypeInfo, error) {
-	path := fmt.Sprintf("/instance-types/%s", instanceType)
+	path, err := joinPath("/instance-types", "instanceType", instanceType, "")
+	if err != nil {
+		return nil, err
+	}
 
 	params := url.Values{}
 	if isSpot {
