@@ -23,7 +23,7 @@ import (
 	"time"
 	"unicode"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // Lifecycle phases of a ManagedKubernetesCluster.
