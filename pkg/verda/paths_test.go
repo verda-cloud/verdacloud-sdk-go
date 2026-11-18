@@ -96,16 +96,8 @@ func newRecordingClient(t *testing.T) (*Client, *recordingTransport) {
 	t.Cleanup(srv.Close)
 
 	rt := &recordingTransport{}
-	config := testutil.NewTestClientConfig(srv)
-	client, err := NewClient(
-		WithBaseURL(config.BaseURL),
-		WithClientID(config.ClientID),
-		WithClientSecret(config.ClientSecret),
-		WithHTTPClient(&http.Client{Transport: rt}),
-	)
-	if err != nil {
-		t.Fatalf("create test client: %v", err)
-	}
+	client := NewTestClient(t, srv)
+	client.HTTPClient.Transport = rt
 	return client, rt
 }
 
