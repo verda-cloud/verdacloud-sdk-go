@@ -470,6 +470,110 @@ func TestInstanceService_Create(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("startup script on the wire", func(t *testing.T) {
+		script := "#!/bin/bash\napt-get update && apt-get install -y htop\n"
+		cases := []struct {
+			name          string
+			startupScript string
+			want          any // nil means the key must be absent
+		}{
+			{"omitted when empty", "", nil},
+			{"sent unchanged", script, script},
+		}
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				srv := testutil.NewMockServer()
+				defer srv.Close()
+
+				var body map[string]any
+				srv.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, r *http.Request) {
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						t.Errorf("decode request body: %v", err)
+					}
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"id":"inst_startup_script","status":"provisioning"}`))
+				})
+
+				c := NewTestClient(t, srv)
+				_, err := c.Instances.Create(context.Background(), CreateInstanceRequest{
+					InstanceType:  "CPU.4V.16G",
+					Image:         "ubuntu-24.04",
+					Hostname:      "startup-script-test",
+					StartupScript: tc.startupScript,
+				})
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+
+				got, present := body["startup_script"]
+				if tc.want == nil {
+					if present {
+						t.Errorf("expected startup_script to be omitted, got %v", got)
+					}
+					return
+				}
+				if got != tc.want {
+					t.Errorf("expected startup_script %v, got %v (present=%v)", tc.want, got, present)
+				}
+			})
+		}
+	})
+
+	t.Run("startup script validation", func(t *testing.T) {
+		maxLengthScript := "#!" + strings.Repeat("a", maxStartupScriptRunes-2)
+		maxLengthUnicodeScript := "#!" + strings.Repeat("💥", maxStartupScriptRunes-2)
+		cases := []struct {
+			name            string
+			startupScript   string
+			startupScriptID *string
+			wantErr         bool
+			wantErrMention  string
+		}{
+			{name: "neither script"},
+			{name: "script ID only", startupScriptID: new("script_123")},
+			{name: "valid inline script", startupScript: "#!/bin/sh\necho ready\n"},
+			{name: "maximum length", startupScript: maxLengthScript},
+			{name: "maximum length with multibyte Unicode", startupScript: maxLengthUnicodeScript},
+			{name: "too many multibyte Unicode characters", startupScript: maxLengthUnicodeScript + "💥", wantErr: true, wantErrMention: "startup_script"},
+			{name: "missing shebang", startupScript: "echo ready", wantErr: true, wantErrMention: `startup_script: must start with "#!"`},
+			{name: "too long", startupScript: maxLengthScript + "a", wantErr: true, wantErrMention: "startup_script"},
+			{name: "both script fields", startupScript: "#!/bin/sh\n", startupScriptID: new("script_123"), wantErr: true, wantErrMention: "startup_script_id"},
+		}
+
+		srv := testutil.NewMockServer()
+		defer srv.Close()
+		srv.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, _ *http.Request) {
+			t.Error("an invalid startup script request reached the server")
+			w.WriteHeader(http.StatusBadRequest)
+		})
+		c := NewTestClient(t, srv)
+
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				req := CreateInstanceRequest{
+					InstanceType:    "CPU.4V.16G",
+					Image:           "ubuntu-24.04",
+					Hostname:        "startup-script-validation",
+					StartupScript:   tc.startupScript,
+					StartupScriptID: tc.startupScriptID,
+				}
+				var err error
+				if tc.wantErr {
+					_, err = c.Instances.Create(context.Background(), req)
+				} else {
+					err = req.Validate()
+				}
+				if tc.wantErr != (err != nil) {
+					t.Fatalf("wantErr=%v, got %v", tc.wantErr, err)
+				}
+				if err != nil && tc.wantErrMention != "" && !strings.Contains(err.Error(), tc.wantErrMention) {
+					t.Errorf("expected error to mention %q, got %q", tc.wantErrMention, err)
+				}
+			})
+		}
+	})
 }
 
 func TestInstanceService_CreateSpotWithDiscontinuePolicy(t *testing.T) {
