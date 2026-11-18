@@ -48,7 +48,10 @@ func (s *VolumeService) ListVolumesByStatus(ctx context.Context, status string) 
 }
 
 func (s *VolumeService) GetVolume(ctx context.Context, id string) (*Volume, error) {
-	path := fmt.Sprintf("/volumes/%s", id)
+	path, err := joinPath("/volumes", "id", id, "")
+	if err != nil {
+		return nil, err
+	}
 	volume, _, err := getRequest[Volume](ctx, s.client, path)
 	if err != nil {
 		return nil, err
@@ -100,10 +103,13 @@ func (s *VolumeService) GetVolumesInTrash(ctx context.Context) ([]VolumeInTrash,
 // permanently removed — use RestoreVolume to bring it back. Pass true to delete
 // it outright.
 func (s *VolumeService) DeleteVolume(ctx context.Context, id string, isPermanent bool) error {
-	path := fmt.Sprintf("/volumes/%s", id)
+	path, err := joinPath("/volumes", "id", id, "")
+	if err != nil {
+		return err
+	}
 	req := DeleteVolumeRequest{IsPermanent: isPermanent}
 
-	_, err := deleteRequestWithBody(ctx, s.client, path, req)
+	_, err = deleteRequestWithBody(ctx, s.client, path, req)
 	return err
 }
 

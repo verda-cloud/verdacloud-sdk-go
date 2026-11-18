@@ -63,7 +63,10 @@ func (s *InstanceService) List(ctx context.Context, opts *ListInstancesOptions) 
 }
 
 func (s *InstanceService) GetByID(ctx context.Context, id string) (*Instance, error) {
-	path := fmt.Sprintf("/instances/%s", id)
+	path, err := joinPath("/instances", "id", id, "")
+	if err != nil {
+		return nil, err
+	}
 
 	instance, _, err := getRequest[Instance](ctx, s.client, path)
 	if err != nil {
@@ -162,7 +165,10 @@ func (s *InstanceService) GetLocationAvailabilities(ctx context.Context) ([]Loca
 }
 
 func (s *InstanceService) CheckInstanceTypeAvailability(ctx context.Context, instanceType string) (bool, error) {
-	path := fmt.Sprintf("/instance-availability/%s", instanceType)
+	path, err := instanceAvailabilityPath(instanceType)
+	if err != nil {
+		return false, err
+	}
 
 	// API returns "true"/"false" as JSON string, not boolean
 	resp, err := s.client.makeRequest(ctx, http.MethodGet, path, nil)

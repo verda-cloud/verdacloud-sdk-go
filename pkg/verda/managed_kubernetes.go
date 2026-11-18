@@ -16,7 +16,6 @@ package verda
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 )
 
@@ -29,7 +28,7 @@ type ManagedKubernetesService struct {
 // clusterPath returns the API path of a cluster. Every user-supplied path
 // segment is validated and escaped so that it stays a single segment.
 func (s *ManagedKubernetesService) clusterPath(location, clusterName string) (string, error) {
-	loc, err := managedKubernetesPathSegment("location", location)
+	loc, err := pathSegment("location", location)
 	if err != nil {
 		return "", err
 	}
@@ -71,23 +70,11 @@ func (s *ManagedKubernetesService) kubeconfigPath(location, clusterName, id stri
 	if err != nil {
 		return "", err
 	}
-	segment, err := managedKubernetesPathSegment("id", id)
+	segment, err := pathSegment("id", id)
 	if err != nil {
 		return "", err
 	}
 	return base + "/" + segment, nil
-}
-
-// managedKubernetesPathSegment validates and escapes a free-form path segment.
-// "." and ".." survive path escaping and would change which endpoint is called.
-func managedKubernetesPathSegment(field, value string) (string, error) {
-	if value == "" {
-		return "", fmt.Errorf("%s must not be empty", field)
-	}
-	if value == "." || value == ".." {
-		return "", fmt.Errorf("%s %q is not a valid path segment", field, value)
-	}
-	return url.PathEscape(value), nil
 }
 
 func (s *ManagedKubernetesService) List(ctx context.Context) ([]ManagedKubernetesCluster, error) {

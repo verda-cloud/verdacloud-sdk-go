@@ -63,7 +63,10 @@ func (s *SSHKeyService) GetAllSSHKeys(ctx context.Context) ([]SSHKey, error) {
 }
 
 func (s *SSHKeyService) GetSSHKeyByID(ctx context.Context, sshKeyID string) (*SSHKey, error) {
-	path := fmt.Sprintf("/ssh-keys/%s", sshKeyID)
+	path, err := joinPath("/ssh-keys", "sshKeyID", sshKeyID, "")
+	if err != nil {
+		return nil, err
+	}
 
 	// API returns array even for single key lookup
 	keys, _, err := getRequest[[]SSHKey](ctx, s.client, path)
@@ -106,8 +109,11 @@ func (s *SSHKeyService) createWithPlainTextResponse(ctx context.Context, req *Cr
 }
 
 func (s *SSHKeyService) DeleteSSHKey(ctx context.Context, sshKeyID string) error {
-	path := fmt.Sprintf("/ssh-keys/%s", sshKeyID)
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	path, err := joinPath("/ssh-keys", "sshKeyID", sshKeyID, "")
+	if err != nil {
+		return err
+	}
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 

@@ -16,7 +16,6 @@ package verda
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 )
 
@@ -59,8 +58,17 @@ func (s *InstanceAvailabilityService) GetAllAvailabilities(ctx context.Context, 
 	return availabilities, nil
 }
 
+// instanceAvailabilityPath returns /instance-availability/{instanceType},
+// with instanceType validated and escaped
+func instanceAvailabilityPath(instanceType string) (string, error) {
+	return joinPath("/instance-availability", "instanceType", instanceType, "")
+}
+
 func (s *InstanceAvailabilityService) GetInstanceTypeAvailability(ctx context.Context, instanceType string, isSpot bool, locationCode string) (bool, error) {
-	path := fmt.Sprintf("/instance-availability/%s", instanceType)
+	path, err := instanceAvailabilityPath(instanceType)
+	if err != nil {
+		return false, err
+	}
 
 	params := url.Values{}
 	if isSpot {

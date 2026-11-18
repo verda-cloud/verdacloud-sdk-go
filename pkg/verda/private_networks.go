@@ -16,11 +16,35 @@ package verda
 
 import (
 	"context"
-	"fmt"
 )
 
 type PrivateNetworkService struct {
 	client *Client
+}
+
+// privateNetworkPath returns /private-networks/{networkID} followed by suffix.
+// Every caller-supplied segment is validated and escaped.
+func privateNetworkPath(networkID, suffix string) (string, error) {
+	return joinPath("/private-networks", "networkID", networkID, suffix)
+}
+
+// subnetPath returns /private-networks/{networkID}/subnets/{subnetID}
+// followed by suffix
+func subnetPath(networkID, subnetID, suffix string) (string, error) {
+	base, err := privateNetworkPath(networkID, "/subnets")
+	if err != nil {
+		return "", err
+	}
+	return joinPath(base, "subnetID", subnetID, suffix)
+}
+
+// routePath returns /private-networks/{networkID}/subnets/{subnetID}/routes/{routeID}
+func routePath(networkID, subnetID, routeID string) (string, error) {
+	base, err := subnetPath(networkID, subnetID, "/routes")
+	if err != nil {
+		return "", err
+	}
+	return joinPath(base, "routeID", routeID, "")
 }
 
 func (s *PrivateNetworkService) Create(ctx context.Context, req CreatePrivateNetworkRequest) (*PrivateNetwork, error) {
@@ -44,7 +68,10 @@ func (s *PrivateNetworkService) Get(ctx context.Context) ([]PrivateNetwork, erro
 }
 
 func (s *PrivateNetworkService) GetByID(ctx context.Context, id string) (*PrivateNetwork, error) {
-	path := fmt.Sprintf("/private-networks/%s", id)
+	path, err := privateNetworkPath(id, "")
+	if err != nil {
+		return nil, err
+	}
 
 	network, _, err := getRequest[PrivateNetwork](ctx, s.client, path)
 	if err != nil {
@@ -59,7 +86,10 @@ func (s *PrivateNetworkService) Update(ctx context.Context, id string, req Updat
 		return nil, err
 	}
 
-	path := fmt.Sprintf("/private-networks/%s", id)
+	path, err := privateNetworkPath(id, "")
+	if err != nil {
+		return nil, err
+	}
 
 	network, _, err := patchRequest[PrivateNetwork](ctx, s.client, path, req)
 	if err != nil {
@@ -70,15 +100,21 @@ func (s *PrivateNetworkService) Update(ctx context.Context, id string, req Updat
 
 // Delete deletes a private network and its subnets
 func (s *PrivateNetworkService) Delete(ctx context.Context, id string) error {
-	path := fmt.Sprintf("/private-networks/%s", id)
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	path, err := privateNetworkPath(id, "")
+	if err != nil {
+		return err
+	}
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
 // GetWorkloads lists the instances attached to a network, newest first.
 // The list does not include cluster nodes.
 func (s *PrivateNetworkService) GetWorkloads(ctx context.Context, networkID string) ([]PrivateNetworkWorkload, error) {
-	path := fmt.Sprintf("/private-networks/%s/workloads", networkID)
+	path, err := privateNetworkPath(networkID, "/workloads")
+	if err != nil {
+		return nil, err
+	}
 
 	workloads, _, err := getRequest[[]PrivateNetworkWorkload](ctx, s.client, path)
 	if err != nil {
@@ -90,7 +126,10 @@ func (s *PrivateNetworkService) GetWorkloads(ctx context.Context, networkID stri
 // GetSubnetWorkloads lists the instances that take their private address
 // from a subnet, newest first. The list does not include cluster nodes.
 func (s *PrivateNetworkService) GetSubnetWorkloads(ctx context.Context, networkID, subnetID string) ([]PrivateNetworkWorkload, error) {
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s/workloads", networkID, subnetID)
+	path, err := subnetPath(networkID, subnetID, "/workloads")
+	if err != nil {
+		return nil, err
+	}
 
 	workloads, _, err := getRequest[[]PrivateNetworkWorkload](ctx, s.client, path)
 	if err != nil {
@@ -104,7 +143,10 @@ func (s *PrivateNetworkService) CreateSubnet(ctx context.Context, networkID stri
 		return nil, err
 	}
 
-	path := fmt.Sprintf("/private-networks/%s/subnets", networkID)
+	path, err := privateNetworkPath(networkID, "/subnets")
+	if err != nil {
+		return nil, err
+	}
 
 	subnet, _, err := postRequest[Subnet](ctx, s.client, path, req)
 	if err != nil {
@@ -114,7 +156,10 @@ func (s *PrivateNetworkService) CreateSubnet(ctx context.Context, networkID stri
 }
 
 func (s *PrivateNetworkService) GetSubnets(ctx context.Context, networkID string) ([]Subnet, error) {
-	path := fmt.Sprintf("/private-networks/%s/subnets", networkID)
+	path, err := privateNetworkPath(networkID, "/subnets")
+	if err != nil {
+		return nil, err
+	}
 
 	subnets, _, err := getRequest[[]Subnet](ctx, s.client, path)
 	if err != nil {
@@ -124,7 +169,10 @@ func (s *PrivateNetworkService) GetSubnets(ctx context.Context, networkID string
 }
 
 func (s *PrivateNetworkService) GetSubnetByID(ctx context.Context, networkID, subnetID string) (*Subnet, error) {
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s", networkID, subnetID)
+	path, err := subnetPath(networkID, subnetID, "")
+	if err != nil {
+		return nil, err
+	}
 
 	subnet, _, err := getRequest[Subnet](ctx, s.client, path)
 	if err != nil {
@@ -140,7 +188,10 @@ func (s *PrivateNetworkService) UpdateSubnet(ctx context.Context, networkID, sub
 		return nil, err
 	}
 
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s", networkID, subnetID)
+	path, err := subnetPath(networkID, subnetID, "")
+	if err != nil {
+		return nil, err
+	}
 
 	subnet, _, err := patchRequest[Subnet](ctx, s.client, path, req)
 	if err != nil {
@@ -150,8 +201,11 @@ func (s *PrivateNetworkService) UpdateSubnet(ctx context.Context, networkID, sub
 }
 
 func (s *PrivateNetworkService) DeleteSubnet(ctx context.Context, networkID, subnetID string) error {
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s", networkID, subnetID)
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	path, err := subnetPath(networkID, subnetID, "")
+	if err != nil {
+		return err
+	}
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -163,7 +217,10 @@ func (s *PrivateNetworkService) CreateRoute(ctx context.Context, networkID, subn
 		return nil, err
 	}
 
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s/routes", networkID, subnetID)
+	path, err := subnetPath(networkID, subnetID, "/routes")
+	if err != nil {
+		return nil, err
+	}
 
 	route, _, err := postRequest[Route](ctx, s.client, path, req)
 	if err != nil {
@@ -173,7 +230,10 @@ func (s *PrivateNetworkService) CreateRoute(ctx context.Context, networkID, subn
 }
 
 func (s *PrivateNetworkService) GetRoutes(ctx context.Context, networkID, subnetID string) ([]Route, error) {
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s/routes", networkID, subnetID)
+	path, err := subnetPath(networkID, subnetID, "/routes")
+	if err != nil {
+		return nil, err
+	}
 
 	routes, _, err := getRequest[[]Route](ctx, s.client, path)
 	if err != nil {
@@ -183,7 +243,10 @@ func (s *PrivateNetworkService) GetRoutes(ctx context.Context, networkID, subnet
 }
 
 func (s *PrivateNetworkService) DeleteRoute(ctx context.Context, networkID, subnetID, routeID string) error {
-	path := fmt.Sprintf("/private-networks/%s/subnets/%s/routes/%s", networkID, subnetID, routeID)
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	path, err := routePath(networkID, subnetID, routeID)
+	if err != nil {
+		return err
+	}
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
