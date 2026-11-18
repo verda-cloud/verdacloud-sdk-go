@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
@@ -132,7 +133,9 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 	isDefaultTrue := true
 
 	t.Run("create subnet", func(t *testing.T) {
-		subnet, err := client.PrivateNetworks.CreateSubnet(ctx, "pn_123", CreateSubnetRequest{
+		// Its own network, so the stored subnet does not change the
+		// fixture-based pn_123 subtests below
+		subnet, err := client.PrivateNetworks.CreateSubnet(ctx, "pn_create", CreateSubnetRequest{
 			LocationCode: "FIN-01",
 			Name:         "workers",
 			CIDR:         "10.0.0.0/24",
@@ -142,8 +145,8 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		if subnet.ID != "sn_new_123" {
-			t.Errorf("expected subnet ID 'sn_new_123', got '%s'", subnet.ID)
+		if !strings.HasPrefix(subnet.ID, "sn_new_") {
+			t.Errorf("expected a generated subnet ID, got '%s'", subnet.ID)
 		}
 		if subnet.Location.Code != "FIN-01" {
 			t.Errorf("expected location 'FIN-01', got '%s'", subnet.Location.Code)
@@ -266,6 +269,198 @@ func TestPrivateNetworkService_Subnets(t *testing.T) {
 	t.Run("delete subnet", func(t *testing.T) {
 		if err := client.PrivateNetworks.DeleteSubnet(ctx, "pn_123", "sn_123"); err != nil {
 			t.Errorf("unexpected error: %v", err)
+		}
+	})
+}
+
+// TestPrivateNetworkService_SubnetDefaultRule checks that the mock server
+// follows the API's is_default rule: a subnet created without is_default
+// becomes the default only when its network has no default subnet in that
+// location; is_default true moves the default; deleting the default does not
+// move it to another subnet.
+func TestPrivateNetworkService_SubnetDefaultRule(t *testing.T) {
+	ctx := context.Background()
+	isTrue, isFalse := true, false
+
+	setup := func(t *testing.T) *Client {
+		t.Helper()
+		srv := testutil.NewMockServer()
+		t.Cleanup(srv.Close)
+		return NewTestClient(t, srv)
+	}
+
+	create := func(t *testing.T, c *Client, networkID, location string, isDefault *bool) *Subnet {
+		t.Helper()
+		subnet, err := c.PrivateNetworks.CreateSubnet(ctx, networkID, CreateSubnetRequest{
+			LocationCode: location,
+			Name:         "workers",
+			CIDR:         "10.0.0.0/24",
+			IsDefault:    isDefault,
+		})
+		if err != nil {
+			t.Fatalf("create subnet: %v", err)
+		}
+		return subnet
+	}
+
+	// defaults returns the is_default flag of every subnet in the network, by ID
+	defaults := func(t *testing.T, c *Client, networkID string) map[string]bool {
+		t.Helper()
+		subnets, err := c.PrivateNetworks.GetSubnets(ctx, networkID)
+		if err != nil {
+			t.Fatalf("list subnets: %v", err)
+		}
+		got := make(map[string]bool, len(subnets))
+		for _, s := range subnets {
+			got[s.ID] = s.IsDefault
+		}
+		return got
+	}
+
+	assertDefaults := func(t *testing.T, c *Client, networkID string, want map[string]bool) {
+		t.Helper()
+		got := defaults(t, c, networkID)
+		if len(got) != len(want) {
+			t.Fatalf("expected %d subnets in %s, got %v", len(want), networkID, got)
+		}
+		for id, wantDefault := range want {
+			gotDefault, ok := got[id]
+			if !ok {
+				t.Errorf("subnet %s missing from %s: %v", id, networkID, got)
+				continue
+			}
+			if gotDefault != wantDefault {
+				t.Errorf("subnet %s: expected is_default %v, got %v", id, wantDefault, gotDefault)
+			}
+		}
+	}
+
+	t.Run("omitted: first in a location becomes default, second does not", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+		second := create(t, c, "pn_a", "FIN-01", nil)
+
+		if !first.IsDefault || second.IsDefault {
+			t.Errorf("expected first default and second not, got %v and %v", first.IsDefault, second.IsDefault)
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: true, second.ID: false})
+	})
+
+	t.Run("omitted: becomes default when only non-default subnets exist", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", &isFalse)
+		second := create(t, c, "pn_a", "FIN-01", nil)
+
+		if first.IsDefault || !second.IsDefault {
+			t.Errorf("expected only the second to be default, got %v and %v", first.IsDefault, second.IsDefault)
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: false, second.ID: true})
+	})
+
+	t.Run("create with true moves the default", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+		second := create(t, c, "pn_a", "FIN-01", &isTrue)
+
+		if !second.IsDefault {
+			t.Error("expected the new subnet to be default")
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: false, second.ID: true})
+	})
+
+	t.Run("update with true moves the default", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+		second := create(t, c, "pn_a", "FIN-01", nil)
+
+		updated, err := c.PrivateNetworks.UpdateSubnet(ctx, "pn_a", second.ID, UpdateSubnetRequest{IsDefault: &isTrue})
+		if err != nil {
+			t.Fatalf("update subnet: %v", err)
+		}
+		if !updated.IsDefault {
+			t.Error("expected the updated subnet to be default")
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: false, second.ID: true})
+	})
+
+	t.Run("rename keeps the default flag", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+		second := create(t, c, "pn_a", "FIN-01", nil)
+
+		name := "renamed"
+		for _, s := range []*Subnet{first, second} {
+			updated, err := c.PrivateNetworks.UpdateSubnet(ctx, "pn_a", s.ID, UpdateSubnetRequest{Name: &name})
+			if err != nil {
+				t.Fatalf("update subnet: %v", err)
+			}
+			if updated.Name != name || updated.IsDefault != s.IsDefault {
+				t.Errorf("subnet %s: expected name %q and is_default %v, got %q and %v",
+					s.ID, name, s.IsDefault, updated.Name, updated.IsDefault)
+			}
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: true, second.ID: false})
+	})
+
+	t.Run("deleting the default does not promote another subnet", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+		second := create(t, c, "pn_a", "FIN-01", nil)
+
+		if err := c.PrivateNetworks.DeleteSubnet(ctx, "pn_a", first.ID); err != nil {
+			t.Fatalf("delete subnet: %v", err)
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{second.ID: false})
+
+		third := create(t, c, "pn_a", "FIN-01", nil)
+		if !third.IsDefault {
+			t.Error("expected a subnet created after the default was deleted to become default")
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{second.ID: false, third.ID: true})
+	})
+
+	t.Run("unsetting the default leaves the location without one", func(t *testing.T) {
+		c := setup(t)
+		first := create(t, c, "pn_a", "FIN-01", nil)
+
+		if _, err := c.PrivateNetworks.UpdateSubnet(ctx, "pn_a", first.ID, UpdateSubnetRequest{IsDefault: &isFalse}); err != nil {
+			t.Fatalf("update subnet: %v", err)
+		}
+		second := create(t, c, "pn_a", "FIN-01", nil)
+		if !second.IsDefault {
+			t.Error("expected a subnet created after the default was unset to become default")
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{first.ID: false, second.ID: true})
+	})
+
+	t.Run("the rule is per network and location", func(t *testing.T) {
+		c := setup(t)
+		fin01 := create(t, c, "pn_a", "FIN-01", nil)
+		fin03 := create(t, c, "pn_a", "FIN-03", nil)
+		other := create(t, c, "pn_b", "FIN-01", nil)
+
+		if !fin01.IsDefault || !fin03.IsDefault || !other.IsDefault {
+			t.Errorf("expected each first subnet to be default, got %v, %v, %v", fin01.IsDefault, fin03.IsDefault, other.IsDefault)
+		}
+
+		moved := create(t, c, "pn_a", "FIN-01", &isTrue)
+		assertDefaults(t, c, "pn_a", map[string]bool{fin01.ID: false, fin03.ID: true, moved.ID: true})
+		assertDefaults(t, c, "pn_b", map[string]bool{other.ID: true})
+	})
+
+	t.Run("a deleted subnet does not come back", func(t *testing.T) {
+		c := setup(t)
+		subnet := create(t, c, "pn_a", "FIN-01", nil)
+
+		if err := c.PrivateNetworks.DeleteSubnet(ctx, "pn_a", subnet.ID); err != nil {
+			t.Fatalf("delete subnet: %v", err)
+		}
+		assertDefaults(t, c, "pn_a", map[string]bool{})
+
+		_, err := c.PrivateNetworks.GetSubnetByID(ctx, "pn_a", subnet.ID)
+		var apiErr *APIError
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+			t.Errorf("expected a 404 APIError, got %v", err)
 		}
 	})
 }

@@ -599,6 +599,11 @@ type MockServer struct {
 	sshKeys  map[string]SSHKey        // Store created SSH keys
 	scripts  map[string]StartupScript // Store created startup scripts
 	tags     map[string][]Tag         // Store tags per "<basePath>/<resourceID>"
+	// Subnets per private network ID, in creation order. A network with an
+	// entry (even an empty one) is served from this store; other networks get
+	// fixtures.
+	subnets   map[string][]Subnet
+	subnetSeq int
 }
 
 // NewMockServer creates a new mock server
@@ -608,6 +613,7 @@ func NewMockServer() *MockServer {
 		sshKeys:  make(map[string]SSHKey),
 		scripts:  make(map[string]StartupScript),
 		tags:     make(map[string][]Tag),
+		subnets:  make(map[string][]Subnet),
 	}
 
 	ms.server = httptest.NewServer(http.HandlerFunc(ms.handleRequest))
@@ -1249,25 +1255,61 @@ func (ms *MockServer) handleCreatePrivateNetworkSubnet(w http.ResponseWriter, r 
 		return
 	}
 
-	subnet := mockSubnetFixture("sn_new_123", req.LocationCode)
+	networkID := networkIDFromPath(r.URL.Path)
+
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	subnets := ms.subnets[networkID]
+	ms.subnetSeq++
+	subnet := mockSubnetFixture(fmt.Sprintf("sn_new_%d", ms.subnetSeq), req.LocationCode)
 	subnet.Name = req.Name
 	subnet.CIDR = req.CIDR
-	// Stand-in for the server rule: nil means "default if none exists yet"
-	subnet.IsDefault = req.IsDefault == nil || *req.IsDefault
+	// The API's rule: without is_default, the subnet becomes the default only
+	// when the network has no default subnet in that location
+	if req.IsDefault != nil {
+		subnet.IsDefault = *req.IsDefault
+	} else {
+		subnet.IsDefault = !hasDefaultSubnet(subnets, req.LocationCode)
+	}
+	if subnet.IsDefault {
+		clearDefaultSubnet(subnets, req.LocationCode)
+	}
+	ms.subnets[networkID] = append(subnets, subnet)
 
 	w.WriteHeader(http.StatusCreated)
 	writeJSON(w, subnet)
 }
 
-func (ms *MockServer) handleGetPrivateNetworkSubnets(w http.ResponseWriter, _ *http.Request) {
+func (ms *MockServer) handleGetPrivateNetworkSubnets(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
+	if subnets, stored := ms.subnets[networkIDFromPath(r.URL.Path)]; stored {
+		writeJSON(w, append([]Subnet{}, subnets...))
+		return
+	}
 	writeJSON(w, []Subnet{mockSubnetFixture("sn_123", "FIN-01")})
 }
 
 func (ms *MockServer) handleGetPrivateNetworkSubnet(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	ms.mu.RLock()
+	defer ms.mu.RUnlock()
+
 	subnetID, locationCode := subnetLocation(r.URL.Path)
+	if subnets, stored := ms.subnets[networkIDFromPath(r.URL.Path)]; stored {
+		i := subnetIndex(subnets, subnetID)
+		if i < 0 {
+			writeSubnetNotFound(w)
+			return
+		}
+		writeJSON(w, subnets[i])
+		return
+	}
 	writeJSON(w, mockSubnetFixture(subnetID, locationCode))
 }
 
@@ -1280,20 +1322,104 @@ func (ms *MockServer) handleUpdatePrivateNetworkSubnet(w http.ResponseWriter, r 
 		return
 	}
 
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
 	subnetID, locationCode := subnetLocation(r.URL.Path)
-	subnet := mockSubnetFixture(subnetID, locationCode)
+	subnets, stored := ms.subnets[networkIDFromPath(r.URL.Path)]
+	if !stored {
+		subnet := mockSubnetFixture(subnetID, locationCode)
+		if req.Name != nil {
+			subnet.Name = *req.Name
+		}
+		if req.IsDefault != nil {
+			subnet.IsDefault = *req.IsDefault
+		}
+		writeJSON(w, subnet)
+		return
+	}
+
+	i := subnetIndex(subnets, subnetID)
+	if i < 0 {
+		writeSubnetNotFound(w)
+		return
+	}
 	if req.Name != nil {
-		subnet.Name = *req.Name
+		subnets[i].Name = *req.Name
 	}
 	if req.IsDefault != nil {
-		subnet.IsDefault = *req.IsDefault
+		if *req.IsDefault {
+			clearDefaultSubnet(subnets, subnets[i].Location.Code)
+		}
+		subnets[i].IsDefault = *req.IsDefault
 	}
 
-	writeJSON(w, subnet)
+	writeJSON(w, subnets[i])
 }
 
-func (ms *MockServer) handleDeletePrivateNetworkSubnet(w http.ResponseWriter, _ *http.Request) {
+// handleDeletePrivateNetworkSubnet removes a stored subnet. Like the API, it
+// does not move the default to another subnet.
+func (ms *MockServer) handleDeletePrivateNetworkSubnet(w http.ResponseWriter, r *http.Request) {
+	ms.mu.Lock()
+	defer ms.mu.Unlock()
+
+	networkID := networkIDFromPath(r.URL.Path)
+	subnets, stored := ms.subnets[networkID]
+	if !stored {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	subnetID, _ := subnetLocation(r.URL.Path)
+	i := subnetIndex(subnets, subnetID)
+	if i < 0 {
+		w.Header().Set("Content-Type", "application/json")
+		writeSubnetNotFound(w)
+		return
+	}
+	// Keep the (possibly empty) entry so the network stays served from the store
+	ms.subnets[networkID] = append(subnets[:i:i], subnets[i+1:]...)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// networkIDFromPath returns {id} from /private-networks/{id}[/...]
+func networkIDFromPath(path string) string {
+	parts := strings.Split(path, "/")
+	if len(parts) > 2 {
+		return parts[2]
+	}
+	return ""
+}
+
+func subnetIndex(subnets []Subnet, subnetID string) int {
+	for i := range subnets {
+		if subnets[i].ID == subnetID {
+			return i
+		}
+	}
+	return -1
+}
+
+func hasDefaultSubnet(subnets []Subnet, locationCode string) bool {
+	for i := range subnets {
+		if subnets[i].IsDefault && subnets[i].Location.Code == locationCode {
+			return true
+		}
+	}
+	return false
+}
+
+func clearDefaultSubnet(subnets []Subnet, locationCode string) {
+	for i := range subnets {
+		if subnets[i].Location.Code == locationCode {
+			subnets[i].IsDefault = false
+		}
+	}
+}
+
+func writeSubnetNotFound(w http.ResponseWriter) {
+	w.WriteHeader(http.StatusNotFound)
+	writeJSON(w, map[string]string{"code": "not_found", "message": "Subnet not found"})
 }
 
 func (ms *MockServer) handleCreatePrivateNetworkRoute(w http.ResponseWriter, r *http.Request) {
