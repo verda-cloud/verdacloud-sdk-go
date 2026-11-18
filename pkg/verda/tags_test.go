@@ -37,6 +37,9 @@ func TestTagRequest_Validate(t *testing.T) {
 		{"missing key", TagRequest{Value: "production"}, true},
 		{"key at max length", TagRequest{Key: strings.Repeat("a", TagKeyMaxLength)}, false},
 		{"key over max length", TagRequest{Key: strings.Repeat("a", TagKeyMaxLength+1)}, true},
+		{"key is a dot segment", TagRequest{Key: "."}, true},
+		{"key is a parent dot segment", TagRequest{Key: ".."}, true},
+		{"key with dots inside", TagRequest{Key: "app.kubernetes.io/name"}, false},
 		{"value at max length", TagRequest{Key: "k", Value: strings.Repeat("a", TagValueMaxLength)}, false},
 		{"value over max length", TagRequest{Key: "k", Value: strings.Repeat("a", TagValueMaxLength+1)}, true},
 	}

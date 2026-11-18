@@ -264,6 +264,33 @@ func pathCases() []pathCase {
 				return errOnly(c.ServerlessJobs.GetJobDeploymentStatus(ctx, s[0]))
 			}},
 
+		// Tags on instances, volumes and clusters: the resource ID and, on
+		// delete, the tag key are path segments
+		{"Instances.AddTag", http.MethodPost, "/instances/%s/tags", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return errOnly(c.Instances.AddTag(ctx, s[0], TagRequest{Key: "env"}))
+			}},
+		{"Instances.DeleteTag", http.MethodDelete, "/instances/%s/tags/%s", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return c.Instances.DeleteTag(ctx, s[0], s[1])
+			}},
+		{"Volumes.AddTag", http.MethodPost, "/volumes/%s/tags", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return errOnly(c.Volumes.AddTag(ctx, s[0], TagRequest{Key: "env"}))
+			}},
+		{"Volumes.DeleteTag", http.MethodDelete, "/volumes/%s/tags/%s", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return c.Volumes.DeleteTag(ctx, s[0], s[1])
+			}},
+		{"Clusters.AddTag", http.MethodPost, "/clusters/%s/tags", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return errOnly(c.Clusters.AddTag(ctx, s[0], TagRequest{Key: "env"}))
+			}},
+		{"Clusters.DeleteTag", http.MethodDelete, "/clusters/%s/tags/%s", "",
+			func(ctx context.Context, c *Client, s []string) error {
+				return c.Clusters.DeleteTag(ctx, s[0], s[1])
+			}},
+
 		// Container deployment secrets and registry credentials
 		{"ContainerDeployments.DeleteSecret", http.MethodDelete, "/secrets/%s", "force=true",
 			func(ctx context.Context, c *Client, s []string) error {
@@ -385,6 +412,15 @@ func TestRequestPaths_KeepExistingEmptyErrors(t *testing.T) {
 		{"ServerlessJobs.GetJobDeploymentScaling",
 			errOnly(client.ServerlessJobs.GetJobDeploymentScaling(ctx, "")),
 			"jobName is required"},
+		{"Instances.AddTag",
+			errOnly(client.Instances.AddTag(ctx, "", TagRequest{Key: "env"})),
+			"resource ID is required"},
+		{"Volumes.DeleteTag empty resource ID",
+			client.Volumes.DeleteTag(ctx, "", "env"),
+			"resource ID is required"},
+		{"Volumes.DeleteTag empty key",
+			client.Volumes.DeleteTag(ctx, "vol_1", ""),
+			"tag key is required"},
 	}
 	for _, tc := range cases {
 		if tc.err == nil || tc.err.Error() != tc.want {
