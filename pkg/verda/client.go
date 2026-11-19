@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"strings"
+	"sync/atomic"
 )
 
 const (
@@ -219,7 +221,11 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
-// Do executes the request through middleware and returns the parsed response
+// Do executes the request through middleware and returns the parsed response.
+//
+// The request middleware chain wraps the real HTTP round trip: the chain's
+// terminal handler sends the request, so a middleware that calls next sees the
+// response (as an error for non-2xx statuses) and may call next again to retry.
 func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	// Snapshot middleware to avoid race conditions
 	requestMiddleware, responseMiddleware := c.Middleware.Snapshot()
@@ -234,36 +240,51 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 		Request: req,
 	}
 
-	requestHandler := c.buildRequestChain(requestMiddleware)
-	if err := requestHandler(reqCtx); err != nil {
-		return nil, fmt.Errorf("request middleware failed: %w", err)
-	}
+	// State of the attempts is local to this call, so concurrent calls never share it
+	st := &doState{}
+	terminal := c.attemptHandler(st, req, req.Header.Clone())
+	chainErr := c.buildRequestChain(requestMiddleware, terminal)(reqCtx)
 
-	// Apply middleware-modified headers back to the request
-	for name, values := range reqCtx.Headers {
-		req.Header.Del(name)
-		for _, value := range values {
-			req.Header.Add(name, value)
+	if st.attempts == 0 {
+		if chainErr != nil {
+			return nil, fmt.Errorf("request middleware failed: %w", chainErr)
 		}
+		// A custom middleware returned without calling next: send once anyway
+		chainErr = terminal(reqCtx)
 	}
 
-	resp, err := c.HTTPClient.Do(req) //nolint:gosec // G704: SDK client - URL is configured by caller
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	// Leave the headers the middleware chain produced on the caller's request
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	for name, values := range reqCtx.Headers {
+		req.Header[name] = append([]string(nil), values...)
 	}
 
-	wrappedResp := &Response{Response: resp}
+	var aborted *retryAbortError
+	if errors.As(chainErr, &aborted) {
+		// The retry middleware gave up (cancellation, body rewind failure): its error is the result
+		return nil, chainErr
+	}
+	if !st.isPlainOutcome(chainErr) {
+		return nil, fmt.Errorf("request middleware failed: %w", chainErr)
+	}
 
-	bodyBytes, err := readAndCloseResponseBody(resp)
-	if err != nil {
-		return wrappedResp, err
+	// The last attempt got no response: there is nothing to parse
+	if st.resp == nil {
+		return nil, st.lastErr
+	}
+
+	wrappedResp := &Response{Response: st.resp}
+	if st.readErr != nil {
+		return wrappedResp, st.readErr
 	}
 
 	var parseErr error
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		parseErr = parseAPIError(resp.StatusCode, bodyBytes)
+	if st.apiErr != nil {
+		parseErr = st.apiErr
 	} else if result != nil {
-		trimmed := bytes.TrimSpace(bodyBytes)
+		trimmed := bytes.TrimSpace(st.body)
 		if len(trimmed) > 0 {
 			if err := json.Unmarshal(trimmed, result); err != nil {
 				parseErr = fmt.Errorf("failed to unmarshal response: %w", err)
@@ -273,9 +294,9 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 
 	respCtx := &ResponseContext{
 		Request:    reqCtx,
-		Response:   resp,
-		Body:       bodyBytes,
-		StatusCode: resp.StatusCode,
+		Response:   st.resp,
+		Body:       st.body,
+		StatusCode: st.resp.StatusCode,
 		Error:      parseErr,
 	}
 
@@ -291,11 +312,145 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	return wrappedResp, nil
 }
 
-func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) RequestHandler {
-	//nolint:revive // ctx unused in default no-op handler
-	handler := func(ctx *RequestContext) error {
+// doState holds the outcome of the latest attempt of one Do call.
+// Each attempt resets it, so a result is never carried over from an earlier attempt.
+type doState struct {
+	attempts int
+	resp     *http.Response
+	body     []byte
+	apiErr   *APIError
+	lastErr  error // *transportError or *attemptError of the latest attempt
+	readErr  error
+}
+
+// isPlainOutcome reports whether chainErr is the outcome of the latest attempt,
+// possibly annotated by a middleware that wrapped the error next returned, as
+// opposed to an error a middleware produced on its own. A middleware that
+// wraps next's error does not change the result: Do reports the response.
+func (st *doState) isPlainOutcome(chainErr error) bool {
+	return chainErr == nil || (st.lastErr != nil && errors.Is(chainErr, st.lastErr))
+}
+
+// attemptHandler returns the terminal handler of the request chain: one real HTTP round trip.
+// initialHeader is the request's header as the caller gave it: a name that was
+// there and is gone from reqCtx.Headers was deleted by a middleware.
+func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader http.Header) RequestHandler {
+	return func(reqCtx *RequestContext) error {
+		st.attempts++
+		st.resp, st.body, st.apiErr, st.lastErr, st.readErr = nil, nil, nil, nil, nil
+
+		r := reqCtx.Request
+		if r == nil {
+			r = orig
+		}
+
+		// Count written requests: zero writes on a failed attempt means the server saw nothing
+		var writes atomic.Int32
+		trace := &httptrace.ClientTrace{
+			WroteRequest: func(httptrace.WroteRequestInfo) { writes.Add(1) },
+		}
+		attemptReq := r.Clone(httptrace.WithClientTrace(r.Context(), trace))
+		attemptReq.Header = attemptHeader(r.Header, initialHeader, reqCtx.Headers)
+
+		hc, track := c.attemptClient()
+		var origURL string
+		if attemptReq.URL != nil { // a middleware may have swapped in a request without one
+			origURL = attemptReq.URL.String()
+		}
+
+		resp, err := hc.Do(attemptReq) //nolint:gosec // G704: SDK client - URL is configured by caller
+		failed := func(err error) *transportError {
+			return &transportError{
+				err: err, writes: writes.Load(), redirected: track.redirected.Load(), redirectDenied: track.denied(err),
+				origURL: origURL, method: attemptReq.Method,
+				sensitive: isSensitivePath(origURL) || isSensitiveURLError(err),
+			}
+		}
+		if err != nil {
+			st.lastErr = failed(err)
+			return st.lastErr
+		}
+		st.resp = resp
+
+		body, readErr := readAndCloseResponseBody(resp)
+		if readErr != nil {
+			st.readErr = readErr
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				st.lastErr = failed(readErr)
+				return st.lastErr
+			}
+			body = nil
+		}
+		st.body = body
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			st.apiErr = parseAPIError(resp.StatusCode, body)
+			st.lastErr = &attemptError{
+				apiErr:           st.apiErr,
+				header:           resp.Header,
+				originalExchange: !track.redirected.Load() && resp.Request != nil && resp.Request.Response == nil,
+				method:           attemptReq.Method,
+				sensitive:        isSensitivePath(origURL) || (resp.Request != nil && resp.Request.URL != nil && isSensitivePath(resp.Request.URL.Path)),
+			}
+			return st.lastErr
+		}
+
 		return nil
 	}
+}
+
+// attemptHeader builds the header of one attempt. A header a middleware set
+// directly on the request is kept, a header it deleted from reqCtx.Headers is
+// dropped, and every header in reqCtx.Headers wins, as it did before attempts existed.
+func attemptHeader(onRequest, initial, fromContext http.Header) http.Header {
+	header := onRequest.Clone()
+	if header == nil {
+		header = make(http.Header)
+	}
+	for name := range initial {
+		if _, kept := fromContext[name]; !kept {
+			header.Del(name)
+		}
+	}
+	for name, values := range fromContext {
+		header[name] = append([]string(nil), values...)
+	}
+	return header
+}
+
+// defaultMaxRedirects is the redirect limit of net/http's default policy.
+const defaultMaxRedirects = 10
+
+// attemptClient returns a shallow copy of the client's HTTP client for one attempt.
+// Its CheckRedirect records that a redirect happened, then applies the caller's
+// policy (or Go's default), so the shared client is never changed.
+func (c *Client) attemptClient() (*http.Client, *redirectTracker) {
+	base := c.HTTPClient
+	if base == nil {
+		base = http.DefaultClient
+	}
+	hc := *base
+	track := &redirectTracker{}
+	userCheck := base.CheckRedirect
+	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		track.redirected.Store(true)
+		var err error
+		switch {
+		case userCheck != nil:
+			err = userCheck(req, via)
+		case len(via) >= defaultMaxRedirects:
+			err = fmt.Errorf("stopped after %d redirects", defaultMaxRedirects)
+		}
+		if err != nil && err != http.ErrUseLastResponse { //nolint:errorlint // net/http compares with ==, so a wrapped sentinel is an error
+			track.policyErr.Store(&err)
+		}
+		return err
+	}
+	return &hc, track
+}
+
+func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware, terminal RequestHandler) RequestHandler {
+	handler := terminal
 
 	// Reverse order so last middleware wraps first
 	for i := len(requestMiddleware) - 1; i >= 0; i-- {
