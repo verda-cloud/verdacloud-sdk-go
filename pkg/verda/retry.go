@@ -51,19 +51,24 @@ const maxRetryDelay = 30 * time.Second
 //
 // Which requests are retried depends on the method actually sent:
 //   - GET, HEAD, OPTIONS (and an empty method) are retried on 408, 429, any 5xx
-//     and any transport error, including a truncated response body.
+//     and any transport error, including a truncated response body. This
+//     includes permanent failures such as an untrusted TLS certificate, except
+//     a redirect the redirect policy refused.
 //   - POST, PUT, PATCH and DELETE are retried only when the request provably
 //     never took effect: a 429 that answers the request as sent (the transport
 //     must set Response.Request for this), or a dial or DNS failure before
 //     anything was written. A redirect, a 5xx, a 408 or a failure after the
 //     request was written is never retried, because the server may have acted.
+//     The dial-failure rule relies on the transport firing httptrace callbacks
+//     and not retrying a write itself, as net/http.Transport does.
 //
 // Retrying stops when the request's context is done. A request with a body is
 // retried only if http.Request.GetBody is set, which NewRequest does for
 // *bytes.Buffer, *bytes.Reader and *strings.Reader bodies. A middleware that
 // transforms the body must update GetBody and ContentLength, or retries resend
-// the original bytes. Code that a middleware placed before this one runs after next() now
-// runs after the response comes back, not before the request is sent.
+// the original bytes. The chain wraps the real HTTP call, so the code any
+// middleware runs after next() now runs after the response comes back, not
+// before the request is sent.
 //
 // Middleware that runs before this one, such as the default authentication
 // middleware, runs once per call: every attempt sends the same bearer token. A
@@ -91,7 +96,7 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 				if attempt > 0 {
 					// Don't retry once the caller has given up
 					if callerCtx.Err() != nil {
-						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, callerCtx.Err(), lastErr)
+						return canceledError(attempt, callerCtx.Err(), lastErr)
 					}
 					if !canRewindBody(ctx.Request) {
 						logger.Debug("Request %s %s cannot be retried: body is not replayable", ctx.Method, ctx.Path)
@@ -108,13 +113,13 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 					case <-timer.C:
 					case <-callerCtx.Done():
 						timer.Stop()
-						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, callerCtx.Err(), lastErr)
+						return canceledError(attempt, callerCtx.Err(), lastErr)
 					}
 
 					// Open the replay body only now, so a cancel during the wait leaves nothing open
 					var err error
 					if replay, err = rewindBody(ctx.Request); err != nil {
-						return errors.Join(lastErr, fmt.Errorf("failed to rewind request body: %w", err))
+						return &retryAbortError{err: errors.Join(lastErr, fmt.Errorf("failed to rewind request body: %w", err))}
 					}
 				}
 
@@ -122,7 +127,7 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 				if replay != nil {
 					// No-op when the transport already closed it; frees it when a middleware short-circuited
 					if err := replay.Close(); err != nil {
-						logger.Debug("Request %s %s: closing replay body failed: %s", ctx.Method, ctx.Path, loggableError(isSensitiveRequest(ctx), err))
+						logger.Debug("Request %s %s: closing replay body failed: %s", ctx.Method, ctx.Path, loggableError(isSensitiveRequest(ctx) || isSensitiveError(err), err))
 					}
 				}
 				if lastErr == nil {
@@ -130,7 +135,7 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 				}
 
 				if !retryDecision(ctx, lastErr) {
-					logger.Debug("Request %s %s failed with non-retryable error: %s", ctx.Method, ctx.Path, loggableError(isSensitiveRequest(ctx), lastErr))
+					logger.Debug("Request %s %s failed with non-retryable error: %s", ctx.Method, ctx.Path, loggableError(isSensitiveRequest(ctx) || isSensitiveError(lastErr), lastErr))
 					return lastErr
 				}
 			}
@@ -219,9 +224,10 @@ func retryDecision(ctx *RequestContext, err error) bool {
 	var transportErr *transportError
 	var attemptErr *attemptError
 	var exhausted *retryExhaustedError
+	var aborted *retryAbortError
 
-	// An inner retry middleware already spent its retries on this error
-	if errors.As(err, &exhausted) {
+	// An inner retry middleware already spent its retries, or gave up, on this error
+	if errors.As(err, &exhausted) || errors.As(err, &aborted) {
 		return false
 	}
 
@@ -307,6 +313,18 @@ func isDigits(s string) bool {
 		}
 	}
 	return s != ""
+}
+
+// retryAbortError is an error of the retry middleware itself (the caller gave
+// up, or the body cannot be sent again). Client.Do returns it as it is, and an
+// outer retry middleware does not retry it.
+type retryAbortError struct{ err error }
+
+func (e *retryAbortError) Error() string { return e.err.Error() }
+func (e *retryAbortError) Unwrap() error { return e.err }
+
+func canceledError(attempts int, ctxErr, lastErr error) error {
+	return &retryAbortError{err: fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempts, ctxErr, lastErr)}
 }
 
 // retryExhaustedError is returned by the retry middleware when every attempt failed.
@@ -396,8 +414,12 @@ type transportError struct {
 	// redirect (Go's 10-hop limit or the caller's CheckRedirect): repeating the
 	// request would hit the same policy.
 	redirectDenied bool
-	origURL        string // URL of the request as sent
-	method         string // method of the request as sent
+	// sensitive is true when the request as sent, or where a redirect led, is a
+	// sensitive path: the error text must stay out of logs, whatever path the
+	// middleware chain saw.
+	sensitive bool
+	origURL   string // URL of the request as sent
+	method    string // method of the request as sent
 }
 
 func (e *transportError) Error() string { return fmt.Sprintf("request failed: %v", e.err) }
@@ -412,6 +434,7 @@ type attemptError struct {
 	// no redirect, and the transport tied the response to that request.
 	originalExchange bool
 	method           string // method of the request as sent
+	sensitive        bool   // see transportError.sensitive
 }
 
 func (e *attemptError) Error() string { return e.apiErr.Error() }

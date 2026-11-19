@@ -602,3 +602,19 @@ func TestRetry_WriteTooManyRequestsProvenance(t *testing.T) {
 		}
 	})
 }
+
+func TestRetry_WrappedErrUseLastResponseIsAPolicyFailure(t *testing.T) {
+	// net/http compares with ==, so a wrapped sentinel fails the request
+	hc := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error {
+		return fmt.Errorf("policy: %w", http.ErrUseLastResponse)
+	}}
+	client, hits := newRetryClient(t, 3, func(_ int, w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, retryTestPath, http.StatusFound)
+	}, WithHTTPClient(hc))
+	if _, err := doRetryRequest(t, client, context.Background(), http.MethodGet, nil, nil); err == nil {
+		t.Fatal("expected an error")
+	}
+	if hits.Load() != 1 {
+		t.Errorf("a policy failure must not be retried, got %d requests", hits.Load())
+	}
+}

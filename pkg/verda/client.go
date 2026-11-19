@@ -253,11 +253,20 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 		chainErr = terminal(reqCtx)
 	}
 
+	// Leave the headers the middleware chain produced on the caller's request
+	if req.Header == nil {
+		req.Header = make(http.Header)
+	}
+	for name, values := range reqCtx.Headers {
+		req.Header[name] = append([]string(nil), values...)
+	}
+
+	var aborted *retryAbortError
+	if errors.As(chainErr, &aborted) {
+		// The retry middleware gave up (cancellation, body rewind failure): its error is the result
+		return nil, chainErr
+	}
 	if !st.isPlainOutcome(chainErr) {
-		if st.lastErr != nil && errors.Is(chainErr, st.lastErr) {
-			// The middleware wrapped the last attempt's error (cancellation, GetBody failure)
-			return nil, chainErr
-		}
 		return nil, fmt.Errorf("request middleware failed: %w", chainErr)
 	}
 
@@ -314,14 +323,12 @@ type doState struct {
 	readErr  error
 }
 
-// isPlainOutcome reports whether chainErr only carries the outcome of the
-// latest attempt, as opposed to an error a middleware produced itself.
+// isPlainOutcome reports whether chainErr is the outcome of the latest attempt,
+// possibly annotated by a middleware that wrapped the error next returned, as
+// opposed to an error a middleware produced on its own. A middleware that
+// wraps next's error does not change the result: Do reports the response.
 func (st *doState) isPlainOutcome(chainErr error) bool {
-	if chainErr == nil || chainErr == st.lastErr {
-		return true
-	}
-	var exhausted *retryExhaustedError
-	return errors.As(chainErr, &exhausted) && exhausted == chainErr && exhausted.last == st.lastErr
+	return chainErr == nil || (st.lastErr != nil && errors.Is(chainErr, st.lastErr))
 }
 
 // attemptHandler returns the terminal handler of the request chain: one real HTTP round trip.
@@ -356,6 +363,7 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader h
 			return &transportError{
 				err: err, writes: writes.Load(), redirected: track.redirected.Load(), redirectDenied: track.denied(err),
 				origURL: origURL, method: attemptReq.Method,
+				sensitive: isSensitivePath(origURL) || isSensitiveURLError(err),
 			}
 		}
 		if err != nil {
@@ -382,6 +390,7 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader h
 				header:           resp.Header,
 				originalExchange: !track.redirected.Load() && resp.Request != nil && resp.Request.Response == nil,
 				method:           attemptReq.Method,
+				sensitive:        isSensitivePath(origURL) || (resp.Request != nil && resp.Request.URL != nil && isSensitivePath(resp.Request.URL.Path)),
 			}
 			return st.lastErr
 		}
@@ -432,7 +441,7 @@ func (c *Client) attemptClient() (*http.Client, *redirectTracker) {
 		case len(via) >= defaultMaxRedirects:
 			err = fmt.Errorf("stopped after %d redirects", defaultMaxRedirects)
 		}
-		if err != nil && !errors.Is(err, http.ErrUseLastResponse) {
+		if err != nil && err != http.ErrUseLastResponse { //nolint:errorlint // net/http compares with ==, so a wrapped sentinel is an error
 			track.policyErr.Store(&err)
 		}
 		return err

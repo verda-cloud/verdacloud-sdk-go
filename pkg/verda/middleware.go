@@ -104,7 +104,7 @@ func LoggingMiddleware(logger Logger) RequestMiddleware {
 
 			duration := time.Since(start)
 			if err != nil {
-				logger.Debug("Request %s %s failed after %v: %s", ctx.Method, ctx.Path, duration, loggableError(isSensitiveRequest(ctx), err))
+				logger.Debug("Request %s %s failed after %v: %s", ctx.Method, ctx.Path, duration, loggableError(isSensitiveRequest(ctx) || isSensitiveError(err), err))
 			} else {
 				logger.Debug("Request %s %s completed in %v", ctx.Method, ctx.Path, duration)
 			}
@@ -145,7 +145,7 @@ func ResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 				ctx.Request.Method, ctx.Request.Path, ctx.StatusCode, len(ctx.Body))
 
 			if ctx.Error != nil {
-				logger.Debug("Response error: %s", loggableError(ctx.Request != nil && isSensitiveRequest(ctx.Request), ctx.Error))
+				logger.Debug("Response error: %s", loggableError(isSensitiveResponse(ctx), ctx.Error))
 			}
 
 			return next(ctx)
@@ -256,6 +256,35 @@ func isSensitiveRequest(ctx *RequestContext) bool {
 	return ctx.Request != nil && ctx.Request.URL != nil && isSensitivePath(ctx.Request.URL.Path)
 }
 
+// isSensitiveError reports whether the attempt behind err was sent to a sensitive
+// path, which a middleware may have hidden by restoring ctx.Request after next.
+func isSensitiveError(err error) bool {
+	var transportErr *transportError
+	var attemptErr *attemptError
+	switch {
+	case errors.As(err, &transportErr):
+		return transportErr.sensitive
+	case errors.As(err, &attemptErr):
+		return attemptErr.sensitive
+	}
+	return false
+}
+
+// isSensitiveURLError reports whether err is a url.Error for a sensitive URL.
+func isSensitiveURLError(err error) bool {
+	var urlErr *url.Error
+	return errors.As(err, &urlErr) && isSensitivePath(urlErr.URL)
+}
+
+// isSensitiveResponse checks the request context and the request that was really answered.
+func isSensitiveResponse(ctx *ResponseContext) bool {
+	if ctx.Request != nil && isSensitiveRequest(ctx.Request) {
+		return true
+	}
+	resp := ctx.Response
+	return resp != nil && resp.Request != nil && resp.Request.URL != nil && isSensitivePath(resp.Request.URL.Path)
+}
+
 // loggableError renders err for a log line. On a sensitive path the error text
 // may echo the response body (parseAPIError falls back to the raw body), so only
 // the status is kept.
@@ -273,7 +302,7 @@ func loggableError(sensitive bool, err error) string {
 func DebugResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			if ctx.Request != nil && isSensitiveRequest(ctx.Request) {
+			if isSensitiveResponse(ctx) {
 				return next(ctx)
 			}
 

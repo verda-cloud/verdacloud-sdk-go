@@ -811,6 +811,7 @@ func TestRetryDelay(t *testing.T) {
 		{"minus 50% jitter", 10 * time.Millisecond, 1, -0.5, 0, 5 * time.Millisecond},
 		{"plus 50% jitter", 10 * time.Millisecond, 1, 0.5, 0, 15 * time.Millisecond},
 		{"backoff is capped at 30s", time.Second, 20, 0, 0, maxRetryDelay},
+		{"the capped backoff keeps its jitter", time.Second, 20, -0.5, 0, maxRetryDelay / 2},
 		{"jitter cannot lift a capped wait above 30s", time.Second, 20, 0.5, 0, maxRetryDelay},
 		{"jitter on a wait just under the cap is also capped", 25 * time.Second, 1, 0.5, 0, maxRetryDelay},
 		{"Retry-After above the backoff wins", time.Second, 1, 0, 20 * time.Second, 20 * time.Second},
@@ -878,15 +879,26 @@ func TestDo_MiddlewareSwappingInARequestWithoutURLDoesNotPanic(t *testing.T) {
 }
 
 func TestRetryMiddleware_ToleratesNilLoggerAndNegativeRetries(t *testing.T) {
-	var calls int
-	handler := ExponentialBackoffRetryMiddleware(-1, time.Millisecond, nil)(func(*RequestContext) error {
+	var apiErr *APIError
+
+	// Negative retries still send once
+	calls := 0
+	handler := ExponentialBackoffRetryMiddleware(-1, time.Microsecond, nil)(func(*RequestContext) error {
 		calls++
 		return &APIError{StatusCode: http.StatusServiceUnavailable, Message: "busy"}
 	})
-	err := handler(&RequestContext{Method: http.MethodGet, Path: "/x"})
-	var apiErr *APIError
-	if !errors.As(err, &apiErr) || calls != 1 {
+	if err := handler(&RequestContext{Method: http.MethodGet, Path: "/x"}); !errors.As(err, &apiErr) || calls != 1 {
 		t.Errorf("expected the request to be sent once and fail with the API error, got calls=%d err=%v", calls, err)
+	}
+
+	// A retry reaches logger.Debug: a nil logger must not panic there
+	calls = 0
+	handler = ExponentialBackoffRetryMiddleware(1, time.Microsecond, nil)(func(*RequestContext) error {
+		calls++
+		return &APIError{StatusCode: http.StatusServiceUnavailable, Message: "busy"}
+	})
+	if err := handler(&RequestContext{Method: http.MethodGet, Path: "/x"}); !errors.As(err, &apiErr) || calls != 2 {
+		t.Errorf("expected 2 attempts, got calls=%d err=%v", calls, err)
 	}
 }
 
@@ -911,4 +923,259 @@ func TestRetryMiddleware_NeverRetriesAfterCancellation(t *testing.T) {
 			t.Fatalf("run %d: expected cancellation after 1 attempt, got calls=%d err=%v", i, calls, err)
 		}
 	}
+}
+
+func TestDo_MiddlewareWrappingNextErrorKeepsTheResult(t *testing.T) {
+	for _, retries := range []int{0, 2} {
+		t.Run(fmt.Sprintf("retries=%d", retries), func(t *testing.T) {
+			client, hits := newRetryClient(t, retries, func(_ int, w http.ResponseWriter, _ *http.Request) {
+				writeAPIError(w, http.StatusNotFound, "missing")
+			})
+			var runs atomic.Int32
+			client.AddResponseMiddleware(func(next ResponseHandler) ResponseHandler {
+				return func(ctx *ResponseContext) error { runs.Add(1); return next(ctx) }
+			})
+			// A tracing-style middleware that annotates the error next returned
+			client.AddRequestMiddleware(func(next RequestHandler) RequestHandler {
+				return func(ctx *RequestContext) error {
+					if err := next(ctx); err != nil {
+						return fmt.Errorf("tracing: %w", err)
+					}
+					return nil
+				}
+			})
+			resp, err := doRetryRequest(t, client, context.Background(), http.MethodGet, nil, nil)
+			if apiErr, ok := err.(*APIError); !ok || apiErr.StatusCode != http.StatusNotFound { //nolint:errorlint // raw error expected
+				t.Errorf("expected the raw *APIError, got %T: %v", err, err)
+			}
+			if resp == nil || resp.StatusCode != http.StatusNotFound {
+				t.Errorf("expected the response, got %v", resp)
+			}
+			if runs.Load() != 1 || hits.Load() != 1 {
+				t.Errorf("response middleware runs=%d, requests=%d", runs.Load(), hits.Load())
+			}
+		})
+	}
+}
+
+func TestDo_HeadersOfTheChainStayOnTheCallersRequest(t *testing.T) {
+	client, _ := newRetryClient(t, 0, func(_ int, w http.ResponseWriter, _ *http.Request) { fmt.Fprint(w, `{}`) })
+	client.AddRequestMiddleware(func(next RequestHandler) RequestHandler {
+		return func(ctx *RequestContext) error {
+			ctx.Headers.Set("X-Request-Id", "abc")
+			return next(ctx)
+		}
+	})
+	req, err := client.NewRequest(context.Background(), http.MethodGet, retryTestPath, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Do(req, nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := req.Header.Get("X-Request-Id"); got != "abc" {
+		t.Errorf("caller's request lost the middleware header: %q", got)
+	}
+	if req.Header.Get("Authorization") == "" {
+		t.Error("expected the Authorization header on the caller's request, as before")
+	}
+}
+
+func TestRetry_StackedMiddlewaresReportCancellationOnce(t *testing.T) {
+	client, _ := newRetryClient(t, 0, func(_ int, w http.ResponseWriter, _ *http.Request) {
+		writeAPIError(w, http.StatusServiceUnavailable, "busy")
+	})
+	client.AddRequestMiddleware(ExponentialBackoffRetryMiddleware(3, 10*time.Second, &NoOpLogger{}))
+	client.AddRequestMiddleware(ExponentialBackoffRetryMiddleware(3, 10*time.Second, &NoOpLogger{}))
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	_, err := doRetryRequest(t, client, ctx, http.MethodGet, nil, nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected the deadline, got %v", err)
+	}
+	if n := strings.Count(err.Error(), "request canceled after"); n != 1 {
+		t.Errorf("cancellation reported %d times: %v", n, err)
+	}
+}
+
+func TestRetry_RedactionUsesTheRequestThatWasSent(t *testing.T) {
+	const secret = "SECRET-IN-RAW-BODY"
+	const sensitivePath = "/clusters/c1/kubeconfigs"
+
+	t.Run("a middleware swaps the URL and restores it after next", func(t *testing.T) {
+		logger := &syncLogger{}
+		client, _ := newRetryClientAt(t, sensitivePath, 0, func(_ int, w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, secret)
+		}, WithLogger(logger))
+		client.AddRequestMiddleware(func(next RequestHandler) RequestHandler {
+			return func(ctx *RequestContext) error {
+				original := ctx.Request.URL
+				swapped := *original
+				swapped.Path = sensitivePath
+				ctx.Request.URL = &swapped
+				defer func() { ctx.Request.URL = original }() // the outer loggers see a harmless path again
+				return next(ctx)
+			}
+		})
+		req, err := client.NewRequest(context.Background(), http.MethodGet, "/harmless", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := client.Do(req, nil); err == nil {
+			t.Fatal("expected an error")
+		}
+		if logs := logger.text(); strings.Contains(logs, secret) {
+			t.Errorf("secret leaked into logs:\n%s", logs)
+		}
+	})
+
+	t.Run("a redirect leads to a sensitive path", func(t *testing.T) {
+		logger := &syncLogger{}
+		client, _ := newRetryClientAt(t, retryTestPath, 0, func(_ int, w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, sensitivePath, http.StatusTemporaryRedirect)
+		}, WithLogger(logger))
+		client.ClearResponseMiddleware()
+		client.AddResponseMiddleware(ErrorHandlingMiddleware())
+		client.AddResponseMiddleware(ResponseLoggingMiddleware(logger))
+		// The redirect target answers with the secret in an unrecognized body
+		ms := testutil.NewMockServer()
+		defer ms.Close()
+		ms.SetHandler(http.MethodGet, sensitivePath, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, secret)
+		})
+		client.HTTPClient = &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == sensitivePath {
+				target := *r.URL
+				target.Scheme, target.Host = "http", strings.TrimPrefix(ms.URL(), "http://")
+				r = r.Clone(r.Context())
+				r.URL = &target
+			}
+			return http.DefaultTransport.RoundTrip(r)
+		})}
+		if _, err := doRetryRequest(t, client, context.Background(), http.MethodGet, nil, nil); err == nil {
+			t.Fatal("expected an error")
+		}
+		if logs := logger.text(); strings.Contains(logs, secret) {
+			t.Errorf("secret leaked into logs:\n%s", logs)
+		}
+	})
+}
+
+func TestRetry_ReplayBodyIsClosedOnceWhenTheTransportClosesIt(t *testing.T) {
+	client, hits := newRetryClient(t, 3, func(hit int, w http.ResponseWriter, _ *http.Request) {
+		if hit == 1 {
+			writeAPIError(w, http.StatusTooManyRequests, "slow down")
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{}`)
+	})
+	req, tracked := newTrackedRequest(t, client, http.MethodPost, []byte(`{"a":1}`))
+	if _, err := client.Do(req, nil); err != nil {
+		t.Fatal(err)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("expected 2 attempts, got %d", hits.Load())
+	}
+	// The transport closes the replay body, and the middleware closes it again: still one real Close
+	tracked.assertAllClosedOnce(t, 1)
+}
+
+func TestSentMethod(t *testing.T) {
+	plain := errors.New("plain")
+	tests := []struct {
+		name string
+		ctx  *RequestContext
+		err  error
+		want string
+	}{
+		{"method recorded on a transport error wins", &RequestContext{Method: "GET", Request: &http.Request{Method: "GET"}}, &transportError{method: "POST"}, "POST"},
+		{"method recorded on an attempt error wins", &RequestContext{Method: "GET", Request: &http.Request{Method: "GET"}}, &attemptError{method: "PUT"}, "PUT"},
+		{"plain error uses the request", &RequestContext{Method: "GET", Request: &http.Request{Method: "DELETE"}}, plain, "DELETE"},
+		{"plain error without a request uses the context method", &RequestContext{Method: "PATCH"}, plain, "PATCH"},
+		{"empty method is GET", &RequestContext{}, plain, "GET"},
+		{"empty recorded method is GET", &RequestContext{}, &transportError{}, "GET"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := sentMethod(tt.ctx, tt.err); got != tt.want {
+				t.Errorf("sentMethod() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestRetry_MethodSentIsClassifiedOnTransportErrors(t *testing.T) {
+	var calls atomic.Int32
+	client, hits := newRetryClient(t, 3, func(_ int, w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{}`)
+	}, WithHTTPClient(&http.Client{Transport: failingRT(func(r *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		resp, err := http.DefaultTransport.RoundTrip(r) // the POST really is written
+		if err != nil {
+			return nil, err
+		}
+		resp.Body.Close() //nolint:errcheck,gosec // response is discarded on purpose
+		return nil, errors.New("connection reset by peer")
+	})}))
+	client.AddRequestMiddleware(func(next RequestHandler) RequestHandler {
+		return func(ctx *RequestContext) error {
+			defer func() { ctx.Request.Method = http.MethodGet }() // restored before the retry middleware looks
+			return next(ctx)
+		}
+	})
+	_, _ = doRetryRequest(t, client, context.Background(), http.MethodPost, []byte(`{}`), nil) //nolint:errcheck // asserted via calls
+	if calls.Load() != 1 || hits.Load() != 1 {
+		t.Errorf("a written POST must be sent once: transport calls=%d, server hits=%d", calls.Load(), hits.Load())
+	}
+}
+
+type failingCloseBody struct {
+	io.Reader
+	err error
+}
+
+func (b *failingCloseBody) Close() error { return b.err }
+
+func TestRetry_ReplayBodyCloseErrorIsRedactedOnSensitivePaths(t *testing.T) {
+	const secret = "SECRET-IN-CLOSE-ERROR"
+	run := func(t *testing.T, path string) string {
+		logger := &syncLogger{}
+		client, _ := newRetryClientAt(t, path, 0, func(_ int, w http.ResponseWriter, _ *http.Request) {
+			writeAPIError(w, http.StatusTooManyRequests, "slow down")
+		})
+		client.AddRequestMiddleware(ExponentialBackoffRetryMiddleware(3, time.Millisecond, logger))
+		var calls atomic.Int32
+		client.AddRequestMiddleware(func(next RequestHandler) RequestHandler {
+			return func(ctx *RequestContext) error {
+				if calls.Add(1) == 2 {
+					return errors.New("rejected downstream") // the replay body is never sent
+				}
+				return next(ctx)
+			}
+		})
+		req, err := client.NewRequest(context.Background(), http.MethodPost, path, bytes.NewReader([]byte(`{}`)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.GetBody = func() (io.ReadCloser, error) {
+			return &failingCloseBody{Reader: strings.NewReader(`{}`), err: errors.New(secret)}, nil
+		}
+		_, _ = client.Do(req, nil) //nolint:errcheck // the logs are what matters
+		return logger.text()
+	}
+
+	t.Run("normal path logs the close error", func(t *testing.T) {
+		if logs := run(t, retryTestPath); !strings.Contains(logs, secret) {
+			t.Errorf("expected the close error in the logs:\n%s", logs)
+		}
+	})
+	t.Run("sensitive path does not", func(t *testing.T) {
+		if logs := run(t, "/clusters/c1/kubeconfigs"); strings.Contains(logs, secret) {
+			t.Errorf("close error leaked into logs:\n%s", logs)
+		}
+	})
 }
