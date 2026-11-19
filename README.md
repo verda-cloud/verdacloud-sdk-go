@@ -565,7 +565,7 @@ Other behavior to know:
 - A request with a body is retried only if the body can be sent again (`http.Request.GetBody` is set; `NewRequest` does this for `bytes.Reader`, `strings.Reader` and similar). A middleware that transforms the body must also update `GetBody` and `ContentLength`, or a retry sends the original bytes.
 - The middleware wraps the real HTTP call, so code a custom middleware runs after `next(ctx)` now runs after the response comes back.
 - If your `http.Client` has a transport that also retries, a failure is retried by both.
-- Calls that bypass the middleware chain are not retried: instance create and actions, volume create and clone, SSH key and startup script create, the instance type availability check, and the OAuth token requests.
+- Calls that bypass the middleware chain are not retried: instance create and actions, volume create and actions, SSH key and startup script create, the instance type availability check, and the OAuth token requests.
 - Error text from `/token` and `/kubeconfigs` paths is not written to the debug logs, because it can echo secrets.
 
 ### Debug Logging

@@ -158,7 +158,7 @@ const maxRetryDelay = 30 * time.Second
 //
 // Retrying stops when the request's context is done. A request with a body is
 // retried only if http.Request.GetBody is set, which NewRequest does for
-// bytes, strings and bytes.Reader bodies. A middleware that transforms the
+// *bytes.Buffer, *bytes.Reader and *strings.Reader bodies. A middleware that transforms the
 // body must update GetBody and ContentLength, or retries resend the original
 // bytes. Code that a middleware placed before this one runs after next() now
 // runs after the response comes back, not before the request is sent.
@@ -167,7 +167,12 @@ const maxRetryDelay = 30 * time.Second
 // as the OAuth token calls. Combine it with a retrying transport and each
 // failure is retried by both.
 func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duration, logger Logger) RequestMiddleware {
-	const jitterPercent = 0.5
+	const jitterPercent = 0.5 // ±50% jitter to avoid thundering herd
+
+	maxRetries = max(maxRetries, 0)
+	if logger == nil {
+		logger = &NoOpLogger{}
+	}
 
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -186,11 +191,8 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 						return lastErr
 					}
 
-					// Exponential backoff: initialDelay * 2^(attempt-1), capped, with ±50% jitter
-					baseDelay := float64(initialDelay) * math.Pow(2, float64(attempt-1))
-					cappedDelay := math.Min(baseDelay, float64(maxRetryDelay))
 					jitter := (cryptoRandFloat64()*2 - 1) * jitterPercent
-					delay := min(max(time.Duration(cappedDelay*(1+jitter)), retryAfterDelay(lastErr)), maxRetryDelay)
+					delay := retryDelay(initialDelay, attempt, jitter, retryAfterDelay(lastErr))
 
 					logger.Debug("Retrying request %s %s (attempt %d/%d) after %v",
 						ctx.Method, ctx.Path, attempt+1, maxRetries+1, delay)
@@ -213,7 +215,7 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 				if replay != nil {
 					// No-op when the transport already closed it; frees it when a middleware short-circuited
 					if err := replay.Close(); err != nil {
-						logger.Debug("Request %s %s: closing replay body failed: %v", ctx.Method, ctx.Path, err)
+						logger.Debug("Request %s %s: closing replay body failed: %s", ctx.Method, ctx.Path, loggableError(isSensitiveRequest(ctx), err))
 					}
 				}
 				if lastErr == nil {
@@ -229,6 +231,15 @@ func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duratio
 			return &retryExhaustedError{last: lastErr, retries: maxRetries}
 		}
 	}
+}
+
+// retryDelay is the wait before retry number attempt (1 for the first retry):
+// initialDelay * 2^(attempt-1) with the given jitter (a fraction, ±0.5 at most),
+// raised to what the server asked for, and never above maxRetryDelay.
+func retryDelay(initialDelay time.Duration, attempt int, jitter float64, retryAfter time.Duration) time.Duration {
+	backoff := float64(initialDelay) * math.Pow(2, float64(attempt-1))
+	backoff = math.Min(backoff, float64(maxRetryDelay))
+	return min(max(time.Duration(backoff*(1+jitter)), retryAfter), maxRetryDelay)
 }
 
 // onceCloser makes Close idempotent: only the first call reaches the wrapped body.
@@ -266,11 +277,23 @@ func rewindBody(req *http.Request) (*onceCloser, error) {
 	return replay, nil
 }
 
-// requestMethod is the method that is actually sent. An empty method means GET.
-func requestMethod(ctx *RequestContext) string {
-	method := ctx.Method
-	if ctx.Request != nil {
+// sentMethod is the method the failed attempt was sent with, which a middleware
+// may have changed back after next returned. Plain errors that carry no method
+// (a handler in a unit test) fall back to the request's current method. An empty
+// method means GET.
+func sentMethod(ctx *RequestContext, err error) string {
+	var method string
+	var transportErr *transportError
+	var attemptErr *attemptError
+	switch {
+	case errors.As(err, &transportErr):
+		method = transportErr.method
+	case errors.As(err, &attemptErr):
+		method = attemptErr.method
+	case ctx.Request != nil:
 		method = ctx.Request.Method
+	default:
+		method = ctx.Method
 	}
 	if method == "" {
 		return http.MethodGet
@@ -288,10 +311,16 @@ func isReadMethod(method string) bool {
 func retryDecision(ctx *RequestContext, err error) bool {
 	var transportErr *transportError
 	var attemptErr *attemptError
+	var exhausted *retryExhaustedError
 
-	if isReadMethod(requestMethod(ctx)) {
+	// An inner retry middleware already spent its retries on this error
+	if errors.As(err, &exhausted) {
+		return false
+	}
+
+	if isReadMethod(sentMethod(ctx, err)) {
 		if errors.As(err, &transportErr) {
-			return true
+			return !transportErr.redirectDenied
 		}
 		var apiErr *APIError
 		if errors.As(err, &apiErr) {
@@ -503,7 +532,7 @@ func CacheMiddleware() ResponseMiddleware {
 func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
-			if isSensitivePath(ctx.Path) {
+			if isSensitiveRequest(ctx) {
 				return next(ctx)
 			}
 
@@ -598,7 +627,7 @@ func loggableError(sensitive bool, err error) string {
 func DebugResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			if ctx.Request != nil && isSensitivePath(ctx.Request.Path) {
+			if ctx.Request != nil && isSensitiveRequest(ctx.Request) {
 				return next(ctx)
 			}
 

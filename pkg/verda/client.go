@@ -242,7 +242,7 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 
 	// State of the attempts is local to this call, so concurrent calls never share it
 	st := &doState{}
-	terminal := c.attemptHandler(st, req)
+	terminal := c.attemptHandler(st, req, req.Header.Clone())
 	chainErr := c.buildRequestChain(requestMiddleware, terminal)(reqCtx)
 
 	if st.attempts == 0 {
@@ -328,9 +328,14 @@ func (st *doState) isPlainOutcome(chainErr error) bool {
 // the retry middleware can tell whether the request may have reached the server.
 type transportError struct {
 	err        error
-	writes     int32  // WroteRequest events across all hops
-	redirected bool   // a redirect was followed or considered
-	origURL    string // URL of the request as sent
+	writes     int32 // WroteRequest events across all hops
+	redirected bool  // a redirect was followed or considered
+	// redirectDenied is true when the redirect policy refused to follow a
+	// redirect (Go's 10-hop limit or the caller's CheckRedirect): repeating the
+	// request would hit the same policy.
+	redirectDenied bool
+	origURL        string // URL of the request as sent
+	method         string // method of the request as sent
 }
 
 func (e *transportError) Error() string { return fmt.Sprintf("request failed: %v", e.err) }
@@ -344,13 +349,16 @@ type attemptError struct {
 	// originalExchange is true when the response answers the request as sent:
 	// no redirect, and the transport tied the response to that request.
 	originalExchange bool
+	method           string // method of the request as sent
 }
 
 func (e *attemptError) Error() string { return e.apiErr.Error() }
 func (e *attemptError) Unwrap() error { return e.apiErr }
 
 // attemptHandler returns the terminal handler of the request chain: one real HTTP round trip.
-func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler {
+// initialHeader is the request's header as the caller gave it: a name that was
+// there and is gone from reqCtx.Headers was deleted by a middleware.
+func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader http.Header) RequestHandler {
 	return func(reqCtx *RequestContext) error {
 		st.attempts++
 		st.resp, st.body, st.apiErr, st.lastErr, st.readErr = nil, nil, nil, nil, nil
@@ -366,17 +374,20 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler 
 			WroteRequest: func(httptrace.WroteRequestInfo) { writes.Add(1) },
 		}
 		attemptReq := r.Clone(httptrace.WithClientTrace(r.Context(), trace))
-		attemptReq.Header = reqCtx.Headers.Clone()
-		if attemptReq.Header == nil {
-			attemptReq.Header = make(http.Header)
-		}
+		attemptReq.Header = attemptHeader(r.Header, initialHeader, reqCtx.Headers)
 
-		hc, redirected := c.attemptClient()
-		origURL := attemptReq.URL.String()
+		hc, track := c.attemptClient()
+		var origURL string
+		if attemptReq.URL != nil { // a middleware may have swapped in a request without one
+			origURL = attemptReq.URL.String()
+		}
 
 		resp, err := hc.Do(attemptReq) //nolint:gosec // G704: SDK client - URL is configured by caller
 		if err != nil {
-			st.lastErr = &transportError{err: err, writes: writes.Load(), redirected: redirected.Load(), origURL: origURL}
+			st.lastErr = &transportError{
+				err: err, writes: writes.Load(), redirected: track.redirected.Load(), redirectDenied: track.denied(err),
+				origURL: origURL, method: attemptReq.Method,
+			}
 			return st.lastErr
 		}
 		st.resp = resp
@@ -385,7 +396,7 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler 
 		if readErr != nil {
 			st.readErr = readErr
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				st.lastErr = &transportError{err: readErr, writes: writes.Load(), redirected: redirected.Load(), origURL: origURL}
+				st.lastErr = &transportError{err: readErr, writes: writes.Load(), redirected: track.redirected.Load(), origURL: origURL, method: attemptReq.Method}
 				return st.lastErr
 			}
 			body = nil
@@ -397,7 +408,8 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler 
 			st.lastErr = &attemptError{
 				apiErr:           st.apiErr,
 				header:           resp.Header,
-				originalExchange: !redirected.Load() && resp.Request != nil && resp.Request.Response == nil,
+				originalExchange: !track.redirected.Load() && resp.Request != nil && resp.Request.Response == nil,
+				method:           attemptReq.Method,
 			}
 			return st.lastErr
 		}
@@ -406,31 +418,66 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler 
 	}
 }
 
+// attemptHeader builds the header of one attempt. A header a middleware set
+// directly on the request is kept, a header it deleted from reqCtx.Headers is
+// dropped, and every header in reqCtx.Headers wins, as it did before attempts existed.
+func attemptHeader(onRequest, initial, fromContext http.Header) http.Header {
+	header := onRequest.Clone()
+	if header == nil {
+		header = make(http.Header)
+	}
+	for name := range initial {
+		if _, kept := fromContext[name]; !kept {
+			header.Del(name)
+		}
+	}
+	for name, values := range fromContext {
+		header[name] = append([]string(nil), values...)
+	}
+	return header
+}
+
 // defaultMaxRedirects is the redirect limit of net/http's default policy.
 const defaultMaxRedirects = 10
 
 // attemptClient returns a shallow copy of the client's HTTP client for one attempt.
 // Its CheckRedirect records that a redirect happened, then applies the caller's
 // policy (or Go's default), so the shared client is never changed.
-func (c *Client) attemptClient() (*http.Client, *atomic.Bool) {
+func (c *Client) attemptClient() (*http.Client, *redirectTracker) {
 	base := c.HTTPClient
 	if base == nil {
 		base = http.DefaultClient
 	}
 	hc := *base
-	redirected := &atomic.Bool{}
+	track := &redirectTracker{}
 	userCheck := base.CheckRedirect
 	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		redirected.Store(true)
-		if userCheck != nil {
-			return userCheck(req, via)
+		track.redirected.Store(true)
+		var err error
+		switch {
+		case userCheck != nil:
+			err = userCheck(req, via)
+		case len(via) >= defaultMaxRedirects:
+			err = fmt.Errorf("stopped after %d redirects", defaultMaxRedirects)
 		}
-		if len(via) >= defaultMaxRedirects {
-			return fmt.Errorf("stopped after %d redirects", defaultMaxRedirects)
+		if err != nil && !errors.Is(err, http.ErrUseLastResponse) {
+			track.policyErr.Store(&err)
 		}
-		return nil
+		return err
 	}
-	return &hc, redirected
+	return &hc, track
+}
+
+// redirectTracker records what the redirect policy of one attempt did.
+type redirectTracker struct {
+	redirected atomic.Bool
+	policyErr  atomic.Pointer[error]
+}
+
+// denied reports whether err is the error the redirect policy returned.
+func (t *redirectTracker) denied(err error) bool {
+	policyErr := t.policyErr.Load()
+	return policyErr != nil && errors.Is(err, *policyErr)
 }
 
 func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware, terminal RequestHandler) RequestHandler {
