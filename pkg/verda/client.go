@@ -324,37 +324,6 @@ func (st *doState) isPlainOutcome(chainErr error) bool {
 	return errors.As(chainErr, &exhausted) && exhausted == chainErr && exhausted.last == st.lastErr
 }
 
-// transportError is a failed round trip. It records what the transport saw, so
-// the retry middleware can tell whether the request may have reached the server.
-type transportError struct {
-	err        error
-	writes     int32 // WroteRequest events across all hops
-	redirected bool  // a redirect was followed or considered
-	// redirectDenied is true when the redirect policy refused to follow a
-	// redirect (Go's 10-hop limit or the caller's CheckRedirect): repeating the
-	// request would hit the same policy.
-	redirectDenied bool
-	origURL        string // URL of the request as sent
-	method         string // method of the request as sent
-}
-
-func (e *transportError) Error() string { return fmt.Sprintf("request failed: %v", e.err) }
-func (e *transportError) Unwrap() error { return e.err }
-
-// attemptError is a non-2xx response of one attempt. It wraps the *APIError
-// and carries the headers and provenance the retry middleware needs.
-type attemptError struct {
-	apiErr *APIError
-	header http.Header
-	// originalExchange is true when the response answers the request as sent:
-	// no redirect, and the transport tied the response to that request.
-	originalExchange bool
-	method           string // method of the request as sent
-}
-
-func (e *attemptError) Error() string { return e.apiErr.Error() }
-func (e *attemptError) Unwrap() error { return e.apiErr }
-
 // attemptHandler returns the terminal handler of the request chain: one real HTTP round trip.
 // initialHeader is the request's header as the caller gave it: a name that was
 // there and is gone from reqCtx.Headers was deleted by a middleware.
@@ -383,11 +352,14 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader h
 		}
 
 		resp, err := hc.Do(attemptReq) //nolint:gosec // G704: SDK client - URL is configured by caller
-		if err != nil {
-			st.lastErr = &transportError{
+		failed := func(err error) *transportError {
+			return &transportError{
 				err: err, writes: writes.Load(), redirected: track.redirected.Load(), redirectDenied: track.denied(err),
 				origURL: origURL, method: attemptReq.Method,
 			}
+		}
+		if err != nil {
+			st.lastErr = failed(err)
 			return st.lastErr
 		}
 		st.resp = resp
@@ -396,7 +368,7 @@ func (c *Client) attemptHandler(st *doState, orig *http.Request, initialHeader h
 		if readErr != nil {
 			st.readErr = readErr
 			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-				st.lastErr = &transportError{err: readErr, writes: writes.Load(), redirected: track.redirected.Load(), origURL: origURL, method: attemptReq.Method}
+				st.lastErr = failed(readErr)
 				return st.lastErr
 			}
 			body = nil
@@ -466,18 +438,6 @@ func (c *Client) attemptClient() (*http.Client, *redirectTracker) {
 		return err
 	}
 	return &hc, track
-}
-
-// redirectTracker records what the redirect policy of one attempt did.
-type redirectTracker struct {
-	redirected atomic.Bool
-	policyErr  atomic.Pointer[error]
-}
-
-// denied reports whether err is the error the redirect policy returned.
-func (t *redirectTracker) denied(err error) bool {
-	policyErr := t.policyErr.Load()
-	return policyErr != nil && errors.Is(err, *policyErr)
 }
 
 func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware, terminal RequestHandler) RequestHandler {
