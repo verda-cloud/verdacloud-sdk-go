@@ -68,7 +68,7 @@ func deleteRequest[T any](ctx context.Context, client *Client, url string) (T, *
 
 Service methods like `client.Instances.List()` and `client.SSHKeys.Create()` use these internally. This means:
 - Compile-time type checking
-- Consistent middleware application (auth, retries, logging)
+- Consistent middleware application (auth, logging, and retries when enabled)
 - Thread-safe request isolation
 - Easy to extend for new endpoints
 
@@ -91,7 +91,7 @@ client.Middleware.AddRequestMiddleware(func(next verda.RequestHandler) verda.Req
 })
 ```
 
-Default middleware includes: authentication, JSON content-type, exponential backoff retries, and error handling.
+Default middleware includes: authentication, JSON content-type, user agent, error handling, and logging when a logger is set. Retries are not on by default; see [Retries](#retries).
 
 ## Usage
 
@@ -540,6 +540,33 @@ bearer, err := client.Auth.GetBearerTokenContext(ctx)
 ```
 
 `Authenticate`, `RefreshToken`, `GetValidToken` and `GetBearerToken` are deprecated: they use `context.Background()` and are never canceled. Use `AuthenticateContext`, `RefreshTokenContext`, `GetValidTokenContext` and `GetBearerTokenContext` instead. Custom middleware can read the request's context with `ctx.Context()` on `*verda.RequestContext`.
+
+### Retries
+
+Retries are off by default. Enable them by adding the retry middleware:
+
+```go
+client.AddRequestMiddleware(verda.ExponentialBackoffRetryMiddleware(3, 500*time.Millisecond, client.Logger))
+```
+
+The middleware retries with exponential backoff (±50% jitter). Which requests it retries depends on the HTTP method:
+
+| Method | Retried on |
+|--------|------------|
+| GET, HEAD, OPTIONS | 408, 429, any 5xx, and any transport error (including a connection that drops or a response body that is cut short) |
+| POST, PUT, PATCH, DELETE | Only when the request provably did not take effect: a 429 that answers the request as sent, or a dial or DNS failure before anything was written |
+
+Writes are never retried on a 5xx, a 408, a timeout after the request was written, or after a redirect. The API uses PUT for actions such as attaching or resizing a volume, and POST creates resources with server-generated IDs, so a repeat of a request that already succeeded could act twice. For a 429 on a write to be retried, a custom `http.RoundTripper` must set `Response.Request`; without it the SDK cannot tell the 429 answers the original request, so it does not retry.
+
+Other behavior to know:
+
+- A wait never exceeds 30 seconds. A `Retry-After` header (seconds or an HTTP date) on a 429 or 503 raises the wait up to that ceiling, so the cap can be shorter than what the server asked for.
+- Retrying stops when the request's context is done. The total time of a call can reach `(retries+1) × HTTPClient.Timeout` plus the waits, so set a context deadline if you need a bound.
+- A request with a body is retried only if the body can be sent again (`http.Request.GetBody` is set; `NewRequest` does this for `bytes.Reader`, `strings.Reader` and similar). A middleware that transforms the body must also update `GetBody` and `ContentLength`, or a retry sends the original bytes.
+- The middleware wraps the real HTTP call, so code a custom middleware runs after `next(ctx)` now runs after the response comes back.
+- If your `http.Client` has a transport that also retries, a failure is retried by both.
+- Calls that bypass the middleware chain are not retried: instance create and actions, volume create and clone, SSH key and startup script create, the instance type availability check, and the OAuth token requests.
+- Error text from `/token` and `/kubeconfigs` paths is not written to the debug logs, because it can echo secrets.
 
 ### Debug Logging
 

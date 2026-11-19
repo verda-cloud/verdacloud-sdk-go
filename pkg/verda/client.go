@@ -22,8 +22,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"os"
 	"strings"
+	"sync/atomic"
 )
 
 const (
@@ -219,7 +221,11 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, body io.Re
 	return req, nil
 }
 
-// Do executes the request through middleware and returns the parsed response
+// Do executes the request through middleware and returns the parsed response.
+//
+// The request middleware chain wraps the real HTTP round trip: the chain's
+// terminal handler sends the request, so a middleware that calls next sees the
+// response (as an error for non-2xx statuses) and may call next again to retry.
 func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	// Snapshot middleware to avoid race conditions
 	requestMiddleware, responseMiddleware := c.Middleware.Snapshot()
@@ -234,36 +240,42 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 		Request: req,
 	}
 
-	requestHandler := c.buildRequestChain(requestMiddleware)
-	if err := requestHandler(reqCtx); err != nil {
-		return nil, fmt.Errorf("request middleware failed: %w", err)
-	}
+	// State of the attempts is local to this call, so concurrent calls never share it
+	st := &doState{}
+	terminal := c.attemptHandler(st, req)
+	chainErr := c.buildRequestChain(requestMiddleware, terminal)(reqCtx)
 
-	// Apply middleware-modified headers back to the request
-	for name, values := range reqCtx.Headers {
-		req.Header.Del(name)
-		for _, value := range values {
-			req.Header.Add(name, value)
+	if st.attempts == 0 {
+		if chainErr != nil {
+			return nil, fmt.Errorf("request middleware failed: %w", chainErr)
 		}
+		// A custom middleware returned without calling next: send once anyway
+		chainErr = terminal(reqCtx)
 	}
 
-	resp, err := c.HTTPClient.Do(req) //nolint:gosec // G704: SDK client - URL is configured by caller
-	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+	if !st.isPlainOutcome(chainErr) {
+		if st.lastErr != nil && errors.Is(chainErr, st.lastErr) {
+			// The middleware wrapped the last attempt's error (cancellation, GetBody failure)
+			return nil, chainErr
+		}
+		return nil, fmt.Errorf("request middleware failed: %w", chainErr)
 	}
 
-	wrappedResp := &Response{Response: resp}
+	// The last attempt got no response: there is nothing to parse
+	if st.resp == nil {
+		return nil, st.lastErr
+	}
 
-	bodyBytes, err := readAndCloseResponseBody(resp)
-	if err != nil {
-		return wrappedResp, err
+	wrappedResp := &Response{Response: st.resp}
+	if st.readErr != nil {
+		return wrappedResp, st.readErr
 	}
 
 	var parseErr error
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		parseErr = parseAPIError(resp.StatusCode, bodyBytes)
+	if st.apiErr != nil {
+		parseErr = st.apiErr
 	} else if result != nil {
-		trimmed := bytes.TrimSpace(bodyBytes)
+		trimmed := bytes.TrimSpace(st.body)
 		if len(trimmed) > 0 {
 			if err := json.Unmarshal(trimmed, result); err != nil {
 				parseErr = fmt.Errorf("failed to unmarshal response: %w", err)
@@ -273,9 +285,9 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 
 	respCtx := &ResponseContext{
 		Request:    reqCtx,
-		Response:   resp,
-		Body:       bodyBytes,
-		StatusCode: resp.StatusCode,
+		Response:   st.resp,
+		Body:       st.body,
+		StatusCode: st.resp.StatusCode,
 		Error:      parseErr,
 	}
 
@@ -291,11 +303,138 @@ func (c *Client) Do(req *http.Request, result any) (*Response, error) {
 	return wrappedResp, nil
 }
 
-func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware) RequestHandler {
-	//nolint:revive // ctx unused in default no-op handler
-	handler := func(ctx *RequestContext) error {
+// doState holds the outcome of the latest attempt of one Do call.
+// Each attempt resets it, so a result is never carried over from an earlier attempt.
+type doState struct {
+	attempts int
+	resp     *http.Response
+	body     []byte
+	apiErr   *APIError
+	lastErr  error // *transportError or *attemptError of the latest attempt
+	readErr  error
+}
+
+// isPlainOutcome reports whether chainErr only carries the outcome of the
+// latest attempt, as opposed to an error a middleware produced itself.
+func (st *doState) isPlainOutcome(chainErr error) bool {
+	if chainErr == nil || chainErr == st.lastErr {
+		return true
+	}
+	var exhausted *retryExhaustedError
+	return errors.As(chainErr, &exhausted) && exhausted == chainErr && exhausted.last == st.lastErr
+}
+
+// transportError is a failed round trip. It records what the transport saw, so
+// the retry middleware can tell whether the request may have reached the server.
+type transportError struct {
+	err        error
+	writes     int32  // WroteRequest events across all hops
+	redirected bool   // a redirect was followed or considered
+	origURL    string // URL of the request as sent
+}
+
+func (e *transportError) Error() string { return fmt.Sprintf("request failed: %v", e.err) }
+func (e *transportError) Unwrap() error { return e.err }
+
+// attemptError is a non-2xx response of one attempt. It wraps the *APIError
+// and carries the headers and provenance the retry middleware needs.
+type attemptError struct {
+	apiErr *APIError
+	header http.Header
+	// originalExchange is true when the response answers the request as sent:
+	// no redirect, and the transport tied the response to that request.
+	originalExchange bool
+}
+
+func (e *attemptError) Error() string { return e.apiErr.Error() }
+func (e *attemptError) Unwrap() error { return e.apiErr }
+
+// attemptHandler returns the terminal handler of the request chain: one real HTTP round trip.
+func (c *Client) attemptHandler(st *doState, orig *http.Request) RequestHandler {
+	return func(reqCtx *RequestContext) error {
+		st.attempts++
+		st.resp, st.body, st.apiErr, st.lastErr, st.readErr = nil, nil, nil, nil, nil
+
+		r := reqCtx.Request
+		if r == nil {
+			r = orig
+		}
+
+		// Count written requests: zero writes on a failed attempt means the server saw nothing
+		var writes atomic.Int32
+		trace := &httptrace.ClientTrace{
+			WroteRequest: func(httptrace.WroteRequestInfo) { writes.Add(1) },
+		}
+		attemptReq := r.Clone(httptrace.WithClientTrace(r.Context(), trace))
+		attemptReq.Header = reqCtx.Headers.Clone()
+		if attemptReq.Header == nil {
+			attemptReq.Header = make(http.Header)
+		}
+
+		hc, redirected := c.attemptClient()
+		origURL := attemptReq.URL.String()
+
+		resp, err := hc.Do(attemptReq) //nolint:gosec // G704: SDK client - URL is configured by caller
+		if err != nil {
+			st.lastErr = &transportError{err: err, writes: writes.Load(), redirected: redirected.Load(), origURL: origURL}
+			return st.lastErr
+		}
+		st.resp = resp
+
+		body, readErr := readAndCloseResponseBody(resp)
+		if readErr != nil {
+			st.readErr = readErr
+			if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+				st.lastErr = &transportError{err: readErr, writes: writes.Load(), redirected: redirected.Load(), origURL: origURL}
+				return st.lastErr
+			}
+			body = nil
+		}
+		st.body = body
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			st.apiErr = parseAPIError(resp.StatusCode, body)
+			st.lastErr = &attemptError{
+				apiErr:           st.apiErr,
+				header:           resp.Header,
+				originalExchange: !redirected.Load() && resp.Request != nil && resp.Request.Response == nil,
+			}
+			return st.lastErr
+		}
+
 		return nil
 	}
+}
+
+// defaultMaxRedirects is the redirect limit of net/http's default policy.
+const defaultMaxRedirects = 10
+
+// attemptClient returns a shallow copy of the client's HTTP client for one attempt.
+// Its CheckRedirect records that a redirect happened, then applies the caller's
+// policy (or Go's default), so the shared client is never changed.
+func (c *Client) attemptClient() (*http.Client, *atomic.Bool) {
+	base := c.HTTPClient
+	if base == nil {
+		base = http.DefaultClient
+	}
+	hc := *base
+	redirected := &atomic.Bool{}
+	userCheck := base.CheckRedirect
+	hc.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		redirected.Store(true)
+		if userCheck != nil {
+			return userCheck(req, via)
+		}
+		if len(via) >= defaultMaxRedirects {
+			return fmt.Errorf("stopped after %d redirects", defaultMaxRedirects)
+		}
+		return nil
+	}
+	return &hc, redirected
+}
+
+func (c *Client) buildRequestChain(requestMiddleware []RequestMiddleware, terminal RequestHandler) RequestHandler {
+	handler := terminal
 
 	// Reverse order so last middleware wraps first
 	for i := len(requestMiddleware) - 1; i >= 0; i-- {
