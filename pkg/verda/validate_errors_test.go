@@ -152,6 +152,11 @@ func TestValidateErrors_PrivateNetworks(t *testing.T) {
 		{"route valid", CreateRouteRequest{Destination: "0.0.0.0/0", InstanceID: "i"}, ""},
 		{"route empty", CreateRouteRequest{}, "destination: cannot be blank; instance_id: cannot be blank."},
 		{"route destination invalid", CreateRouteRequest{Destination: "nope", InstanceID: "i"}, `destination: must be a valid IPv4 CIDR, got "nope".`},
+		{"ip allocation auto", IPAllocAuto, ""},
+		{"ip allocation none", IPAllocNone, ""},
+		{"ip allocation ipv4", IPAllocation("10.0.0.5"), ""},
+		{"ip allocation empty", IPAllocation(""), `must be "auto", "none", or a valid IPv4 address, got ""`},
+		{"ip allocation ipv6", IPAllocation("fd00::1"), `must be "auto", "none", or a valid IPv4 address, got "fd00::1"`},
 	})
 }
 
