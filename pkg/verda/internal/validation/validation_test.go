@@ -15,6 +15,7 @@
 package validation
 
 import (
+	"encoding/json"
 	"errors"
 	"math"
 	"regexp"
@@ -192,6 +193,45 @@ func TestValidateStruct_ProgrammingErrors(t *testing.T) {
 				t.Errorf("ValidateStruct() = %q, want %q", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestErrors_MarshalJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		errs Errors
+		want string
+	}{
+		{"empty", Errors{}, `{}`},
+		{"messages", Errors{"b": errors.New("x"), "a": errors.New("y")}, `{"a":"y","b":"x"}`},
+		{"nested", Errors{"a": Errors{"0": errors.New("x")}}, `{"a":{"0":"x"}}`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := json.Marshal(tc.errs)
+			if err != nil {
+				t.Fatalf("json.Marshal() error = %v", err)
+			}
+			if string(got) != tc.want {
+				t.Errorf("json.Marshal() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestErrors_MarshalJSON_ThroughErrorInterface(t *testing.T) {
+	s := struct {
+		Name  string `json:"name"`
+		Items []item `json:"items"`
+	}{Items: []item{{}}}
+	err := ValidateStruct(&s, Field(&s.Name, Required), Field(&s.Items))
+	got, marshalErr := json.Marshal(err)
+	if marshalErr != nil {
+		t.Fatalf("json.Marshal() error = %v", marshalErr)
+	}
+	want := `{"items":{"0":{"name":"cannot be blank"}},"name":"cannot be blank"}`
+	if string(got) != want {
+		t.Errorf("json.Marshal() = %s, want %s", got, want)
 	}
 }
 

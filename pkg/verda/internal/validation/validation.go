@@ -16,9 +16,16 @@
 // API that the SDK uses, with the same semantics and error messages, so the
 // SDK carries no third-party dependency. Add a rule here only when a Validate
 // method needs it.
+//
+// Not ported, so a Validate method that needs one must add it here first:
+// Else, Skip, Exclusive on Min/Max, uint and time.Time thresholds for Min/Max,
+// []byte for Match, driver.Valuer unwrapping, embedded-struct field lookup,
+// error codes, and a configurable ErrorTag (field names always come from the
+// json tag).
 package validation
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -66,6 +73,28 @@ func (es Errors) Error() string {
 	return s.String()
 }
 
+// MarshalJSON emits each entry's message, and nested Errors as objects, so
+// json.Marshal of a validation error carries the text instead of "{}".
+func (es Errors) MarshalJSON() ([]byte, error) {
+	out := make(map[string]any, len(es))
+	for key, err := range es {
+		if m, ok := err.(json.Marshaler); ok {
+			out[key] = m
+		} else {
+			out[key] = err.Error()
+		}
+	}
+	return json.Marshal(out)
+}
+
+// orNil returns es as an error, or an untyped nil when it holds no failure.
+func (es Errors) orNil() error {
+	if len(es) == 0 {
+		return nil
+	}
+	return es
+}
+
 // FieldRules binds rules to one struct field, given by pointer.
 type FieldRules struct {
 	fieldPtr any
@@ -104,10 +133,7 @@ func ValidateStruct(structPtr any, fields ...*FieldRules) error {
 			errs[name] = err
 		}
 	}
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errs.orNil()
 }
 
 // fieldName finds the top-level field of sv at the address fieldPtr holds.
@@ -168,10 +194,7 @@ func validateMap(rv reflect.Value) error {
 			}
 		}
 	}
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errs.orNil()
 }
 
 func validateSlice(rv reflect.Value) error {
@@ -183,10 +206,7 @@ func validateSlice(rv reflect.Value) error {
 			}
 		}
 	}
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errs.orNil()
 }
 
 // RuleFunc is a custom check for By.
@@ -242,10 +262,7 @@ func (r EachRule) Validate(value any) error {
 	default:
 		return errors.New("must be an iterable (map, slice or array)")
 	}
-	if len(errs) > 0 {
-		return errs
-	}
-	return nil
+	return errs.orNil()
 }
 
 // elementValue returns an element for the rules, turning a nil pointer or
