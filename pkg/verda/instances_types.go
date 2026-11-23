@@ -16,6 +16,7 @@ package verda
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
@@ -94,15 +95,18 @@ func (opts ListInstancesOptions) Validate() error {
 
 // CreateInstanceRequest represents the request to create an instance
 type CreateInstanceRequest struct {
-	InstanceType    string                 `json:"instance_type"`
-	Image           string                 `json:"image"`
-	Hostname        string                 `json:"hostname"`
-	Description     string                 `json:"description,omitempty"`
-	SSHKeyIDs       []string               `json:"ssh_key_ids,omitempty"`
-	LocationCode    string                 `json:"location_code,omitempty"`
-	Contract        string                 `json:"contract,omitempty"`
-	Pricing         string                 `json:"pricing,omitempty"`
-	StartupScriptID *string                `json:"startup_script_id,omitempty"`
+	InstanceType    string   `json:"instance_type"`
+	Image           string   `json:"image"`
+	Hostname        string   `json:"hostname"`
+	Description     string   `json:"description,omitempty"`
+	SSHKeyIDs       []string `json:"ssh_key_ids,omitempty"`
+	LocationCode    string   `json:"location_code,omitempty"`
+	Contract        string   `json:"contract,omitempty"`
+	Pricing         string   `json:"pricing,omitempty"`
+	StartupScriptID *string  `json:"startup_script_id,omitempty"`
+	// StartupScript is an inline script that runs once on first boot.
+	// It must start with "#!" and cannot be combined with StartupScriptID.
+	StartupScript   string                 `json:"startup_script,omitempty"`
 	Volumes         []VolumeCreateRequest  `json:"volumes,omitempty"`
 	ExistingVolumes []string               `json:"existing_volumes,omitempty"`
 	OSVolume        *OSVolumeCreateRequest `json:"os_volume,omitempty"`
@@ -198,6 +202,11 @@ const (
 	SpotDiscontinueDeletePermanent = "delete_permanently"
 )
 
+// OpenAPI maxLength counts Unicode code points, not UTF-8 bytes.
+const maxStartupScriptRunes = 65536
+
+var startupScriptShebangRegexp = regexp.MustCompile(`^#!`)
+
 // Validate validates the CreateInstanceRequest fields
 func (r CreateInstanceRequest) Validate() error {
 	err := validation.ValidateStruct(&r,
@@ -206,12 +215,20 @@ func (r CreateInstanceRequest) Validate() error {
 		validation.Field(&r.Hostname, validation.Required),
 		validation.Field(&r.Contract,
 			validation.In("LONG_TERM", "PAY_AS_YOU_GO", "SPOT")),
+		validation.Field(&r.StartupScript,
+			validation.RuneLength(0, maxStartupScriptRunes),
+			validation.Match(startupScriptShebangRegexp).
+				Error(`must start with "#!" (for example, "#!/bin/bash")`)),
 		validation.Field(&r.OSVolume),
 		validation.Field(&r.Volumes),
 		validation.Field(&r.Tags, validation.Length(0, MaxTagsPerResource)),
 	)
 	if err != nil {
 		return err
+	}
+
+	if r.StartupScript != "" && r.StartupScriptID != nil {
+		return fmt.Errorf("startup_script and startup_script_id cannot both be set")
 	}
 
 	return r.validateNetworkFields()

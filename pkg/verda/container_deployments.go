@@ -314,7 +314,10 @@ func (s *ContainerDeploymentsService) CreateSecret(ctx context.Context, req *Cre
 
 // DeleteSecret removes a secret - force deletes even if in use (dangerous)
 func (s *ContainerDeploymentsService) DeleteSecret(ctx context.Context, secretName string, force bool) error {
-	path := fmt.Sprintf("/secrets/%s", secretName)
+	path, err := joinPath("/secrets", "secretName", secretName, "")
+	if err != nil {
+		return err
+	}
 
 	if force {
 		params := url.Values{}
@@ -322,7 +325,7 @@ func (s *ContainerDeploymentsService) DeleteSecret(ctx context.Context, secretNa
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -346,7 +349,10 @@ func (s *ContainerDeploymentsService) CreateFileSecret(ctx context.Context, req 
 }
 
 func (s *ContainerDeploymentsService) DeleteFileSecret(ctx context.Context, secretName string, force bool) error {
-	path := fmt.Sprintf("/file-secrets/%s", secretName)
+	path, err := joinPath("/file-secrets", "secretName", secretName, "")
+	if err != nil {
+		return err
+	}
 
 	if force {
 		params := url.Values{}
@@ -354,7 +360,7 @@ func (s *ContainerDeploymentsService) DeleteFileSecret(ctx context.Context, secr
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
@@ -378,7 +384,10 @@ func (s *ContainerDeploymentsService) CreateRegistryCredentials(ctx context.Cont
 }
 
 func (s *ContainerDeploymentsService) DeleteRegistryCredentials(ctx context.Context, credentialsName string, force bool) error {
-	path := fmt.Sprintf("/container-registry-credentials/%s", credentialsName)
+	path, err := joinPath("/container-registry-credentials", "credentialsName", credentialsName, "")
+	if err != nil {
+		return err
+	}
 
 	if force {
 		params := url.Values{}
@@ -386,6 +395,6 @@ func (s *ContainerDeploymentsService) DeleteRegistryCredentials(ctx context.Cont
 		path += "?" + params.Encode()
 	}
 
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }

@@ -22,8 +22,9 @@ import (
 	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
-// Private network modes: "auto" creates subnets per location on first use,
-// "custom" requires creating them explicitly.
+// Private network modes. "auto": when the network is the project's default,
+// a deploy that names no subnet gets one in its location, from that
+// location's range. "custom": you create the subnets.
 const (
 	NetworkModeAuto   = "auto"
 	NetworkModeCustom = "custom"

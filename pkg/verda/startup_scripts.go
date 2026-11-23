@@ -63,7 +63,10 @@ func (s *StartupScriptService) GetAllStartupScripts(ctx context.Context) ([]Star
 }
 
 func (s *StartupScriptService) GetStartupScriptByID(ctx context.Context, scriptID string) (*StartupScript, error) {
-	path := fmt.Sprintf("/scripts/%s", scriptID)
+	path, err := joinPath("/scripts", "scriptID", scriptID, "")
+	if err != nil {
+		return nil, err
+	}
 
 	// API returns array even for single script lookup
 	scripts, _, err := getRequest[[]StartupScript](ctx, s.client, path)
@@ -115,8 +118,11 @@ func (s *StartupScriptService) createWithPlainTextResponse(ctx context.Context, 
 }
 
 func (s *StartupScriptService) DeleteStartupScript(ctx context.Context, scriptID string) error {
-	path := fmt.Sprintf("/scripts/%s", scriptID)
-	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, path)
+	path, err := joinPath("/scripts", "scriptID", scriptID, "")
+	if err != nil {
+		return err
+	}
+	_, err = deleteRequestAllowEmptyResponse(ctx, s.client, path)
 	return err
 }
 
