@@ -63,6 +63,7 @@ type Client struct {
 	ContainerDeployments *ContainerDeploymentsService
 	ServerlessJobs       *ServerlessJobsService
 	ManagedKubernetes    *ManagedKubernetesService
+	Inference            *InferenceService
 }
 
 type ClientOption func(*Client)
@@ -119,6 +120,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.ContainerDeployments = &ContainerDeploymentsService{client: client}
 	client.ServerlessJobs = &ServerlessJobsService{client: client}
 	client.ManagedKubernetes = &ManagedKubernetesService{client: client}
+	client.Inference = &InferenceService{client: client}
 
 	return client, nil
 }
