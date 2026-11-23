@@ -55,6 +55,20 @@ func TestRules(t *testing.T) {
 		{"required pointer to empty", str(""), Required, "cannot be blank"},
 		{"required zero struct", item{}, Required, "cannot be blank"},
 		{"required non-zero struct", item{Name: "a"}, Required, ""},
+		{"required untyped nil", nil, Required, "cannot be blank"},
+		{"required zero uint", uint(0), Required, "cannot be blank"},
+		{"required non-zero uint", uint(1), Required, ""},
+		{"required false", false, Required, "cannot be blank"},
+		{"required true", true, Required, ""},
+		{"required zero float", 0.0, Required, "cannot be blank"},
+		{"required non-zero float", 0.5, Required, ""},
+		{"required empty array", [0]int{}, Required, "cannot be blank"},
+		{"required non-empty array", [1]int{}, Required, ""},
+		{"required empty map", map[string]int{}, Required, "cannot be blank"},
+		{"required pointer to zero int", intPtr(0), Required, "cannot be blank"},
+		{"required pointer to pointer to empty", &[]*string{str("")}[0], Required, "cannot be blank"},
+		{"required nil func", (func())(nil), Required, "cannot be blank"},
+		{"required non-nil func", func() {}, Required, ""},
 		{"nil or not empty nil", (*string)(nil), NilOrNotEmpty, ""},
 		{"nil or not empty set", str("x"), NilOrNotEmpty, ""},
 		{"nil or not empty pointer to empty", str(""), NilOrNotEmpty, "cannot be blank"},
@@ -68,6 +82,7 @@ func TestRules(t *testing.T) {
 		{"rune length counts runes", "ää", RuneLength(0, 3), ""},
 		{"rune length too long", "äää", RuneLength(0, 2), "the length must be no more than 2"},
 		{"length of int", 5, Length(0, 2), "cannot get the length of int"},
+		{"length without bounds", "a", Length(0, 0), "the value must be empty"},
 		{"in allowed", "a", In("a", "b"), ""},
 		{"in skips empty", "", In("a"), ""},
 		{"in rejected", "c", In("a", "b"), "must be a valid value"},
@@ -80,9 +95,13 @@ func TestRules(t *testing.T) {
 		{"float max", 1000.5, Max(1000.0), "must be no greater than 1000"},
 		{"float min NaN", math.NaN(), Min(1.0), "must be no less than 1"},
 		{"int threshold float value", 1.5, Min(1), "cannot convert float64 to int64"},
+		{"float threshold int value", 1, Min(1.0), "cannot convert int to float64"},
+		{"unsupported threshold type", 1, Min("a"), "type not supported: string"},
 		{"match ok", "ab", Match(regexp.MustCompile(`^a`)), ""},
 		{"match skips empty", "", Match(regexp.MustCompile(`^a`)), ""},
 		{"match rejected", "ba", Match(regexp.MustCompile(`^a`)), "must be in a valid format"},
+		{"match non-string", 5, Match(regexp.MustCompile(`^a`)), "must be in a valid format"},
+		{"match skips nil", (*string)(nil), Match(regexp.MustCompile(`^a`)), ""},
 		{"match custom error", "ba", Match(regexp.MustCompile(`^a`)).Error("must start with a"), "must start with a"},
 		{"match custom error ok", "ab", Match(regexp.MustCompile(`^a`)).Error("must start with a"), ""},
 		{"match custom error skips empty", "", Match(regexp.MustCompile(`^a`)).Error("must start with a"), ""},
@@ -93,6 +112,10 @@ func TestRules(t *testing.T) {
 		{"each by index", []string{"a", ""}, Each(Required), "1: cannot be blank."},
 		{"each map key", map[string]string{"k": ""}, Each(Required), "k: cannot be blank."},
 		{"each not iterable", 1, Each(Required), "must be an iterable (map, slice or array)"},
+		{"each nil pointer element", []*item{nil}, Each(Required), "0: cannot be blank."},
+		{"each array", [2]string{"a", ""}, Each(Required), "1: cannot be blank."},
+		{"each validates elements after rules", []item{{}}, Each(Required), "0: cannot be blank."},
+		{"each validates elements without rules", []item{{Name: "a"}, {}}, Each(), "1: (name: cannot be blank.)."},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -182,6 +205,29 @@ func TestValidateStruct_NestedAutoValidation(t *testing.T) {
 		"skipped: rule failed; slice: (1: (name: cannot be blank.).); value: (name: cannot be blank.)."
 	if got := errText(err); got != want {
 		t.Errorf("ValidateStruct() =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestValidate_SkipsNilPointerElements(t *testing.T) {
+	tests := []struct {
+		name  string
+		value any
+		want  string
+	}{
+		{"slice", []*item{nil, {Name: "ok"}, {}}, "2: (name: cannot be blank.)."},
+		{"array", [2]*item{nil, {}}, "1: (name: cannot be blank.)."},
+		{"map", map[string]*item{"nil": nil, "bad": {}}, "bad: (name: cannot be blank.)."},
+		{"all nil", []*item{nil}, ""},
+		{"pointer to slice", &[]item{{}}, "0: (name: cannot be blank.)."},
+		{"slice of non-validatable", []string{""}, ""},
+		{"nil interface element", []Validatable{nil, item{}}, "1: (name: cannot be blank.)."},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := errText(Validate(tc.value)); got != tc.want {
+				t.Errorf("Validate(%#v) = %q, want %q", tc.value, got, tc.want)
+			}
+		})
 	}
 }
 

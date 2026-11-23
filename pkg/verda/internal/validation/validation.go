@@ -31,7 +31,6 @@ import (
 	"maps"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -163,7 +162,7 @@ func Validate(value any, rules ...Rule) error {
 	}
 
 	rv := reflect.ValueOf(value)
-	if (rv.Kind() == reflect.Pointer || rv.Kind() == reflect.Interface) && rv.IsNil() {
+	if isNilReference(rv) {
 		return nil
 	}
 	if v, ok := value.(Validatable); ok {
@@ -171,13 +170,9 @@ func Validate(value any, rules ...Rule) error {
 	}
 
 	switch rv.Kind() {
-	case reflect.Map:
+	case reflect.Map, reflect.Slice, reflect.Array:
 		if rv.Type().Elem().Implements(validatableType) {
-			return validateMap(rv)
-		}
-	case reflect.Slice, reflect.Array:
-		if rv.Type().Elem().Implements(validatableType) {
-			return validateSlice(rv)
+			return validateElements(rv, nil)
 		}
 	case reflect.Pointer, reflect.Interface:
 		return Validate(rv.Elem().Interface())
@@ -185,28 +180,37 @@ func Validate(value any, rules ...Rule) error {
 	return nil
 }
 
-func validateMap(rv reflect.Value) error {
+// validateElements runs Validate with rules on every element of a map, slice
+// or array, keying each failure by map key or index. A nil pointer or
+// interface element reaches the rules as an untyped nil.
+func validateElements(rv reflect.Value, rules []Rule) error {
 	errs := Errors{}
-	for _, key := range rv.MapKeys() {
-		if v := rv.MapIndex(key).Interface(); v != nil {
-			if err := v.(Validatable).Validate(); err != nil {
-				errs[fmt.Sprintf("%v", key.Interface())] = err
-			}
+	check := func(key any, elem reflect.Value) {
+		var value any
+		if !isNilReference(elem) {
+			value = elem.Interface()
 		}
+		if err := Validate(value, rules...); err != nil {
+			errs[fmt.Sprint(key)] = err
+		}
+	}
+	switch rv.Kind() {
+	case reflect.Map:
+		for iter := rv.MapRange(); iter.Next(); {
+			check(iter.Key().Interface(), iter.Value())
+		}
+	case reflect.Slice, reflect.Array:
+		for i := range rv.Len() {
+			check(i, rv.Index(i))
+		}
+	default:
+		return errors.New("must be an iterable (map, slice or array)")
 	}
 	return errs.orNil()
 }
 
-func validateSlice(rv reflect.Value) error {
-	errs := Errors{}
-	for i := range rv.Len() {
-		if v := rv.Index(i).Interface(); v != nil {
-			if err := v.(Validatable).Validate(); err != nil {
-				errs[strconv.Itoa(i)] = err
-			}
-		}
-	}
-	return errs.orNil()
+func isNilReference(v reflect.Value) bool {
+	return (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil()
 }
 
 // RuleFunc is a custom check for By.
@@ -244,32 +248,5 @@ type EachRule struct{ rules []Rule }
 func Each(rules ...Rule) EachRule { return EachRule{rules: rules} }
 
 func (r EachRule) Validate(value any) error {
-	errs := Errors{}
-	v := reflect.ValueOf(value)
-	switch v.Kind() {
-	case reflect.Map:
-		for _, k := range v.MapKeys() {
-			if err := Validate(elementValue(v.MapIndex(k)), r.rules...); err != nil {
-				errs[fmt.Sprintf("%v", k.Interface())] = err
-			}
-		}
-	case reflect.Slice, reflect.Array:
-		for i := range v.Len() {
-			if err := Validate(elementValue(v.Index(i)), r.rules...); err != nil {
-				errs[strconv.Itoa(i)] = err
-			}
-		}
-	default:
-		return errors.New("must be an iterable (map, slice or array)")
-	}
-	return errs.orNil()
-}
-
-// elementValue returns an element for the rules, turning a nil pointer or
-// interface into an untyped nil.
-func elementValue(v reflect.Value) any {
-	if (v.Kind() == reflect.Pointer || v.Kind() == reflect.Interface) && v.IsNil() {
-		return nil
-	}
-	return v.Interface()
+	return validateElements(reflect.ValueOf(value), r.rules)
 }

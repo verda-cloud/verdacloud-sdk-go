@@ -46,7 +46,7 @@ func (r RequiredRule) Validate(value any) error {
 	if isNil && r.skipNil {
 		return nil
 	}
-	if isNil || isEmpty(value) {
+	if isEmpty(value) {
 		return errBlank
 	}
 	return nil
@@ -67,8 +67,8 @@ func RuneLength(minLen, maxLen int) LengthRule {
 }
 
 func (r LengthRule) Validate(value any) error {
-	value, isNil := indirect(value)
-	if isNil || isEmpty(value) {
+	value, _ = indirect(value)
+	if isEmpty(value) {
 		return nil
 	}
 	var n int
@@ -111,8 +111,8 @@ type InRule struct{ elements []any }
 func In(elements ...any) InRule { return InRule{elements: elements} }
 
 func (r InRule) Validate(value any) error {
-	value, isNil := indirect(value)
-	if isNil || isEmpty(value) {
+	value, _ = indirect(value)
+	if isEmpty(value) {
 		return nil
 	}
 	for _, e := range r.elements {
@@ -148,13 +148,12 @@ func (r ThresholdRule) Validate(value any) error {
 		if !isInt(v.Kind()) {
 			return fmt.Errorf("cannot convert %v to int64", v.Kind())
 		}
-		ok = r.atLeast && v.Int() >= t.Int() || !r.atLeast && v.Int() <= t.Int()
+		ok = withinBound(v.Int(), t.Int(), r.atLeast)
 	case isFloat(t.Kind()):
 		if !isFloat(v.Kind()) {
 			return fmt.Errorf("cannot convert %v to float64", v.Kind())
 		}
-		// Compare in the accepting direction so that NaN fails.
-		ok = r.atLeast && v.Float() >= t.Float() || !r.atLeast && v.Float() <= t.Float()
+		ok = withinBound(v.Float(), t.Float(), r.atLeast)
 	default:
 		return fmt.Errorf("type not supported: %v", t.Type())
 	}
@@ -165,6 +164,14 @@ func (r ThresholdRule) Validate(value any) error {
 		return fmt.Errorf("must be no less than %v", r.threshold)
 	}
 	return fmt.Errorf("must be no greater than %v", r.threshold)
+}
+
+// withinBound compares in the accepting direction so that NaN fails.
+func withinBound[T int64 | float64](value, bound T, atLeast bool) bool {
+	if atLeast {
+		return value >= bound
+	}
+	return value <= bound
 }
 
 func isInt(k reflect.Kind) bool { return k >= reflect.Int && k <= reflect.Int64 }
@@ -217,8 +224,9 @@ func indirect(value any) (_ any, isNil bool) {
 	return value, false
 }
 
-// isEmpty reports zero numbers, false, empty strings/slices/maps/arrays,
-// zero structs, and nil or pointers to empty values.
+// isEmpty reports nil, zero numbers, false, empty strings/slices/maps/arrays
+// and zero structs. value must come from indirect, which strips pointers and
+// turns every nil into an untyped nil.
 func isEmpty(value any) bool {
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
@@ -234,11 +242,6 @@ func isEmpty(value any) bool {
 		return v.Float() == 0
 	case reflect.Invalid:
 		return true
-	case reflect.Interface, reflect.Pointer:
-		if v.IsNil() {
-			return true
-		}
-		return isEmpty(v.Elem().Interface())
 	case reflect.Struct:
 		return v.IsZero()
 	}
