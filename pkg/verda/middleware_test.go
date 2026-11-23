@@ -748,6 +748,8 @@ func TestDebugLoggingSkipsSensitivePaths(t *testing.T) {
 		"/oauth2/token",
 		"/mk8sclusters/FIN-03/my-cluster/kubeconfigs",
 		"/mk8sclusters/FIN-03/my-cluster/kubeconfigs/kc-1",
+		"/inference/api-keys",
+		"/inference/api-keys/key_1",
 	} {
 		t.Run(path, func(t *testing.T) {
 			if lines := logged(path); len(lines) != 0 {

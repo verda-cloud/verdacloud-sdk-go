@@ -359,9 +359,10 @@ func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
 }
 
 // sensitivePaths are path fragments whose requests and responses the debug
-// logging middleware skips: token requests carry credentials, and
-// kubeconfig responses carry client private keys.
-var sensitivePaths = []string{"/token", "/kubeconfigs"}
+// logging middleware skips: token requests carry credentials, kubeconfig
+// responses carry client private keys, and creating an inference API key
+// returns its plaintext.
+var sensitivePaths = []string{"/token", "/kubeconfigs", "/inference/api-keys"}
 
 func isSensitivePath(path string) bool {
 	for _, p := range sensitivePaths {
