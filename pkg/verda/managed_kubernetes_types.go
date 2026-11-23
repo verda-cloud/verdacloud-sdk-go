@@ -193,8 +193,8 @@ func (r UpdateManagedKubernetesNodePoolRequest) Validate() error {
 	)
 }
 
-// validateReplicasPresent requires a non-nil replicas pointer; ozzo's
-// Required would also reject a pointed-at zero, which is a valid value here.
+// validateReplicasPresent requires a non-nil replicas pointer;
+// validation.Required would also reject a pointed-at zero, which is a valid value here.
 func validateReplicasPresent(value any) error {
 	if replicas, _ := value.(*int); replicas == nil {
 		return fmt.Errorf("cannot be blank")
