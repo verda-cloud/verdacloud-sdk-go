@@ -155,7 +155,7 @@ vet-integration: ## Type-check integration tests (build tag 'integration'; no cr
 test: ## Run unit tests (fast, no external dependencies)
 	@echo "→ Running unit tests..."
 	@mkdir -p build
-	@go test -v -race -coverprofile=build/coverage.out ./pkg/verda ./test/integration
+	@go test -v -race -coverprofile=build/coverage.out ./pkg/verda/... ./test/integration
 	@echo "✓ Unit tests passed!"
 
 test-unit: test ## Alias for 'test'
@@ -228,7 +228,7 @@ e2e: test-smoke ## Alias for 'test-smoke' (legacy)
 coverage: ## Generate test coverage report (HTML output)
 	@echo "→ Generating coverage report..."
 	@mkdir -p build
-	@go test -v -race -coverprofile=build/coverage.out -covermode=atomic ./pkg/verda
+	@go test -v -race -coverprofile=build/coverage.out -covermode=atomic ./pkg/verda ./pkg/verda/internal/validation
 	@go tool cover -html=build/coverage.out -o build/coverage.html
 	@go tool cover -func=build/coverage.out | grep total | awk '{print "  Coverage: " $$3}'
 	@echo "✓ Coverage report generated: build/coverage.html"

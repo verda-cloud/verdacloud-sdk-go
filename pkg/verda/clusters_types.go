@@ -17,7 +17,7 @@ package verda
 import (
 	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // ClusterWorkerNode represents a worker node in a cluster
