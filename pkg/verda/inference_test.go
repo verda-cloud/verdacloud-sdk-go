@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
 
@@ -305,8 +307,9 @@ func TestInferenceService_GetUsage(t *testing.T) {
 			Start: time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
 			End:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
 		})
-		if err == nil {
-			t.Error("expected a validation error")
+		var verrs validation.Errors
+		if !errors.As(err, &verrs) || verrs["End"] == nil {
+			t.Errorf("expected a validation error for End, got %v", err)
 		}
 	})
 }

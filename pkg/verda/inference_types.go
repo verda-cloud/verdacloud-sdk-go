@@ -15,7 +15,6 @@
 package verda
 
 import (
-	"errors"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -304,10 +303,10 @@ type GetInferenceUsageOptions struct {
 
 // Validate validates the GetInferenceUsageOptions fields
 func (opts GetInferenceUsageOptions) Validate() error {
-	if !opts.Start.IsZero() && !opts.End.IsZero() && opts.End.Before(opts.Start) {
-		return errors.New("end must not be before start")
-	}
-	return nil
+	return validation.ValidateStruct(&opts,
+		validation.Field(&opts.End, validation.When(!opts.Start.IsZero() && !opts.End.IsZero(),
+			validation.Min(opts.Start).Error("must not be before start"))),
+	)
 }
 
 func validateInferenceServiceTier(serviceTier string) error {
