@@ -17,11 +17,15 @@
 // SDK carries no third-party dependency. Add a rule here only when a Validate
 // method needs it.
 //
+// One difference from ozzo: a nil pointer element in a slice, array or map of
+// Validatable is skipped, where ozzo calls Validate on it and a value-receiver
+// Validate panics.
+//
 // Not ported, so a Validate method that needs one must add it here first:
 // Else, Skip, Exclusive on Min/Max, uint and time.Time thresholds for Min/Max,
-// Error (a custom message) on any rule but Match, []byte for Match, driver.Valuer unwrapping, embedded-struct field lookup,
-// error codes, and a configurable ErrorTag (field names always come from the
-// json tag).
+// Error (a custom message) on any rule but Match, []byte for Match,
+// driver.Valuer unwrapping, embedded-struct field lookup, error codes, and a
+// configurable ErrorTag (field names always come from the json tag).
 package validation
 
 import (
