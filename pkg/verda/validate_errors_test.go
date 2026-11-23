@@ -67,6 +67,8 @@ func TestValidateErrors_Tags(t *testing.T) {
 		{"tag valid", TagRequest{Key: "env", Value: "prod"}, ""},
 		{"tag key only", TagRequest{Key: "env"}, ""},
 		{"tag key empty", TagRequest{Value: "prod"}, "key: cannot be blank."},
+		{"tag key dot", TagRequest{Key: "."}, `key: must not be ".".`},
+		{"tag key dot dot", TagRequest{Key: ".."}, `key: must not be "..".`},
 		{"tag key at max", TagRequest{Key: strings.Repeat("k", TagKeyMaxLength)}, ""},
 		{"tag key too long", TagRequest{Key: strings.Repeat("k", TagKeyMaxLength+1)}, "key: the length must be no more than 63."},
 		{"tag value too long", TagRequest{Key: "k", Value: strings.Repeat("v", TagValueMaxLength+1)}, "value: the length must be no more than 127."},
@@ -172,6 +174,14 @@ func TestValidateErrors_Instances(t *testing.T) {
 		{"create empty", CreateInstanceRequest{}, "hostname: cannot be blank; image: cannot be blank; instance_type: cannot be blank."},
 		{"create contract valid", with(func(r *CreateInstanceRequest) { r.Contract = "SPOT" }), ""},
 		{"create contract invalid", with(func(r *CreateInstanceRequest) { r.Contract = "FOREVER" }), "contract: must be a valid value."},
+		{"create startup script valid", with(func(r *CreateInstanceRequest) { r.StartupScript = "#!/bin/bash\necho hi" }), ""},
+		{"create startup script at max runes", with(func(r *CreateInstanceRequest) { r.StartupScript = "#!" + strings.Repeat("ä", maxStartupScriptRunes-2) }), ""},
+		{"create startup script too long", with(func(r *CreateInstanceRequest) { r.StartupScript = "#!" + strings.Repeat("a", maxStartupScriptRunes-1) }), "startup_script: the length must be no more than 65536."},
+		{"create startup script without shebang", with(func(r *CreateInstanceRequest) { r.StartupScript = "echo hi" }), `startup_script: must start with "#!" (for example, "#!/bin/bash").`},
+		{"create startup script and id", with(func(r *CreateInstanceRequest) {
+			id := "script-id"
+			r.StartupScript, r.StartupScriptID = "#!/bin/sh", &id
+		}), "startup_script and startup_script_id cannot both be set"},
 		{"create os volume valid", with(func(r *CreateInstanceRequest) { r.OSVolume = &OSVolumeCreateRequest{Name: "os", Size: 50} }), ""},
 		{"create os volume empty", with(func(r *CreateInstanceRequest) { r.OSVolume = &OSVolumeCreateRequest{} }), "os_volume: (name: cannot be blank; size: cannot be blank.)."},
 		{"create os volume size negative", with(func(r *CreateInstanceRequest) { r.OSVolume = &OSVolumeCreateRequest{Name: "os", Size: -1} }), "os_volume: (size: must be no less than 1.)."},
