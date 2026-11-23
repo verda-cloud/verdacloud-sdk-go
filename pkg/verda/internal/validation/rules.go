@@ -172,10 +172,19 @@ func isInt(k reflect.Kind) bool { return k >= reflect.Int && k <= reflect.Int64 
 func isFloat(k reflect.Kind) bool { return k == reflect.Float32 || k == reflect.Float64 }
 
 // MatchRule requires a string to match a regular expression.
-type MatchRule struct{ re *regexp.Regexp }
+type MatchRule struct {
+	re  *regexp.Regexp
+	err error
+}
 
 // Match requires a non-empty string to match re.
-func Match(re *regexp.Regexp) MatchRule { return MatchRule{re: re} }
+func Match(re *regexp.Regexp) MatchRule { return MatchRule{re: re, err: errFormat} }
+
+// Error returns a copy of the rule that fails with message.
+func (r MatchRule) Error(message string) MatchRule {
+	r.err = errors.New(message)
+	return r
+}
 
 func (r MatchRule) Validate(value any) error {
 	value, isNil := indirect(value)
@@ -185,7 +194,7 @@ func (r MatchRule) Validate(value any) error {
 	if s, ok := value.(string); ok && (s == "" || r.re.MatchString(s)) {
 		return nil
 	}
-	return errFormat
+	return r.err
 }
 
 // indirect dereferences pointers and interfaces; isNil reports a nil value,

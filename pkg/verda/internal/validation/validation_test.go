@@ -83,6 +83,9 @@ func TestRules(t *testing.T) {
 		{"match ok", "ab", Match(regexp.MustCompile(`^a`)), ""},
 		{"match skips empty", "", Match(regexp.MustCompile(`^a`)), ""},
 		{"match rejected", "ba", Match(regexp.MustCompile(`^a`)), "must be in a valid format"},
+		{"match custom error", "ba", Match(regexp.MustCompile(`^a`)).Error("must start with a"), "must start with a"},
+		{"match custom error ok", "ab", Match(regexp.MustCompile(`^a`)).Error("must start with a"), ""},
+		{"match custom error skips empty", "", Match(regexp.MustCompile(`^a`)).Error("must start with a"), ""},
 		{"by", "x", By(func(any) error { return errors.New("custom") }), "custom"},
 		{"when true", 11, When(true, Max(10)), "must be no greater than 10"},
 		{"when false", 11, When(false, Max(10)), ""},
@@ -97,6 +100,14 @@ func TestRules(t *testing.T) {
 				t.Errorf("Validate(%#v) = %q, want %q", tc.value, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestMatchRule_ErrorLeavesTheOriginalRuleUnchanged(t *testing.T) {
+	base := Match(regexp.MustCompile(`^a`))
+	_ = base.Error("custom")
+	if got := errText(base.Validate("ba")); got != "must be in a valid format" {
+		t.Errorf("Validate() = %q, want the default message", got)
 	}
 }
 
