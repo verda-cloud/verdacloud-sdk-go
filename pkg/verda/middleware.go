@@ -17,12 +17,9 @@ package verda
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,16 +94,6 @@ func JSONContentTypeMiddleware() RequestMiddleware {
 	return ContentTypeMiddleware("application/json")
 }
 
-// cryptoRandFloat64 uses crypto/rand for jitter to prevent thundering herd on retries
-func cryptoRandFloat64() float64 {
-	var b [8]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return 0
-	}
-	// Convert random bytes to float64 in [0,1) using mantissa bits
-	return float64(binary.BigEndian.Uint64(b[:])&((1<<53)-1)) / (1 << 53)
-}
-
 func LoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
@@ -117,7 +104,7 @@ func LoggingMiddleware(logger Logger) RequestMiddleware {
 
 			duration := time.Since(start)
 			if err != nil {
-				logger.Debug("Request %s %s failed after %v: %v", ctx.Method, ctx.Path, duration, err)
+				logger.Debug("Request %s %s failed after %v: %s", ctx.Method, ctx.Path, duration, loggableError(isSensitiveRequest(ctx) || isSensitiveError(err), err))
 			} else {
 				logger.Debug("Request %s %s completed in %v", ctx.Method, ctx.Path, duration)
 			}
@@ -134,120 +121,6 @@ func UserAgentMiddleware(userAgent string) RequestMiddleware {
 			return next(ctx)
 		}
 	}
-}
-
-func ExponentialBackoffRetryMiddleware(maxRetries int, initialDelay time.Duration, logger Logger) RequestMiddleware {
-	const maxDelay = 30 * time.Second
-	const jitterPercent = 0.5
-
-	return func(next RequestHandler) RequestHandler {
-		return func(ctx *RequestContext) error {
-			var lastErr error
-			reqCtx := ctx.Context()
-
-			for attempt := 0; attempt <= maxRetries; attempt++ {
-				if attempt > 0 {
-					// Don't retry once the caller has given up
-					if reqCtx.Err() != nil {
-						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, reqCtx.Err(), lastErr)
-					}
-
-					// Exponential backoff: initialDelay * 2^(attempt-1), capped at 30s
-					baseDelay := float64(initialDelay) * math.Pow(2, float64(attempt-1))
-					cappedDelay := time.Duration(math.Min(baseDelay, float64(maxDelay)))
-
-					// Add ±50% jitter to avoid thundering herd
-					jitter := (cryptoRandFloat64()*2 - 1) * jitterPercent
-					actualDelay := time.Duration(float64(cappedDelay) * (1 + jitter))
-
-					logger.Debug("Retrying request %s %s (attempt %d/%d) after %v",
-						ctx.Method, ctx.Path, attempt+1, maxRetries+1, actualDelay)
-					select {
-					case <-time.After(actualDelay):
-					case <-reqCtx.Done():
-						return fmt.Errorf("request canceled after %d attempts: %w (last error: %w)", attempt, reqCtx.Err(), lastErr)
-					}
-				}
-
-				lastErr = next(ctx)
-				if lastErr == nil {
-					return nil
-				}
-
-				if !shouldRetry(lastErr) {
-					logger.Debug("Request %s %s failed with non-retryable error: %v", ctx.Method, ctx.Path, lastErr)
-					break
-				}
-			}
-
-			return fmt.Errorf("request failed after %d retries: %w", maxRetries, lastErr)
-		}
-	}
-}
-
-// shouldRetry decides if we should retry based on status code - never retry auth/client errors
-func shouldRetry(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	var apiErr *APIError
-	if errors.As(err, &apiErr) {
-		statusCode := apiErr.StatusCode
-
-		switch statusCode {
-		case http.StatusInternalServerError,
-			http.StatusBadGateway,
-			http.StatusServiceUnavailable,
-			http.StatusGatewayTimeout,
-			http.StatusTooManyRequests,
-			http.StatusRequestTimeout:
-			return true
-		case http.StatusBadRequest,
-			http.StatusUnauthorized,
-			http.StatusForbidden,
-			http.StatusNotFound:
-			return false
-		default:
-			if statusCode >= 500 && statusCode < 600 {
-				return true
-			}
-			if statusCode >= 400 && statusCode < 500 {
-				return false
-			}
-		}
-	}
-
-	errStr := strings.ToLower(err.Error())
-
-	nonRetryablePatterns := []string{
-		"authentication",
-		"unauthorized",
-		"forbidden",
-		"not found",
-		"invalid",
-		"bad request",
-	}
-	for _, pattern := range nonRetryablePatterns {
-		if strings.Contains(errStr, pattern) {
-			return false
-		}
-	}
-
-	retryablePatterns := []string{
-		"timeout",
-		"connection",
-		"temporary",
-		"rate limit",
-		"too many requests",
-	}
-	for _, pattern := range retryablePatterns {
-		if strings.Contains(errStr, pattern) {
-			return true
-		}
-	}
-
-	return false
 }
 
 // ErrorHandlingMiddleware sets ctx.Error to an *APIError for non-2xx responses.
@@ -272,7 +145,7 @@ func ResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 				ctx.Request.Method, ctx.Request.Path, ctx.StatusCode, len(ctx.Body))
 
 			if ctx.Error != nil {
-				logger.Debug("Response error: %v", ctx.Error)
+				logger.Debug("Response error: %s", loggableError(isSensitiveResponse(ctx), ctx.Error))
 			}
 
 			return next(ctx)
@@ -305,7 +178,7 @@ func CacheMiddleware() ResponseMiddleware {
 func DebugLoggingMiddleware(logger Logger) RequestMiddleware {
 	return func(next RequestHandler) RequestHandler {
 		return func(ctx *RequestContext) error {
-			if isSensitivePath(ctx.Path) {
+			if isSensitiveRequest(ctx) {
 				return next(ctx)
 			}
 
@@ -372,10 +245,64 @@ func isSensitivePath(path string) bool {
 	return false
 }
 
+// isSensitiveRequest checks both the path the middleware chain saw and the path of the request itself.
+func isSensitiveRequest(ctx *RequestContext) bool {
+	if ctx == nil {
+		return false
+	}
+	if isSensitivePath(ctx.Path) {
+		return true
+	}
+	return ctx.Request != nil && ctx.Request.URL != nil && isSensitivePath(ctx.Request.URL.Path)
+}
+
+// isSensitiveError reports whether the attempt behind err was sent to a sensitive
+// path, which a middleware may have hidden by restoring ctx.Request after next.
+func isSensitiveError(err error) bool {
+	var transportErr *transportError
+	var attemptErr *attemptError
+	switch {
+	case errors.As(err, &transportErr):
+		return transportErr.sensitive
+	case errors.As(err, &attemptErr):
+		return attemptErr.sensitive
+	}
+	return false
+}
+
+// isSensitiveURLError reports whether err is a url.Error for a sensitive URL.
+func isSensitiveURLError(err error) bool {
+	var urlErr *url.Error
+	return errors.As(err, &urlErr) && isSensitivePath(urlErr.URL)
+}
+
+// isSensitiveResponse checks the request context and the request that was really answered.
+func isSensitiveResponse(ctx *ResponseContext) bool {
+	if ctx.Request != nil && isSensitiveRequest(ctx.Request) {
+		return true
+	}
+	resp := ctx.Response
+	return resp != nil && resp.Request != nil && resp.Request.URL != nil && isSensitivePath(resp.Request.URL.Path)
+}
+
+// loggableError renders err for a log line. On a sensitive path the error text
+// may echo the response body (parseAPIError falls back to the raw body), so only
+// the status is kept.
+func loggableError(sensitive bool, err error) string {
+	if !sensitive {
+		return err.Error()
+	}
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
+		return fmt.Sprintf("status %d (details omitted)", apiErr.StatusCode)
+	}
+	return "details omitted"
+}
+
 func DebugResponseLoggingMiddleware(logger Logger) ResponseMiddleware {
 	return func(next ResponseHandler) ResponseHandler {
 		return func(ctx *ResponseContext) error {
-			if ctx.Request != nil && isSensitivePath(ctx.Request.Path) {
+			if isSensitiveResponse(ctx) {
 				return next(ctx)
 			}
 
