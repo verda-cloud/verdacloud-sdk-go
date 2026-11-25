@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"time"
@@ -95,9 +96,12 @@ func (opts ListInstancesOptions) Validate() error {
 
 // CreateInstanceRequest represents the request to create an instance
 type CreateInstanceRequest struct {
-	InstanceType    string   `json:"instance_type"`
-	Image           string   `json:"image"`
-	Hostname        string   `json:"hostname"`
+	InstanceType string `json:"instance_type,omitempty"`
+	Image        string `json:"image,omitempty"`
+	Hostname     string `json:"hostname"`
+	// InstanceGroupID joins a group and permits omitted type/location; extra volume fields must be empty.
+	// Experimental: Instance-group support may change in backwards-incompatible ways.
+	InstanceGroupID string   `json:"instance_group_id,omitempty"`
 	Description     string   `json:"description,omitempty"`
 	SSHKeyIDs       []string `json:"ssh_key_ids,omitempty"`
 	LocationCode    string   `json:"location_code,omitempty"`
@@ -209,9 +213,10 @@ var startupScriptShebangRegexp = regexp.MustCompile(`^#!`)
 
 // Validate validates the CreateInstanceRequest fields
 func (r CreateInstanceRequest) Validate() error {
+	inInstanceGroup := r.InstanceGroupID != ""
 	err := validation.ValidateStruct(&r,
-		validation.Field(&r.InstanceType, validation.Required),
-		validation.Field(&r.Image, validation.Required),
+		validation.Field(&r.InstanceType, validation.When(!inInstanceGroup, validation.Required)),
+		validation.Field(&r.Image, validation.When(!inInstanceGroup, validation.Required)),
 		validation.Field(&r.Hostname, validation.Required),
 		validation.Field(&r.Contract,
 			validation.In("LONG_TERM", "PAY_AS_YOU_GO", "SPOT")),
@@ -226,12 +231,34 @@ func (r CreateInstanceRequest) Validate() error {
 	if err != nil {
 		return err
 	}
+	if err := r.validateInstanceGroupFields(); err != nil {
+		return err
+	}
 
 	if r.StartupScript != "" && r.StartupScriptID != nil {
 		return fmt.Errorf("startup_script and startup_script_id cannot both be set")
 	}
 
 	return r.validateNetworkFields()
+}
+
+func (r CreateInstanceRequest) validateInstanceGroupFields() error {
+	if r.InstanceGroupID == "" {
+		return nil
+	}
+
+	errs := validation.Errors{}
+	notAllowed := errors.New("cannot be set when instance_group_id is set")
+	if len(r.Volumes) > 0 {
+		errs["volumes"] = notAllowed
+	}
+	if len(r.ExistingVolumes) > 0 {
+		errs["existing_volumes"] = notAllowed
+	}
+	if len(errs) > 0 {
+		return errs
+	}
+	return nil
 }
 
 // validateNetworkFields enforces the API's private/public IP pairing rules

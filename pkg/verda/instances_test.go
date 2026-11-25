@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -574,6 +575,99 @@ func TestInstanceService_Create(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestInstanceService_CreateInInstanceGroup(t *testing.T) {
+	tests := []struct {
+		name string
+		req  CreateInstanceRequest
+		want map[string]any
+	}{
+		{
+			name: "inherit group defaults",
+			req: CreateInstanceRequest{
+				Hostname:        "worker-1",
+				InstanceGroupID: "group_123",
+			},
+			want: map[string]any{
+				"hostname":          "worker-1",
+				"instance_group_id": "group_123",
+			},
+		},
+		{
+			name: "set type and location explicitly",
+			req: CreateInstanceRequest{
+				Hostname:        "worker-explicit",
+				InstanceGroupID: "group_123",
+				InstanceType:    "8V100.80S",
+				Image:           "ubuntu-24.04",
+				LocationCode:    LocationFIN02,
+			},
+			want: map[string]any{
+				"hostname":          "worker-explicit",
+				"instance_group_id": "group_123",
+				"instance_type":     "8V100.80S",
+				"image":             "ubuntu-24.04",
+				"location_code":     "FIN-02",
+			},
+		},
+		{
+			name: "override group defaults",
+			req: CreateInstanceRequest{
+				Hostname:        "worker-2",
+				InstanceGroupID: "group_123",
+				Image:           "ubuntu-22.04",
+				SSHKeyIDs:       []string{"key_b"},
+				StartupScriptID: new("script_b"),
+				OSVolume:        &OSVolumeCreateRequest{Name: "worker-2-os", Size: 500},
+			},
+			want: map[string]any{
+				"hostname":          "worker-2",
+				"instance_group_id": "group_123",
+				"image":             "ubuntu-22.04",
+				"ssh_key_ids":       []any{"key_b"},
+				"startup_script_id": "script_b",
+				"os_volume":         map[string]any{"name": "worker-2-os", "size": float64(500)},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
+			client := NewTestClient(t, mockServer)
+
+			mockServer.SetHandler(http.MethodPost, "/instances", func(w http.ResponseWriter, r *http.Request) {
+				var body map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+					t.Errorf("decode create request: %v", err)
+				}
+				if !reflect.DeepEqual(body, test.want) {
+					t.Errorf("create body = %#v, want %#v", body, test.want)
+				}
+				w.Header().Set("Content-Type", "text/plain")
+				w.WriteHeader(http.StatusAccepted)
+				if _, err := w.Write([]byte("inst_group_123")); err != nil {
+					t.Errorf("write mock response: %v", err)
+				}
+			})
+			mockServer.SetHandler(http.MethodGet, "/instances/inst_group_123", func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if _, err := w.Write([]byte(`{"id":"inst_group_123"}`)); err != nil {
+					t.Errorf("write mock response: %v", err)
+				}
+			})
+
+			instance, err := client.Instances.Create(t.Context(), test.req)
+			if err != nil {
+				t.Fatalf("Create: %v", err)
+			}
+			if instance.ID != "inst_group_123" {
+				t.Errorf("instance ID = %q, want inst_group_123", instance.ID)
+			}
+		})
+	}
 }
 
 func TestInstanceService_CreateSpotWithDiscontinuePolicy(t *testing.T) {

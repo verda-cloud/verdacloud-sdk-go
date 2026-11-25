@@ -171,6 +171,22 @@ func TestValidateErrors_Instances(t *testing.T) {
 	}
 	runValidateCases(t, []validateCase{
 		{"create valid", valid, ""},
+		{"create group member minimal", CreateInstanceRequest{InstanceGroupID: "group_123", Hostname: "worker-1"}, ""},
+		{"create group member hostname required", CreateInstanceRequest{InstanceGroupID: "group_123"}, "hostname: cannot be blank."},
+		{"create group member explicit type and location", CreateInstanceRequest{
+			InstanceGroupID: "group_123",
+			Hostname:        "worker-1",
+			InstanceType:    "8V100.80S",
+			LocationCode:    LocationFIN02,
+		}, ""},
+		{"create group member rejects additional volumes", CreateInstanceRequest{
+			InstanceGroupID: "group_123",
+			Hostname:        "worker-1",
+			InstanceType:    "8V100.80S",
+			LocationCode:    LocationFIN02,
+			Volumes:         []VolumeCreateRequest{{Name: "data", Size: 100, Type: VolumeTypeHDD}},
+			ExistingVolumes: []string{"volume_123"},
+		}, "existing_volumes: cannot be set when instance_group_id is set; volumes: cannot be set when instance_group_id is set."},
 		{"create empty", CreateInstanceRequest{}, "hostname: cannot be blank; image: cannot be blank; instance_type: cannot be blank."},
 		{"create contract valid", with(func(r *CreateInstanceRequest) { r.Contract = "SPOT" }), ""},
 		{"create contract invalid", with(func(r *CreateInstanceRequest) { r.Contract = "FOREVER" }), "contract: must be a valid value."},

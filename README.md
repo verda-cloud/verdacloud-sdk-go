@@ -135,6 +135,64 @@ err = client.Instances.Delete(ctx, []string{"instance_id"}, nil, false)
 available, err := client.InstanceAvailability.GetInstanceTypeAvailability(ctx, "1V100.6V", false, "")
 ```
 
+### Managed Instance Groups
+
+> **Experimental**: Instance group support is experimental. The API and the SDK types for it
+> may change in backwards-incompatible ways.
+
+Instance groups hold shape, placement, template defaults and capacity intent for an externally
+controlled group. Creating a group does not create instances, and `EXTERNAL` is the only supported
+management mode.
+
+```go
+minSize, maxSize := 0, 2
+minSizePointer, maxSizePointer := &minSize, &maxSize
+group, err := client.InstanceGroups.Create(ctx, verda.CreateInstanceGroupRequest{
+    Name:         "worker-pool",
+    LocationCode: verda.LocationFIN03,
+    InstanceType: "8V100.80S",
+    Template: verda.InstanceGroupTemplateRequest{
+        Image:    "ubuntu-24.04",
+        OSVolume: &verda.InstanceGroupOSVolume{Size: 200},
+    },
+    Capacity: &verda.InstanceGroupCapacityRequest{
+        MinSize: &minSizePointer,
+        MaxSize: &maxSizePointer,
+    },
+})
+
+groups, err := client.InstanceGroups.List(ctx)
+group, err = client.InstanceGroups.GetByID(ctx, group.ID)
+
+newName := "worker-pool-updated"
+maxSize = 4
+group, err = client.InstanceGroups.Update(ctx, group.ID, verda.UpdateInstanceGroupRequest{
+    Name:     &newName,
+    Capacity: &verda.InstanceGroupCapacityRequest{MaxSize: &maxSizePointer},
+})
+
+err = client.InstanceGroups.Delete(ctx, group.ID)
+```
+
+An instance can join a group through `InstanceGroupID`. Type and location may be omitted to use the
+group's values; its template supplies defaults when image, SSH keys or startup script are omitted. Additional and
+existing volumes are not supported for group members.
+
+```go
+member, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
+    InstanceGroupID: group.ID,
+    Hostname:        "worker-1",
+    // Image, SSHKeyIDs and StartupScriptID may optionally override template defaults.
+})
+```
+
+`Capacity` and update `Template` objects must contain at least one field when provided. PATCH request
+fields left nil are unchanged. In update requests, a non-nil outer pointer to a nil
+string or integer sends `null` for `Description`, `Template.StartupScriptID`, `Capacity.MinSize` or
+`Capacity.MaxSize`; a pointer to an empty
+`SSHKeyIDs` slice clears the default keys. Capacity and placement failures are returned as
+`*verda.APIError` values.
+
 ### SSH Keys
 
 ```go

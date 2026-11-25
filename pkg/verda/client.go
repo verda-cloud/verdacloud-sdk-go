@@ -63,6 +63,9 @@ type Client struct {
 	ContainerDeployments *ContainerDeploymentsService
 	ServerlessJobs       *ServerlessJobsService
 	ManagedKubernetes    *ManagedKubernetesService
+	// InstanceGroups manages externally controlled instance groups.
+	// Experimental: This API and its SDK types may change in backwards-incompatible ways.
+	InstanceGroups *InstanceGroupService
 }
 
 type ClientOption func(*Client)
@@ -119,6 +122,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	client.ContainerDeployments = &ContainerDeploymentsService{client: client}
 	client.ServerlessJobs = &ServerlessJobsService{client: client}
 	client.ManagedKubernetes = &ManagedKubernetesService{client: client}
+	client.InstanceGroups = &InstanceGroupService{client: client}
 
 	return client, nil
 }
