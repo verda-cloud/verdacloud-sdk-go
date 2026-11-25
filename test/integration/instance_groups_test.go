@@ -62,6 +62,7 @@ func TestInstanceGroupsLifecycleIntegration(t *testing.T) {
 
 	description := "SDK experimental integration group"
 	reserved, minSize, maxSize := 0, 0, 2
+	minSizePointer, maxSizePointer := &minSize, &maxSize
 	group, err := client.InstanceGroups.Create(ctx, verda.CreateInstanceGroupRequest{
 		Name:         generateRandomName("sdk-instance-group"),
 		Description:  &description,
@@ -72,8 +73,8 @@ func TestInstanceGroupsLifecycleIntegration(t *testing.T) {
 		Template:     verda.InstanceGroupTemplateRequest{Image: image},
 		Capacity: &verda.InstanceGroupCapacityRequest{
 			Reserved: &reserved,
-			MinSize:  &minSize,
-			MaxSize:  &maxSize,
+			MinSize:  &minSizePointer,
+			MaxSize:  &maxSizePointer,
 		},
 	})
 	if err != nil {
@@ -113,12 +114,12 @@ func TestInstanceGroupsLifecycleIntegration(t *testing.T) {
 	group, err = client.InstanceGroups.Update(ctx, groupID, verda.UpdateInstanceGroupRequest{
 		Name:        &newName,
 		Description: &clearDescription,
-		Capacity:    &verda.InstanceGroupCapacityRequest{MaxSize: &maxSize},
+		Capacity:    &verda.InstanceGroupCapacityRequest{MaxSize: &maxSizePointer},
 	})
 	if err != nil {
 		t.Fatalf("update instance group: %v", err)
 	}
-	if group.Name != newName || group.Description != nil || group.Capacity.MaxSize != maxSize {
+	if group.Name != newName || group.Description != nil || group.Capacity.MaxSize == nil || *group.Capacity.MaxSize != maxSize {
 		t.Errorf("unexpected updated group: %+v", group)
 	}
 

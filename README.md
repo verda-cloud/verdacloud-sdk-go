@@ -146,6 +146,7 @@ management mode.
 
 ```go
 minSize, maxSize := 0, 2
+minSizePointer, maxSizePointer := &minSize, &maxSize
 group, err := client.InstanceGroups.Create(ctx, verda.CreateInstanceGroupRequest{
     Name:         "worker-pool",
     LocationCode: verda.LocationFIN03,
@@ -155,8 +156,8 @@ group, err := client.InstanceGroups.Create(ctx, verda.CreateInstanceGroupRequest
         OSVolume: &verda.InstanceGroupOSVolume{Size: 200},
     },
     Capacity: &verda.InstanceGroupCapacityRequest{
-        MinSize: &minSize,
-        MaxSize: &maxSize,
+        MinSize: &minSizePointer,
+        MaxSize: &maxSizePointer,
     },
 })
 
@@ -167,14 +168,28 @@ newName := "worker-pool-updated"
 maxSize = 4
 group, err = client.InstanceGroups.Update(ctx, group.ID, verda.UpdateInstanceGroupRequest{
     Name:     &newName,
-    Capacity: &verda.InstanceGroupCapacityRequest{MaxSize: &maxSize},
+    Capacity: &verda.InstanceGroupCapacityRequest{MaxSize: &maxSizePointer},
 })
 
 err = client.InstanceGroups.Delete(ctx, group.ID)
 ```
 
-PATCH request fields left nil are unchanged. In update requests, a non-nil outer pointer to a nil
-string sends `null` for `Description` or `Template.StartupScriptID`; a pointer to an empty
+An instance can join a group through `InstanceGroupID`. Type and location may be omitted to use the
+group's values; its template supplies defaults when image, SSH keys or startup script are omitted. Additional and
+existing volumes are not supported for group members.
+
+```go
+member, err := client.Instances.Create(ctx, verda.CreateInstanceRequest{
+    InstanceGroupID: group.ID,
+    Hostname:        "worker-1",
+    // Image, SSHKeyIDs and StartupScriptID may optionally override template defaults.
+})
+```
+
+`Capacity` and update `Template` objects must contain at least one field when provided. PATCH request
+fields left nil are unchanged. In update requests, a non-nil outer pointer to a nil
+string or integer sends `null` for `Description`, `Template.StartupScriptID`, `Capacity.MinSize` or
+`Capacity.MaxSize`; a pointer to an empty
 `SSHKeyIDs` slice clears the default keys. Capacity and placement failures are returned as
 `*verda.APIError` values.
 

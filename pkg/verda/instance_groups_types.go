@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -98,10 +99,11 @@ func (r InstanceGroupOSVolume) Validate() error {
 // InstanceGroupCapacity reports reserved and advisory instance capacity.
 // Experimental: This API and its SDK types may change in backwards-incompatible ways.
 type InstanceGroupCapacity struct {
-	Reserved       int  `json:"reserved"`
-	ReservedFree   int  `json:"reserved_free"`
-	MinSize        int  `json:"min_size"`
-	MaxSize        int  `json:"max_size"`
+	Reserved     int `json:"reserved"`
+	ReservedFree int `json:"reserved_free"`
+	// MinSize and MaxSize are nil for advisory null or absent bounds; zero is explicit.
+	MinSize        *int `json:"min_size"`
+	MaxSize        *int `json:"max_size"`
 	EnforceMaxSize bool `json:"enforce_max_size"`
 }
 
@@ -182,13 +184,18 @@ func (r InstanceGroupTemplateRequest) Validate() error {
 // InstanceGroupCapacityRequest contains optional create-time or PATCH capacity values.
 // Experimental: This API and its SDK types may change in backwards-incompatible ways.
 type InstanceGroupCapacityRequest struct {
-	Reserved       *int  `json:"reserved,omitempty"`
-	MinSize        *int  `json:"min_size,omitempty"`
-	MaxSize        *int  `json:"max_size,omitempty"`
+	Reserved *int `json:"reserved,omitempty"`
+	// Non-nil outer pointers holding nil send null for MinSize or MaxSize.
+	MinSize        **int `json:"min_size,omitempty"`
+	MaxSize        **int `json:"max_size,omitempty"`
 	EnforceMaxSize *bool `json:"enforce_max_size,omitempty"`
 }
 
 func (r InstanceGroupCapacityRequest) Validate() error {
+	if r.Reserved == nil && r.MinSize == nil && r.MaxSize == nil && r.EnforceMaxSize == nil {
+		return errors.New("at least one field must be set")
+	}
+
 	if err := validation.ValidateStruct(&r,
 		validation.Field(&r.Reserved, validation.Min(0)),
 		validation.Field(&r.MinSize, validation.Min(0)),
@@ -197,8 +204,12 @@ func (r InstanceGroupCapacityRequest) Validate() error {
 		return err
 	}
 
-	if r.MaxSize != nil &&
-		(r.Reserved != nil && *r.Reserved > *r.MaxSize || r.MinSize != nil && *r.MinSize > *r.MaxSize) {
+	if r.MaxSize == nil || *r.MaxSize == nil {
+		return nil
+	}
+	maxSize := **r.MaxSize
+	if r.Reserved != nil && *r.Reserved > maxSize ||
+		r.MinSize != nil && *r.MinSize != nil && **r.MinSize > maxSize {
 		return fmt.Errorf("max_size must be greater than or equal to reserved and min_size")
 	}
 	return nil
@@ -233,6 +244,10 @@ type UpdateInstanceGroupTemplateRequest struct {
 }
 
 func (r UpdateInstanceGroupTemplateRequest) Validate() error {
+	if r.SSHKeyIDs == nil && r.StartupScriptID == nil {
+		return errors.New("at least one field must be set")
+	}
+
 	return validation.ValidateStruct(&r,
 		validation.Field(&r.StartupScriptID, validation.NilOrNotEmpty),
 	)

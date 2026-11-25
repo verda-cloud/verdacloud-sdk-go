@@ -80,11 +80,11 @@ func (s *InstanceService) Create(ctx context.Context, req CreateInstanceRequest)
 		return nil, err
 	}
 
-	if req.LocationCode == "" {
+	if req.LocationCode == "" && req.InstanceGroupID == "" {
 		req.LocationCode = LocationFIN03
 	}
 
-	if req.SSHKeyIDs == nil {
+	if req.SSHKeyIDs == nil && req.InstanceGroupID == "" {
 		req.SSHKeyIDs = []string{}
 	}
 

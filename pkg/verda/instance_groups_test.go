@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"reflect"
 	"strings"
@@ -92,8 +93,11 @@ func checkTestInstanceGroup(t *testing.T, group *InstanceGroup) {
 	if !reflect.DeepEqual(group.Template.SSHKeyIDs, []string{"key_a"}) || group.Template.StartupScriptID != nil {
 		t.Errorf("unexpected template defaults: %+v", group.Template)
 	}
-	if group.Capacity.Reserved != 2 || group.Capacity.ReservedFree != 1 || group.Capacity.MinSize != 0 || group.Capacity.MaxSize != 16 || group.Capacity.EnforceMaxSize {
+	if group.Capacity.Reserved != 2 || group.Capacity.ReservedFree != 1 || group.Capacity.EnforceMaxSize {
 		t.Errorf("unexpected capacity: %+v", group.Capacity)
+	}
+	if group.Capacity.MinSize == nil || *group.Capacity.MinSize != 0 || group.Capacity.MaxSize == nil || *group.Capacity.MaxSize != 16 {
+		t.Errorf("unexpected capacity bounds: %+v", group.Capacity)
 	}
 	if len(group.Reservations) != 2 || group.Reservations[0].State != InstanceGroupReservationStateOccupied || group.Reservations[1].State != InstanceGroupReservationStateSpotBackfill {
 		t.Fatalf("unexpected reservations: %+v", group.Reservations)
@@ -106,6 +110,24 @@ func checkTestInstanceGroup(t *testing.T, group *InstanceGroup) {
 	}
 	if !group.CreatedAt.Equal(time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)) || !group.UpdatedAt.Equal(time.Date(2026, 8, 12, 11, 0, 0, 0, time.UTC)) {
 		t.Errorf("unexpected timestamps: %s, %s", group.CreatedAt, group.UpdatedAt)
+	}
+}
+
+func TestInstanceGroupCapacityNullableBounds(t *testing.T) {
+	var zeroBounds InstanceGroupCapacity
+	if err := json.Unmarshal([]byte(`{"min_size":0,"max_size":0}`), &zeroBounds); err != nil {
+		t.Fatalf("decode zero bounds: %v", err)
+	}
+	if zeroBounds.MinSize == nil || *zeroBounds.MinSize != 0 || zeroBounds.MaxSize == nil || *zeroBounds.MaxSize != 0 {
+		t.Errorf("explicit zero bounds were not preserved: %+v", zeroBounds)
+	}
+
+	var nullBounds InstanceGroupCapacity
+	if err := json.Unmarshal([]byte(`{"min_size":null,"max_size":null}`), &nullBounds); err != nil {
+		t.Fatalf("decode null bounds: %v", err)
+	}
+	if nullBounds.MinSize != nil || nullBounds.MaxSize != nil {
+		t.Errorf("null bounds decoded as non-nil: %+v", nullBounds)
 	}
 }
 
@@ -155,6 +177,7 @@ func TestInstanceGroupServiceCRUD(t *testing.T) {
 			},
 			"capacity": map[string]any{
 				"reserved":         float64(0),
+				"min_size":         nil,
 				"max_size":         float64(10),
 				"enforce_max_size": false,
 			},
@@ -185,6 +208,7 @@ func TestInstanceGroupServiceCRUD(t *testing.T) {
 
 	description := "worker group"
 	reserved, minSize, maxSize := 0, 0, 5
+	minSizePointer, maxSizePointer := &minSize, &maxSize
 	enforceMaxSize := false
 	group, err = client.InstanceGroups.Create(ctx, CreateInstanceGroupRequest{
 		Name:         "hive-workers-a",
@@ -199,8 +223,8 @@ func TestInstanceGroupServiceCRUD(t *testing.T) {
 		},
 		Capacity: &InstanceGroupCapacityRequest{
 			Reserved:       &reserved,
-			MinSize:        &minSize,
-			MaxSize:        &maxSize,
+			MinSize:        &minSizePointer,
+			MaxSize:        &maxSizePointer,
 			EnforceMaxSize: &enforceMaxSize,
 		},
 	})
@@ -222,7 +246,8 @@ func TestInstanceGroupServiceCRUD(t *testing.T) {
 		},
 		Capacity: &InstanceGroupCapacityRequest{
 			Reserved:       &reserved,
-			MaxSize:        &maxSize,
+			MinSize:        new(*int),
+			MaxSize:        &maxSizePointer,
 			EnforceMaxSize: &enforceMaxSize,
 		},
 	})
@@ -233,6 +258,55 @@ func TestInstanceGroupServiceCRUD(t *testing.T) {
 
 	if err := client.InstanceGroups.Delete(ctx, "group_123"); err != nil {
 		t.Fatalf("Delete: %v", err)
+	}
+}
+
+func TestInstanceGroupServiceUpdateOnlySendsProvidedFields(t *testing.T) {
+	name := "renamed-group"
+	sshKeyIDs := []string{"key_b"}
+	tests := []struct {
+		name     string
+		req      UpdateInstanceGroupRequest
+		wantBody string
+	}{
+		{
+			name:     "name only",
+			req:      UpdateInstanceGroupRequest{Name: &name},
+			wantBody: `{"name":"renamed-group"}`,
+		},
+		{
+			name: "template only",
+			req: UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{
+				SSHKeyIDs: &sshKeyIDs,
+			}},
+			wantBody: `{"template":{"ssh_key_ids":["key_b"]}}`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mockServer := testutil.NewMockServer()
+			defer mockServer.Close()
+			client := NewTestClient(t, mockServer)
+			mockServer.SetHandler(http.MethodPatch, instanceGroupsBasePath+"/group_123", func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Errorf("read update request: %v", err)
+				}
+				if string(body) != test.wantBody {
+					t.Errorf("update body = %s, want %s", body, test.wantBody)
+				}
+				writeTestInstanceGroupResponse(t, w, http.StatusOK, testInstanceGroupResponseJSON)
+			})
+
+			group, err := client.InstanceGroups.Update(t.Context(), "group_123", test.req)
+			if err != nil {
+				t.Fatalf("Update: %v", err)
+			}
+			if group.ID != "group_123" {
+				t.Errorf("group ID = %q, want group_123", group.ID)
+			}
+		})
 	}
 }
 
@@ -283,6 +357,12 @@ func TestInstanceGroupServiceValidatesBeforeRequest(t *testing.T) {
 	if _, err := client.InstanceGroups.Update(t.Context(), "group_123", UpdateInstanceGroupRequest{Name: &emptyName}); err == nil {
 		t.Error("Update with an empty name succeeded, want validation error")
 	}
+	if _, err := client.InstanceGroups.Update(t.Context(), "group_123", UpdateInstanceGroupRequest{Capacity: &InstanceGroupCapacityRequest{}}); err == nil {
+		t.Error("Update with an empty capacity succeeded, want validation error")
+	}
+	if _, err := client.InstanceGroups.Update(t.Context(), "group_123", UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{}}); err == nil {
+		t.Error("Update with an empty template succeeded, want validation error")
+	}
 	if got := requests.Load(); got != 0 {
 		t.Errorf("invalid requests reached HTTP %d times, want 0", got)
 	}
@@ -323,8 +403,11 @@ func TestInstanceGroupValidation(t *testing.T) {
 		return r
 	}
 	zero, negative, one := 0, -1, 1
+	zeroPointer, negativePointer, onePointer := &zero, &negative, &one
 	empty := ""
 	emptyPointer := &empty
+	disabled := false
+	emptySSHKeys := []string{}
 
 	runValidateCases(t, []validateCase{
 		{"create valid", valid, ""},
@@ -351,19 +434,30 @@ func TestInstanceGroupValidation(t *testing.T) {
 		{"create startup script empty", with(func(r *CreateInstanceGroupRequest) {
 			r.Template.StartupScriptID = &empty
 		}), "template: (startup_script_id: cannot be blank.)."},
+		{"create capacity empty", with(func(r *CreateInstanceGroupRequest) {
+			r.Capacity = &InstanceGroupCapacityRequest{}
+		}), "capacity: at least one field must be set."},
 		{"create capacity negative", with(func(r *CreateInstanceGroupRequest) {
 			r.Capacity = &InstanceGroupCapacityRequest{Reserved: &negative}
 		}), "capacity: (reserved: must be no less than 0.)."},
 		{"create capacity incoherent", with(func(r *CreateInstanceGroupRequest) {
-			r.Capacity = &InstanceGroupCapacityRequest{Reserved: &one, MaxSize: &zero}
+			r.Capacity = &InstanceGroupCapacityRequest{Reserved: &one, MaxSize: &zeroPointer}
 		}), "capacity: max_size must be greater than or equal to reserved and min_size."},
-		{"capacity explicit zeros", InstanceGroupCapacityRequest{Reserved: &zero, MinSize: &zero, MaxSize: &zero}, ""},
-		{"capacity reserved above max", InstanceGroupCapacityRequest{Reserved: &one, MaxSize: &zero}, "max_size must be greater than or equal to reserved and min_size"},
-		{"capacity min above max", InstanceGroupCapacityRequest{MinSize: &one, MaxSize: &zero}, "max_size must be greater than or equal to reserved and min_size"},
+		{"capacity empty", InstanceGroupCapacityRequest{}, "at least one field must be set"},
+		{"capacity explicit zeros", InstanceGroupCapacityRequest{Reserved: &zero, MinSize: &zeroPointer, MaxSize: &zeroPointer}, ""},
+		{"capacity null bounds", InstanceGroupCapacityRequest{MinSize: new(*int), MaxSize: new(*int)}, ""},
+		{"capacity explicit false", InstanceGroupCapacityRequest{EnforceMaxSize: &disabled}, ""},
+		{"capacity min negative", InstanceGroupCapacityRequest{MinSize: &negativePointer}, "min_size: must be no less than 0."},
+		{"capacity max negative", InstanceGroupCapacityRequest{MaxSize: &negativePointer}, "max_size: must be no less than 0."},
+		{"capacity reserved above max", InstanceGroupCapacityRequest{Reserved: &one, MaxSize: &zeroPointer}, "max_size must be greater than or equal to reserved and min_size"},
+		{"capacity min above max", InstanceGroupCapacityRequest{MinSize: &onePointer, MaxSize: &zeroPointer}, "max_size must be greater than or equal to reserved and min_size"},
 		{"update empty is valid", UpdateInstanceGroupRequest{}, ""},
+		{"update capacity empty", UpdateInstanceGroupRequest{Capacity: &InstanceGroupCapacityRequest{}}, "capacity: at least one field must be set."},
+		{"update template empty", UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{}}, "template: at least one field must be set."},
 		{"update name empty", UpdateInstanceGroupRequest{Name: &empty}, "name: cannot be blank."},
 		{"update description clear", UpdateInstanceGroupRequest{Description: new(*string)}, ""},
 		{"update startup script clear", UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{StartupScriptID: new(*string)}}, ""},
+		{"update SSH keys clear", UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{SSHKeyIDs: &emptySSHKeys}}, ""},
 		{"update startup script empty", UpdateInstanceGroupRequest{Template: &UpdateInstanceGroupTemplateRequest{StartupScriptID: &emptyPointer}}, "template: (startup_script_id: cannot be blank.)."},
 	})
 }
