@@ -67,16 +67,14 @@ type InferenceModel struct {
 	Code string `json:"code"`
 	Slug string `json:"slug"`
 	// EndpointModel is the value to send as `model` in inference requests.
-	EndpointModel          string `json:"endpoint_model"`
-	Name                   string `json:"name"`
-	ProviderID             string `json:"provider_id"`
-	ProviderName           string `json:"provider_name"`
-	Category               string `json:"category"`
-	Status                 string `json:"status"`
-	AcceptNewSubscriptions bool   `json:"accept_new_subscriptions"`
-	IsFree                 bool   `json:"is_free"`
-	// DiscountToUser is the fraction of the published price charged, below 1.
-	DiscountToUser              *float64 `json:"discount_to_user,omitempty"`
+	EndpointModel               string   `json:"endpoint_model"`
+	Name                        string   `json:"name"`
+	ProviderID                  string   `json:"provider_id"`
+	ProviderName                string   `json:"provider_name"`
+	Category                    string   `json:"category"`
+	Status                      string   `json:"status"`
+	AcceptNewSubscriptions      bool     `json:"accept_new_subscriptions"`
+	IsFree                      bool     `json:"is_free"`
 	DashboardPriority           *int     `json:"dashboard_priority"`
 	Tagline                     *string  `json:"tagline"`
 	Description                 *string  `json:"description"`

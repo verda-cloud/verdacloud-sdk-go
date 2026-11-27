@@ -175,11 +175,11 @@ func TestInferenceSubscriptionLifecycleIntegration(t *testing.T) {
 	code := models[i].Code
 
 	sub, err := client.Inference.Subscribe(ctx, code, tier)
-	switch inferenceAPIStatus(err) {
-	case 0:
-	case http.StatusPaymentRequired, http.StatusForbidden, http.StatusConflict:
-		t.Skipf("cannot subscribe to %s: %v", code, err)
-	default:
+	if err != nil {
+		switch inferenceAPIStatus(err) {
+		case http.StatusPaymentRequired, http.StatusForbidden, http.StatusConflict:
+			t.Skipf("cannot subscribe to %s: %v", code, err)
+		}
 		t.Fatalf("failed to subscribe to %s: %v", code, err)
 	}
 	cancelled := false

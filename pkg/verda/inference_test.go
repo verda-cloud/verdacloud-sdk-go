@@ -147,9 +147,8 @@ func TestInferenceService_GetModel(t *testing.T) {
 	})
 
 	t.Run("rejects an empty code", func(t *testing.T) {
-		if _, err := client.Inference.GetModel(context.Background(), ""); err == nil {
-			t.Error("expected an error for an empty code")
-		}
+		_, err := client.Inference.GetModel(context.Background(), "")
+		assertRejectedBeforeRequest(t, err)
 	})
 }
 
@@ -244,18 +243,14 @@ func TestInferenceService_Subscriptions(t *testing.T) {
 	})
 
 	t.Run("rejects an unknown service tier before the request", func(t *testing.T) {
-		if _, err := client.Inference.Subscribe(ctx, "kimi-k3", "premium"); err == nil {
-			t.Error("expected an error for an unknown service tier")
-		}
-		if err := client.Inference.Unsubscribe(ctx, "kimi-k3", ""); err == nil {
-			t.Error("expected an error for an empty service tier")
-		}
+		_, err := client.Inference.Subscribe(ctx, "kimi-k3", "premium")
+		assertRejectedBeforeRequest(t, err)
+		assertRejectedBeforeRequest(t, client.Inference.Unsubscribe(ctx, "kimi-k3", ""))
 	})
 
 	t.Run("rejects a model code that is not one path segment", func(t *testing.T) {
-		if _, err := client.Inference.Subscribe(ctx, "..", InferenceServiceTierStandard); err == nil {
-			t.Error("expected an error for a dot-segment model code")
-		}
+		_, err := client.Inference.Subscribe(ctx, "..", InferenceServiceTierStandard)
+		assertRejectedBeforeRequest(t, err)
 	})
 }
 
@@ -426,9 +421,8 @@ func TestInferenceService_APIKeys(t *testing.T) {
 
 	t.Run("create validates the label", func(t *testing.T) {
 		for _, req := range []*CreateInferenceAPIKeyRequest{nil, {}, {Label: strings.Repeat("x", 129)}} {
-			if _, err := client.Inference.CreateAPIKey(ctx, req); err == nil {
-				t.Errorf("expected an error for %+v", req)
-			}
+			_, err := client.Inference.CreateAPIKey(ctx, req)
+			assertRejectedBeforeRequest(t, err)
 		}
 		if err := (CreateInferenceAPIKeyRequest{Label: strings.Repeat("ä", 128)}).Validate(); err != nil {
 			t.Errorf("128 characters should be accepted: %v", err)
@@ -453,9 +447,7 @@ func TestInferenceService_APIKeys(t *testing.T) {
 
 	t.Run("delete refuses ids that are not one safe path segment", func(t *testing.T) {
 		for _, id := range []string{"", "..", "a/b", "a.b", strings.Repeat("a", 65)} {
-			if err := client.Inference.DeleteAPIKey(ctx, id); err == nil {
-				t.Errorf("expected an error for id %q", id)
-			}
+			assertRejectedBeforeRequest(t, client.Inference.DeleteAPIKey(ctx, id))
 		}
 	})
 }
@@ -494,5 +486,16 @@ func TestCreatedInferenceAPIKey_FormatRedactsKey(t *testing.T) {
 	}
 	if !strings.Contains(string(body), secret) {
 		t.Errorf("JSON must keep the key for callers that store it, got %s", body)
+	}
+}
+
+// assertRejectedBeforeRequest fails unless err is a client-side validation error.
+// The mock server answers unknown paths with an APIError, so a request that was
+// sent anyway does not pass as a rejection.
+func assertRejectedBeforeRequest(t *testing.T, err error) {
+	t.Helper()
+	var apiErr *APIError
+	if err == nil || errors.As(err, &apiErr) {
+		t.Errorf("expected a validation error before the request, got %v", err)
 	}
 }
