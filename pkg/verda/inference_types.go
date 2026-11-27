@@ -15,6 +15,7 @@
 package verda
 
 import (
+	"errors"
 	"time"
 
 	validation "github.com/go-ozzo/ozzo-validation/v4"
@@ -69,7 +70,7 @@ type InferenceModel struct {
 	Status                 string `json:"status"`
 	AcceptNewSubscriptions bool   `json:"accept_new_subscriptions"`
 	IsFree                 bool   `json:"is_free"`
-	// DiscountToUser is a percentage.
+	// DiscountToUser is the fraction of the published price charged, below 1.
 	DiscountToUser              *float64 `json:"discount_to_user,omitempty"`
 	DashboardPriority           *int     `json:"dashboard_priority"`
 	Tagline                     *string  `json:"tagline"`
@@ -89,11 +90,12 @@ type InferenceModel struct {
 	CreatedAt          time.Time                     `json:"created_at"`
 	UpdatedAt          time.Time                     `json:"updated_at"`
 	// ContextLength and MaxOutputLength are in tokens.
-	ContextLength          *int64                     `json:"context_length,omitempty"`
-	MaxOutputLength        *int64                     `json:"max_output_length,omitempty"`
-	Quantization           *string                    `json:"quantization,omitempty"`
-	CapacityTPM            *int64                     `json:"capacity_tpm,omitempty"`
-	CapacityRPM            *int64                     `json:"capacity_rpm,omitempty"`
+	ContextLength   *int64  `json:"context_length,omitempty"`
+	MaxOutputLength *int64  `json:"max_output_length,omitempty"`
+	Quantization    *string `json:"quantization,omitempty"`
+	CapacityTPM     *int64  `json:"capacity_tpm,omitempty"`
+	CapacityRPM     *int64  `json:"capacity_rpm,omitempty"`
+	// Deprecated: Use CapacityRPM, which has the same value.
 	RequestRateLimitPerMin *int64                     `json:"request_rate_limit_per_min"`
 	Datacenters            []InferenceModelDatacenter `json:"datacenters,omitempty"`
 	// TotalParametersB and ActiveParametersB are in billions.
@@ -294,18 +296,33 @@ type InferenceUsageRange struct {
 
 // GetInferenceUsageOptions filters GetUsage. Every field is optional.
 type GetInferenceUsageOptions struct {
-	// Start and End bound the range; the API picks a default range for zero values.
+	// Start (inclusive) and End (exclusive) bound the range, at most 31 days
+	// long; they are sent with second precision. A zero End means now, and a
+	// zero Start means 30 days before End.
 	Start time.Time
 	End   time.Time
 	// APIKeyID limits usage to one inference API key.
 	APIKeyID string
 }
 
+// inferenceUsageMaxRange is the longest range GetUsage accepts.
+const inferenceUsageMaxRange = 31 * 24 * time.Hour
+
 // Validate validates the GetInferenceUsageOptions fields
 func (opts GetInferenceUsageOptions) Validate() error {
 	return validation.ValidateStruct(&opts,
 		validation.Field(&opts.End, validation.When(!opts.Start.IsZero() && !opts.End.IsZero(),
-			validation.Min(opts.Start).Error("must not be before start"))),
+			validation.By(func(any) error {
+				// Compare what is sent, so a sub-second range is not accepted here and refused by the API
+				start, end := opts.Start.Truncate(time.Second), opts.End.Truncate(time.Second)
+				if !end.After(start) {
+					return errors.New("must be after start")
+				}
+				if end.Sub(start) > inferenceUsageMaxRange {
+					return errors.New("must be at most 31 days after start")
+				}
+				return nil
+			}))),
 	)
 }
 

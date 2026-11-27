@@ -302,14 +302,30 @@ func TestInferenceService_GetUsage(t *testing.T) {
 		}
 	})
 
-	t.Run("rejects an end before the start", func(t *testing.T) {
-		_, err := client.Inference.GetUsage(ctx, &GetInferenceUsageOptions{
-			Start: time.Date(2026, 9, 15, 0, 0, 0, 0, time.UTC),
-			End:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+	start := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	for name, end := range map[string]time.Time{
+		"an end before the start":     start.AddDate(0, 0, -1),
+		"an end equal to the start":   start,
+		"an end in the same second":   start.Add(500 * time.Millisecond),
+		"a range longer than 31 days": start.Add(inferenceUsageMaxRange + time.Second),
+	} {
+		t.Run("rejects "+name, func(t *testing.T) {
+			query = "not requested"
+			_, err := client.Inference.GetUsage(ctx, &GetInferenceUsageOptions{Start: start, End: end})
+			var verrs validation.Errors
+			if !errors.As(err, &verrs) || verrs["End"] == nil {
+				t.Errorf("expected a validation error for End, got %v", err)
+			}
+			if query != "not requested" {
+				t.Errorf("expected no request, got query %q", query)
+			}
 		})
-		var verrs validation.Errors
-		if !errors.As(err, &verrs) || verrs["End"] == nil {
-			t.Errorf("expected a validation error for End, got %v", err)
+	}
+
+	t.Run("accepts a range of exactly 31 days", func(t *testing.T) {
+		_, err := client.Inference.GetUsage(ctx, &GetInferenceUsageOptions{Start: start, End: start.Add(inferenceUsageMaxRange)})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 }
