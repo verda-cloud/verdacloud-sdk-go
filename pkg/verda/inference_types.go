@@ -17,6 +17,8 @@ package verda
 import (
 	"errors"
 	"fmt"
+	"io"
+	"regexp"
 	"slices"
 	"strings"
 	"time"
@@ -333,6 +335,81 @@ func validateInferenceServiceTier(serviceTier string) error {
 	}
 	if !slices.Contains(InferenceServiceTiers, serviceTier) {
 		return fmt.Errorf("serviceTier must be one of %s", strings.Join(InferenceServiceTiers, ", "))
+	}
+	return nil
+}
+
+// inferenceAPIKeyIDPattern is the id format the API accepts; it keeps the id a single path segment.
+var inferenceAPIKeyIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
+
+// InferenceAPIKey is a key for inference requests, sent as `Authorization: Bearer <key>`.
+type InferenceAPIKey struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	// MaskedKey shows only the first and last characters of the key.
+	MaskedKey string    `json:"masked_key"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// CreatedInferenceAPIKey is a new key with its plaintext. The API returns
+// Key only once; formatting the value with fmt redacts it.
+type CreatedInferenceAPIKey struct {
+	InferenceAPIKey
+	Key string `json:"key"`
+}
+
+// String returns the key record with Key redacted.
+func (k CreatedInferenceAPIKey) String() string {
+	return fmt.Sprintf("%+v", k.redacted())
+}
+
+// GoString is String in Go syntax, as used by %#v.
+func (k CreatedInferenceAPIKey) GoString() string {
+	s := fmt.Sprintf("%#v", k.redacted())
+	return "verda.CreatedInferenceAPIKey" + strings.TrimPrefix(s, "verda.redactedCreatedInferenceAPIKey")
+}
+
+// Format implements fmt.Formatter so that every valid verb prints the record
+// with Key redacted. Malformed directives are handled by fmt before Format runs.
+func (k CreatedInferenceAPIKey) Format(f fmt.State, verb rune) {
+	var s string
+	switch {
+	case verb == 'v' && f.Flag('#'):
+		s = k.GoString()
+	case verb == 'v' || verb == 's':
+		s = k.String()
+	default:
+		s = fmt.Sprintf(fmt.FormatString(f, verb), k.redacted())
+	}
+	_, _ = io.WriteString(f, s) //nolint:errcheck // fmt.Formatter has no error return; fmt records write errors itself
+}
+
+// redactedCreatedInferenceAPIKey has no fmt methods, so fmt prints its fields.
+type redactedCreatedInferenceAPIKey CreatedInferenceAPIKey
+
+func (k CreatedInferenceAPIKey) redacted() redactedCreatedInferenceAPIKey {
+	if k.Key != "" {
+		k.Key = "[REDACTED]"
+	}
+	return redactedCreatedInferenceAPIKey(k)
+}
+
+// CreateInferenceAPIKeyRequest is the body of POST /inference/api-keys.
+type CreateInferenceAPIKeyRequest struct {
+	// Label names the key in listings; 1 to 128 characters.
+	Label string `json:"label"`
+}
+
+// Validate validates the CreateInferenceAPIKeyRequest fields
+func (r CreateInferenceAPIKeyRequest) Validate() error {
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.Label, validation.Required, validation.RuneLength(1, 128)),
+	)
+}
+
+func validateInferenceAPIKeyID(id string) error {
+	if !inferenceAPIKeyIDPattern.MatchString(id) {
+		return fmt.Errorf("apiKeyID %q is not an inference API key ID", id)
 	}
 	return nil
 }

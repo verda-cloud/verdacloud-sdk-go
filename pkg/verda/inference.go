@@ -16,6 +16,7 @@ package verda
 
 import (
 	"context"
+	"errors"
 	"net/url"
 	"time"
 )
@@ -140,6 +141,40 @@ func (s *InferenceService) ListTiers(ctx context.Context) ([]InferenceTier, erro
 		return nil, err
 	}
 	return tiers, nil
+}
+
+// ListAPIKeys returns the project's inference API keys, masked.
+func (s *InferenceService) ListAPIKeys(ctx context.Context) ([]InferenceAPIKey, error) {
+	keys, _, err := getRequest[[]InferenceAPIKey](ctx, s.client, inferenceBasePath+"/api-keys")
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
+}
+
+// CreateAPIKey creates an inference API key. The returned Key is the only
+// copy of the plaintext; the API cannot return it again.
+func (s *InferenceService) CreateAPIKey(ctx context.Context, req *CreateInferenceAPIKeyRequest) (*CreatedInferenceAPIKey, error) {
+	if req == nil {
+		return nil, errors.New("request must not be nil")
+	}
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
+	key, _, err := postRequest[CreatedInferenceAPIKey](ctx, s.client, inferenceBasePath+"/api-keys", req)
+	if err != nil {
+		return nil, err
+	}
+	return &key, nil
+}
+
+// DeleteAPIKey deletes an inference API key; requests made with it are rejected afterwards.
+func (s *InferenceService) DeleteAPIKey(ctx context.Context, apiKeyID string) error {
+	if err := validateInferenceAPIKeyID(apiKeyID); err != nil {
+		return err
+	}
+	_, err := deleteRequestAllowEmptyResponse(ctx, s.client, inferenceBasePath+"/api-keys/"+apiKeyID)
+	return err
 }
 
 func subscriptionPath(modelCode, serviceTier string) (string, error) {

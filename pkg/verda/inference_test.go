@@ -16,8 +16,11 @@ package verda
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -362,6 +365,127 @@ func writeInferenceJSON(t *testing.T, w http.ResponseWriter, body string) {
 	w.Header().Set("Content-Type", "application/json")
 	if _, err := w.Write([]byte(body)); err != nil {
 		t.Errorf("write mock response: %v", err)
+	}
+}
+
+func TestInferenceService_APIKeys(t *testing.T) {
+	mockServer := testutil.NewMockServer()
+	defer mockServer.Close()
+	client := NewTestClient(t, mockServer)
+
+	mockServer.SetHandler(http.MethodGet, "/inference/api-keys", func(w http.ResponseWriter, _ *http.Request) {
+		writeInferenceJSON(t, w, `[{"id": "key_1", "label": "my-agent", "masked_key": "dcs_53dc...833b", "created_at": "2026-11-18T10:00:00.000Z"}]`)
+	})
+	var createdLabel string
+	mockServer.SetHandler(http.MethodPost, "/inference/api-keys", func(w http.ResponseWriter, r *http.Request) {
+		var body CreateInferenceAPIKeyRequest
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		createdLabel = body.Label
+		w.WriteHeader(http.StatusCreated)
+		writeInferenceJSON(t, w, `{"id": "key_2", "label": "`+body.Label+`", "masked_key": "dcs_aaaa...bbbb", "created_at": "2026-11-18T10:05:00.000Z", "key": "dcs_aaaa-secret-bbbb"}`)
+	})
+	var deleted bool
+	mockServer.SetHandler(http.MethodDelete, "/inference/api-keys/key_2", func(w http.ResponseWriter, _ *http.Request) {
+		deleted = true
+		w.WriteHeader(http.StatusNoContent)
+	})
+	mockServer.SetHandler(http.MethodDelete, "/inference/api-keys/gone", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"code": "not_found", "message": "api key not found"}`))
+	})
+
+	ctx := context.Background()
+
+	t.Run("list", func(t *testing.T) {
+		keys, err := client.Inference.ListAPIKeys(ctx)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(keys) != 1 || keys[0].MaskedKey != "dcs_53dc...833b" || keys[0].CreatedAt.IsZero() {
+			t.Errorf("unexpected keys: %+v", keys)
+		}
+	})
+
+	t.Run("create returns the plaintext once", func(t *testing.T) {
+		key, err := client.Inference.CreateAPIKey(ctx, &CreateInferenceAPIKeyRequest{Label: "verda-cli opencode"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if createdLabel != "verda-cli opencode" || key.ID != "key_2" || key.Key != "dcs_aaaa-secret-bbbb" {
+			t.Errorf("unexpected created key: id=%s label=%s", key.ID, createdLabel)
+		}
+	})
+
+	t.Run("create validates the label", func(t *testing.T) {
+		for _, req := range []*CreateInferenceAPIKeyRequest{nil, {}, {Label: strings.Repeat("x", 129)}} {
+			_, err := client.Inference.CreateAPIKey(ctx, req)
+			assertRejectedBeforeRequest(t, err)
+		}
+		if err := (CreateInferenceAPIKeyRequest{Label: strings.Repeat("ä", 128)}).Validate(); err != nil {
+			t.Errorf("128 characters should be accepted: %v", err)
+		}
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		if err := client.Inference.DeleteAPIKey(ctx, "key_2"); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !deleted {
+			t.Error("expected DELETE to reach the server")
+		}
+	})
+
+	t.Run("delete of a missing key surfaces 404", func(t *testing.T) {
+		var apiErr *APIError
+		if err := client.Inference.DeleteAPIKey(ctx, "gone"); !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusNotFound {
+			t.Errorf("expected a 404 APIError, got %v", err)
+		}
+	})
+
+	t.Run("delete refuses ids that are not one safe path segment", func(t *testing.T) {
+		for _, id := range []string{"", "..", "a/b", "a.b", strings.Repeat("a", 65)} {
+			assertRejectedBeforeRequest(t, client.Inference.DeleteAPIKey(ctx, id))
+		}
+	})
+}
+
+func TestCreatedInferenceAPIKey_FormatRedactsKey(t *testing.T) {
+	const secret = "dcs_PLAINTEXT-SECRET"
+	key := CreatedInferenceAPIKey{InferenceAPIKey: InferenceAPIKey{ID: "key_1", Label: "agent"}, Key: secret}
+
+	outputs := map[string]string{
+		"%v value":   fmt.Sprintf("%v", key),
+		"%+v value":  fmt.Sprintf("%+v", key),
+		"%#v value":  fmt.Sprintf("%#v", key),
+		"%s value":   fmt.Sprintf("%s", key),
+		"%v pointer": fmt.Sprintf("%v", &key),
+		"%v slice":   fmt.Sprintf("%v", []CreatedInferenceAPIKey{key}),
+		"%v wrapped": fmt.Errorf("failed: %v", key).Error(),
+		"%q value":   fmt.Sprintf("%q", key),
+		"%x value":   fmt.Sprintf("%x", key),
+	}
+	hexSecret := fmt.Sprintf("%x", secret)
+	for name, out := range outputs {
+		if strings.Contains(out, secret) || strings.Contains(out, hexSecret) {
+			t.Errorf("%s leaks the key: %s", name, out)
+		}
+		if name != "%x value" && (!strings.Contains(out, "key_1") || !strings.Contains(out, "[REDACTED]")) {
+			t.Errorf("%s should show the ID and a redaction marker, got: %s", name, out)
+		}
+	}
+	if got := fmt.Sprintf("%#v", key); !strings.HasPrefix(got, "verda.CreatedInferenceAPIKey{") {
+		t.Errorf("%%#v should name the public type, got %s", got)
+	}
+
+	body, err := json.Marshal(key)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(body), secret) {
+		t.Errorf("JSON must keep the key for callers that store it, got %s", body)
 	}
 }
 

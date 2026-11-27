@@ -475,7 +475,16 @@ usage, err := client.Inference.GetUsage(ctx, &verda.GetInferenceUsageOptions{
 })
 
 limits, err := client.Inference.GetRateLimits(ctx)
+
+// API keys for inference requests (Authorization: Bearer <key>)
+key, err := client.Inference.CreateAPIKey(ctx, &verda.CreateInferenceAPIKeyRequest{Label: "my-agent"})
+// key.Key is the only copy of the plaintext; store it now
+keys, err := client.Inference.ListAPIKeys(ctx) // masked
+err = client.Inference.DeleteAPIKey(ctx, key.ID)
 ```
+
+`CreatedInferenceAPIKey` redacts `Key` when printed with `fmt`, and debug logging skips
+`/inference/api-keys` requests. JSON encoding keeps the key.
 
 ### Other Services
 
