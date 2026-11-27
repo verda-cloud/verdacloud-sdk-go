@@ -16,9 +16,12 @@ package verda
 
 import (
 	"errors"
+	"fmt"
+	"slices"
+	"strings"
 	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 )
 
 // Service tiers an inference model can be subscribed to and called in.
@@ -327,16 +330,11 @@ func (opts GetInferenceUsageOptions) Validate() error {
 }
 
 func validateInferenceServiceTier(serviceTier string) error {
-	return validation.Validate(serviceTier,
-		validation.Required.Error("serviceTier must not be empty"),
-		validation.In(stringsToAny(InferenceServiceTiers)...).Error("serviceTier must be one of standard, flex, batch, fast"),
-	)
-}
-
-func stringsToAny(values []string) []any {
-	out := make([]any, len(values))
-	for i, v := range values {
-		out[i] = v
+	if serviceTier == "" {
+		return errors.New("serviceTier must not be empty")
 	}
-	return out
+	if !slices.Contains(InferenceServiceTiers, serviceTier) {
+		return fmt.Errorf("serviceTier must be one of %s", strings.Join(InferenceServiceTiers, ", "))
+	}
+	return nil
 }

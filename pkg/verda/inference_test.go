@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	validation "github.com/go-ozzo/ozzo-validation/v4"
+	validation "github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/internal/validation"
 
 	"github.com/verda-cloud/verdacloud-sdk-go/pkg/verda/testutil"
 )
