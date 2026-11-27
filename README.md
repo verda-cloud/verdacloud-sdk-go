@@ -458,6 +458,25 @@ err = client.ManagedKubernetes.Delete(ctx, "FIN-03", "my-cluster")
 and leaves kubeconfig responses out of debug logs. Deleting a kubeconfig does not revoke copies already
 downloaded; they work until the certificate expires.
 
+### Inference
+
+Verda Inference serves models through an OpenAI-compatible API. The SDK manages the project side:
+the model catalog, subscriptions, usage and rate limits. Routes other than `ListTiers` answer 404
+while inference is not enabled for the project.
+
+```go
+models, err := client.Inference.ListModels(ctx)
+// models[i].EndpointModel is the `model` value for inference requests
+
+sub, err := client.Inference.Subscribe(ctx, "kimi-k3", verda.InferenceServiceTierStandard)
+
+usage, err := client.Inference.GetUsage(ctx, &verda.GetInferenceUsageOptions{
+    Start: time.Now().AddDate(0, 0, -7),
+})
+
+limits, err := client.Inference.GetRateLimits(ctx)
+```
+
 ### Other Services
 
 ```go
